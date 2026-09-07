@@ -229,11 +229,15 @@ export function createVectorStyle(p: ThemeColors): StyleSpecification {
           "fill-extrusion-color": p.buildings,
           "fill-extrusion-height": [
             "coalesce",
-            ["get", "render_height"],
-            ["get", "height"],
-            12,
+            ["to-number", ["get", "render_height"]],
+            ["to-number", ["get", "height"]],
+            10,
           ],
-          "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
+          "fill-extrusion-base": [
+            "coalesce",
+            ["to-number", ["get", "render_min_height"]],
+            0,
+          ],
           "fill-extrusion-opacity": 0.85,
         },
       },
@@ -528,8 +532,17 @@ export function createRasterStyle(
   };
 }
 
-export function getMapStyle(themeName: string): StyleSpecification {
+export function getMapStyle(themeName: string): StyleSpecification | string {
   switch (themeName) {
+    case "Liberty":
+    case "OpenFreeMap Liberty":
+      return "https://tiles.openfreemap.org/styles/liberty";
+    case "Bright":
+    case "OpenFreeMap Bright":
+      return "https://tiles.openfreemap.org/styles/bright";
+    case "Positron":
+    case "OpenFreeMap Positron":
+      return "https://tiles.openfreemap.org/styles/positron";
     case "Midnight Blue":
       return createVectorStyle(THEMES["Midnight Blue"]);
     case "Monochrome":
@@ -553,12 +566,14 @@ export function getMapStyle(themeName: string): StyleSpecification {
         "#000000"
       );
     case "OSM":
+    case "OpenStreetMap":
       return createRasterStyle(
         ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
         "#f2efe9",
         19
       );
     case "Satellite":
+    case "ESRI World Imagery":
       return createRasterStyle(
         [
           "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
@@ -570,3 +585,4 @@ export function getMapStyle(themeName: string): StyleSpecification {
       return createVectorStyle(THEMES["Midnight Blue"]);
   }
 }
+

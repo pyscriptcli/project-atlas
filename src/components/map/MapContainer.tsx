@@ -21,6 +21,7 @@ export function MapContainer() {
     addFeature,
     setSelectedFeatureId,
     showToast,
+    is3D,
   } = useMapStore();
 
   // Drawing state
@@ -40,6 +41,134 @@ export function MapContainer() {
     lngLat: [number, number];
   } | null>(null);
 
+  // Basemap ref to avoid redundant/premature setStyle calls on mount
+  const currentBasemapRef = useRef(currentProject.basemap);
+
+  // Feature Click Handler
+  const handleFeatureClick = (e: maplibregl.MapLayerMouseEvent) => {
+    if (activeTool !== "select") return;
+    const feat = e.features?.[0];
+    if (feat && feat.properties?.id) {
+      setSelectedFeatureId(feat.properties.id);
+      showToast(`Selected: ${feat.properties.name || feat.properties.id}`);
+    }
+  };
+
+  // Setup GeoJSON layers for custom drawings & POIs
+  const setupFeatureLayers = (map: maplibregl.Map) => {
+    if (map.getSource("atlas-features")) {
+      updateFeaturesSource(map, currentProject.features);
+      return;
+    }
+
+    map.addSource("atlas-features", {
+      type: "geojson",
+      data: {
+        type: "FeatureCollection",
+        features: currentProject.features as any,
+      },
+    });
+
+    // 1. Polygon Fill
+    if (!map.getLayer("atlas-polygons-fill")) {
+      map.addLayer({
+        id: "atlas-polygons-fill",
+        type: "fill",
+        source: "atlas-features",
+        filter: ["==", ["geometry-type"], "Polygon"],
+        paint: {
+          "fill-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#3b82f6"],
+          "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.25],
+        },
+      });
+    }
+
+    // 2. Polygon & Line Outline
+    if (!map.getLayer("atlas-lines")) {
+      map.addLayer({
+        id: "atlas-lines",
+        type: "line",
+        source: "atlas-features",
+        filter: [
+          "match",
+          ["geometry-type"],
+          ["LineString", "Polygon"],
+          true,
+          false,
+        ],
+        paint: {
+          "line-color": [
+            "coalesce",
+            ["get", "strokeColor"],
+            ["get", "color"],
+            "#2563eb",
+          ],
+          "line-width": ["coalesce", ["get", "strokeWidth"], 2.5],
+          "line-opacity": ["coalesce", ["get", "strokeOpacity"], 0.9],
+        },
+      });
+    }
+
+    // 3. Points (Markers & POIs)
+    if (!map.getLayer("atlas-points")) {
+      map.addLayer({
+        id: "atlas-points",
+        type: "circle",
+        source: "atlas-features",
+        filter: ["==", ["geometry-type"], "Point"],
+        paint: {
+          "circle-radius": 7,
+          "circle-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#ef4444"],
+          "circle-stroke-width": 2,
+          "circle-stroke-color": "#ffffff",
+        },
+      });
+    }
+
+    // 4. Labels & Text
+    if (!map.getLayer("atlas-labels")) {
+      map.addLayer({
+        id: "atlas-labels",
+        type: "symbol",
+        source: "atlas-features",
+        layout: {
+          "text-field": ["coalesce", ["get", "name"], ""],
+          "text-size": 11,
+          "text-offset": [0, 1.2],
+          "text-anchor": "top",
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "#000000",
+          "text-halo-width": 1.5,
+        },
+      });
+    }
+
+    // Feature Click Handlers - remove existing before adding
+    map.off("click", "atlas-polygons-fill", handleFeatureClick);
+    map.off("click", "atlas-lines", handleFeatureClick);
+    map.off("click", "atlas-points", handleFeatureClick);
+
+    map.on("click", "atlas-polygons-fill", handleFeatureClick);
+    map.on("click", "atlas-lines", handleFeatureClick);
+    map.on("click", "atlas-points", handleFeatureClick);
+
+    // Hover cursors
+    map.on("mouseenter", "atlas-points", () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", "atlas-points", () => {
+      map.getCanvas().style.cursor = "";
+    });
+    map.on("mouseenter", "atlas-polygons-fill", () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+    map.on("mouseleave", "atlas-polygons-fill", () => {
+      map.getCanvas().style.cursor = "";
+    });
+  };
+
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -54,12 +183,17 @@ export function MapContainer() {
       pitch: currentProject.pitch,
       bearing: currentProject.bearing,
       attributionControl: false,
+      fadeDuration: 0,
     });
 
     map.addControl(
       new maplibregl.NavigationControl({ visualizePitch: true }),
       "bottom-right"
     );
+
+    map.on("error", (e) => {
+      console.warn("MapLibre GL Event Error:", e);
+    });
 
     map.on("moveend", () => {
       const c = map.getCenter();
@@ -74,36 +208,61 @@ export function MapContainer() {
       });
     });
 
-    map.on("click", (e) => {
+    map.on("click", () => {
       setContextMenu(null);
     });
 
     map.on("load", () => {
       setupFeatureLayers(map);
       syncLayersVisibility(map, currentProject.layer_visibilities);
+      map.resize();
     });
+
+    // Resize handling for clean rendering
+    const resizeTimer = setTimeout(() => {
+      if (mapRef.current) {
+        mapRef.current.resize();
+      }
+    }, 250);
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (mapContainerRef.current && typeof ResizeObserver !== "undefined") {
+      resizeObserver = new ResizeObserver(() => {
+        if (mapRef.current) {
+          mapRef.current.resize();
+        }
+      });
+      resizeObserver.observe(mapContainerRef.current);
+    }
 
     mapRef.current = map;
 
     return () => {
+      clearTimeout(resizeTimer);
+      if (resizeObserver) resizeObserver.disconnect();
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // Update Basemap Theme
+  // Update Basemap Theme (only when basemap actually changes)
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (currentBasemapRef.current === currentProject.basemap) return;
+    currentBasemapRef.current = currentProject.basemap;
 
     const newStyle = getMapStyle(currentProject.basemap);
     map.setStyle(newStyle);
 
-    map.once("style.load", () => {
+    const onStyleReady = () => {
       setupFeatureLayers(map);
       syncLayersVisibility(map, currentProject.layer_visibilities);
       updateFeaturesSource(map, currentProject.features);
-    });
+    };
+
+    map.once("styledata", onStyleReady);
+    map.once("idle", onStyleReady);
   }, [currentProject.basemap]);
 
   // Sync Layer Visibilities (2D/3D, roads, boundaries, etc.)
@@ -120,107 +279,15 @@ export function MapContainer() {
     updateFeaturesSource(map, currentProject.features);
   }, [currentProject.features]);
 
-  // Setup GeoJSON layers for custom drawings & POIs
-  const setupFeatureLayers = (map: maplibregl.Map) => {
-    if (map.getSource("atlas-features")) return;
-
-    map.addSource("atlas-features", {
-      type: "geojson",
-      data: {
-        type: "FeatureCollection",
-        features: currentProject.features as any,
-      },
+  // Sync 3D pitch toggle
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.easeTo({
+      pitch: is3D ? 60 : 0,
+      duration: 800,
     });
-
-    // 1. Polygon Fill
-    map.addLayer({
-      id: "atlas-polygons-fill",
-      type: "fill",
-      source: "atlas-features",
-      filter: ["match", ["geometry-type"], ["Polygon", "MultiPolygon"], true, false],
-      paint: {
-        "fill-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#3b82f6"],
-        "fill-opacity": ["coalesce", ["get", "fillOpacity"], 0.25],
-      },
-    });
-
-    // 2. Polygon & Line Outline
-    map.addLayer({
-      id: "atlas-lines",
-      type: "line",
-      source: "atlas-features",
-      filter: [
-        "match",
-        ["geometry-type"],
-        ["LineString", "MultiLineString", "Polygon", "MultiPolygon"],
-        true,
-        false,
-      ],
-      paint: {
-        "line-color": [
-          "coalesce",
-          ["get", "strokeColor"],
-          ["get", "color"],
-          "#2563eb",
-        ],
-        "line-width": ["coalesce", ["get", "strokeWidth"], 2.5],
-        "line-opacity": ["coalesce", ["get", "strokeOpacity"], 0.9],
-      },
-    });
-
-    // 3. Points (Markers & POIs)
-    map.addLayer({
-      id: "atlas-points",
-      type: "circle",
-      source: "atlas-features",
-      filter: ["==", ["geometry-type"], "Point"],
-      paint: {
-        "circle-radius": 7,
-        "circle-color": ["coalesce", ["get", "fillColor"], ["get", "color"], "#ef4444"],
-        "circle-stroke-width": 2,
-        "circle-stroke-color": "#ffffff",
-      },
-    });
-
-    // 4. Labels & Text
-    map.addLayer({
-      id: "atlas-labels",
-      type: "symbol",
-      source: "atlas-features",
-      layout: {
-        "text-field": ["coalesce", ["get", "name"], ""],
-        "text-size": 11,
-        "text-offset": [0, 1.2],
-        "text-anchor": "top",
-        "text-font": ["Noto Sans Regular"],
-      },
-      paint: {
-        "text-color": "#ffffff",
-        "text-halo-color": "#000000",
-        "text-halo-width": 1.5,
-      },
-    });
-
-    // Feature Click Handler
-    map.on("click", "atlas-polygons-fill", handleFeatureClick);
-    map.on("click", "atlas-lines", handleFeatureClick);
-    map.on("click", "atlas-points", handleFeatureClick);
-
-    // Hover cursors
-    map.on("mouseenter", "atlas-points", () => (map.getCanvas().style.cursor = "pointer"));
-    map.on("mouseleave", "atlas-points", () => (map.getCanvas().style.cursor = ""));
-    map.on("mouseenter", "atlas-polygons-fill", () => (map.getCanvas().style.cursor = "pointer"));
-    map.on("mouseleave", "atlas-polygons-fill", () => (map.getCanvas().style.cursor = ""));
-  };
-
-  const handleFeatureClick = (e: maplibregl.MapLayerMouseEvent) => {
-    if (activeTool !== "select") return;
-    const feat = e.features?.[0];
-    if (feat && feat.properties?.id) {
-      setSelectedFeatureId(feat.properties.id);
-      showToast(`Selected: ${feat.properties.name || feat.properties.id}`);
-    }
-  };
+  }, [is3D]);
 
   const updateFeaturesSource = (map: maplibregl.Map, features: MapFeature[]) => {
     const src = map.getSource("atlas-features") as maplibregl.GeoJSONSource;
@@ -258,12 +325,16 @@ export function MapContainer() {
     // Roads
     setVis("rd_express", vis.road_exp !== false);
     setVis("case_express", vis.road_exp !== false);
+    setVis("case_express_casing", vis.road_exp !== false);
     setVis("rd_major", vis.road_main !== false);
     setVis("case_major", vis.road_main !== false);
+    setVis("case_major_casing", vis.road_main !== false);
     setVis("rd_secondary", vis.road_sec !== false);
     setVis("case_secondary", vis.road_sec !== false);
+    setVis("case_secondary_casing", vis.road_sec !== false);
     setVis("rd_tertiary", vis.road_ter !== false);
     setVis("case_tertiary", vis.road_ter !== false);
+    setVis("case_tertiary_casing", vis.road_ter !== false);
     setVis("rd_rail", vis.rd_rail !== false);
 
     // Water

@@ -7,6 +7,24 @@ import type { ThemeName } from "@/types/map";
 
 const THEME_OPTIONS: { id: ThemeName; name: string; desc: string; previewColor: string }[] = [
   {
+    id: "Liberty",
+    name: "OpenFreeMap Liberty",
+    desc: "Complete vector street map with POIs, parks, and 3D buildings",
+    previewColor: "#3b82f6",
+  },
+  {
+    id: "Bright",
+    name: "OpenFreeMap Bright",
+    desc: "Vibrant high-contrast colorful vector basemap",
+    previewColor: "#10b981",
+  },
+  {
+    id: "Positron",
+    name: "OpenFreeMap Positron",
+    desc: "Clean minimal grayscale vector styling",
+    previewColor: "#e2e8f0",
+  },
+  {
     id: "Midnight Blue",
     name: "Midnight Blue",
     desc: "Cyberpunk luxury dark vector styling with gold accents",
