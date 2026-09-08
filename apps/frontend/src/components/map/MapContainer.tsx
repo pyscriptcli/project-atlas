@@ -58,8 +58,10 @@ export function MapContainer() {
 
   // Setup GeoJSON layers for custom drawings & POIs
   const setupFeatureLayers = (map: maplibregl.Map) => {
+    if (!map.isStyleLoaded()) return;
+    const latestProject = useMapStore.getState().currentProject;
     if (map.getSource("atlas-features")) {
-      updateFeaturesSource(map, currentProject.features);
+      updateFeaturesSource(map, latestProject.features);
       return;
     }
 
@@ -67,7 +69,7 @@ export function MapContainer() {
       type: "geojson",
       data: {
         type: "FeatureCollection",
-        features: currentProject.features as any,
+        features: latestProject.features as any,
       },
     });
 
@@ -196,7 +198,7 @@ export function MapContainer() {
     );
 
     map.on("error", (e) => {
-      console.warn("MapLibre GL Event Error:", e);
+      console.error("MapLibre GL Event Error:", e.error ?? e);
     });
 
     map.on("moveend", () => {
@@ -220,7 +222,7 @@ export function MapContainer() {
 
     map.on("load", () => {
       setupFeatureLayers(map);
-      syncLayersVisibility(map, currentProject.layer_visibilities);
+      syncLayersVisibility(map, useMapStore.getState().currentProject.layer_visibilities);
       map.resize();
     });
 
@@ -261,17 +263,15 @@ export function MapContainer() {
     if (currentBasemapRef.current === currentProject.basemap) return;
     currentBasemapRef.current = currentProject.basemap;
 
-    const newStyle = getMapStyle(currentProject.basemap);
-    map.setStyle(newStyle);
-
     const onStyleReady = () => {
+      const latestProject=useMapStore.getState().currentProject;
       setupFeatureLayers(map);
-      syncLayersVisibility(map, currentProject.layer_visibilities);
-      updateFeaturesSource(map, currentProject.features);
+      syncLayersVisibility(map, latestProject.layer_visibilities);
+      updateFeaturesSource(map, latestProject.features);
+      map.resize();
     };
-
-    map.once("styledata", onStyleReady);
-    map.once("idle", onStyleReady);
+    map.once("style.load", onStyleReady);
+    map.setStyle(getMapStyle(currentProject.basemap));
   }, [currentProject.basemap]);
 
   // Sync Layer Visibilities (2D/3D, roads, boundaries, etc.)
