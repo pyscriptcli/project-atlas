@@ -1,126 +1,41 @@
-# Project Atlas: Next-Gen Geospatial Studio
+# Project Atlas
 
-Project Atlas is a high-performance, WebGL-powered geospatial analysis and map-building studio built with **Next.js 15 (App Router)**, **TypeScript**, **Tailwind CSS**, **MapLibre GL JS**, **Turf.js**, and **Supabase**.
+Project Atlas is a private, full-screen geospatial studio for drawing, styling, organizing, importing, analyzing, and exporting map workspaces.
 
-Re-architected from an early Streamlit prototype to eliminate iframe constraints, achieve 60fps vector rendering, and enable serverless geospatial workflows ready for **Vercel deployment**.
+## Repository
 
----
+- `apps/frontend` — Next.js map studio and Supabase Auth client.
+- `apps/backend` — standalone authenticated Node.js API.
+- `packages/types` — shared project and feature contracts.
+- `packages/geo` — shared geometry operations.
+- `packages/validation` — shared request schemas.
+- `supabase/migrations` — database, ownership, row security, and private storage setup.
+- `legacy` — original Python behavioral reference.
 
-## 🚀 Key Features
+Folders and files use kebab-case; functions and variables use camelCase; components and types use PascalCase; constants use upper snake case.
 
-- **Vector & Raster Basemaps**:
-  - OpenFreeMap vector themes: **Midnight Blue** (Dark luxury/cyberpunk), **Monochrome**, and **White Gold**.
-  - 3D building fill-extrusions with real building heights from OpenStreetMap data.
-  - Raster options: CartoDB Light, CartoDB Dark, OpenStreetMap, ESRI World Imagery Satellite.
-- **Geospatial Drawing & Geometry Tools**:
-  - Interactive Polygons, Rectangles, Circles (live geodesic radius buffers), Polylines, Marker Pins, Text Labels, and A-to-B routes.
-  - Full Undo / Redo history stack.
-- **Trade Area & POI Scanner**:
-  - Buffer analysis around any target coordinate or landmark.
-  - Multi-endpoint failover Overpass API proxy with retry and backoff.
-  - Rich POI taxonomy: Commercial & Offices, Retail, F&B, Residential, Industrial & Logistics, Healthcare, Education, and Leisure.
-- **Spatial File Imports & Exports**:
-  - Import Shapefiles (`.zip`), KML/KMZ (`.kml`, `.kmz`), and GeoJSON (`.geojson`, `.json`).
-  - Export feature collections to GeoJSON directly.
-- **Attribute Table & Image Attachments**:
-  - Spreadsheet-style inspection table with live editing of feature properties, color tags, descriptions, and preview images.
-- **Supabase Cloud Persistence**:
-  - Workspace management: Create, rename, switch, and delete map projects.
-  - Auto-save state sync and PostGIS-compatible schemas.
+## Local setup
 
----
+1. Install Node.js 20 or newer and run `npm install` at the repository root.
+2. Copy `.env.example` to `.env.local` and supply a Supabase project plus separate frontend/backend settings.
+3. Apply the Supabase migrations in timestamp order.
+4. Run `npm run dev`; the frontend defaults to port 3000 and the API to port 3001.
 
-## 🛠️ Tech Stack
-
-- **Framework**: [Next.js](https://nextjs.org/) (App Router, Turbopack)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS, Glassmorphic UI design
-- **Mapping Engine**: [MapLibre GL JS](https://maplibre.org/)
-- **Spatial Analysis**: [@turf/turf](https://turfjs.org/)
-- **Database & Auth**: [Supabase](https://supabase.com/)
-- **Icons**: [Lucide React](https://lucide.dev/)
-
----
-
-## 💻 Getting Started Locally
-
-### 1. Clone & Install Dependencies
+Useful commands:
 
 ```bash
-git clone https://github.com/pyscriptcli/project-atlas.git
-cd project-atlas
-npm install
+npm run lint
+npm run typecheck
+npm test
+npm run build
 ```
 
-### 2. Configure Environment Variables
+## Security
 
-Create `.env.local` based on `.env.example`:
+All project routes require a valid Supabase bearer token. Ownership is derived from that token and enforced again with row-level security. Assets are private and stored beneath the authenticated user ID. Never expose `SUPABASE_SERVICE_ROLE_KEY` to the frontend.
 
-```bash
-cp .env.example .env.local
-```
+Legacy anonymous projects are copied into `legacy_map_projects` and removed from the public project table by the security migration. They require deliberate administrator reassignment.
 
-Fill in your Supabase credentials:
-```env
-NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-publishable-key
-```
+## Deployment
 
-### 3. Setup Supabase Database
-
-Run the SQL migration in `supabase/migrations/20260907_init_map_projects.sql` inside your Supabase SQL Editor.
-
-### 4. Run Development Server
-
-```bash
-npm run dev
-```
-
-Open [http://localhost:3000](http://localhost:3000) in your browser.
-
----
-
-## 🚢 Deploying to Vercel
-
-This repository is pre-configured and tested for zero-configuration Vercel deployment:
-
-1. Push your changes to GitHub.
-2. In the [Vercel Dashboard](https://vercel.com/new), select **Import Project** and choose the `project-atlas` repository.
-3. In **Environment Variables**, add:
-   - `NEXT_PUBLIC_SUPABASE_URL`: Your Supabase URL
-   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: Your Supabase Anon Publishable Key
-4. Click **Deploy**.
-
----
-
-## 📁 Project Structure
-
-```text
-src/
-├── app/
-│   ├── api/
-│   │   ├── pois/route.ts       # Overpass API proxy & failover
-│   │   ├── geocode/route.ts    # Nominatim place search
-│   │   ├── projects/route.ts   # Supabase CRUD handler
-│   │   └── export/route.ts     # Spatial export formatter
-│   ├── globals.css             # Glassmorphism & dark styles
-│   ├── layout.tsx              # Root HTML shell
-│   └── page.tsx                # Studio workspace canvas
-├── components/
-│   ├── map/                    # MapLibre GL engine & controls
-│   ├── panels/                 # Floating modals (Trade Area, Layers, Attributes)
-│   ├── toolbar/                # Header toolbar & drawing tools
-│   └── ui/                     # UI components (Toast, buttons)
-├── lib/
-│   ├── geo/                    # Turf.js calculations & file parsers
-│   ├── map/                    # Themes, styles, & POI taxonomy
-│   ├── store/                  # Zustand global state store
-│   └── supabase/               # Supabase database clients
-└── types/                      # TypeScript definitions
-```
-
----
-
-## 📜 License
-
-MIT
+Create two Vercel projects from the same repository using `apps/frontend` and `apps/backend` as their respective roots. See [deployment documentation](docs/deployment.md) for variables, Auth redirect configuration, migrations, and smoke checks.

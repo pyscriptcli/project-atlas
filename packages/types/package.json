@@ -1,0 +1,1 @@
+{"name":"@atlas/types","private":true,"type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit"},"devDependencies":{"@types/geojson":"^7946.0.16","typescript":"^5.9.2"}}

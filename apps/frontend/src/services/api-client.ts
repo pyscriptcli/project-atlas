@@ -1,0 +1,3 @@
+import { supabase } from "@/lib/supabase/client";
+const API_URL=(process.env.NEXT_PUBLIC_API_URL??"http://localhost:3001").replace(/\/$/,"");
+export async function apiRequest<T>(path:string,init:RequestInit={}){const {data:{session}}=await supabase.auth.getSession();if(!session)throw new Error("Authentication required");const response=await fetch(`${API_URL}/api/v1${path}`,{...init,headers:{"content-type":"application/json",authorization:`Bearer ${session.access_token}`,...init.headers}});const payload=await response.json();if(!response.ok||payload.error)throw new Error(payload.error?.message??"Request failed");return payload.data as T}
