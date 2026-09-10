@@ -141,6 +141,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     renderDraftGeometry(map, draft, cursorLL, activeTool);
   }, [draft, cursorLL, activeTool]);
 
+  // Manage doubleClickZoom & cursor based on activeTool
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    if (activeTool) {
+      map.doubleClickZoom.disable();
+      map.getCanvas().style.cursor = 'crosshair';
+    } else {
+      map.doubleClickZoom.enable();
+      map.getCanvas().style.cursor = '';
+    }
+  }, [activeTool]);
+
   const setupLayers = (map: maplibregl.Map) => {
     if (!map.getSource('draw')) {
       map.addSource('draw', {
@@ -155,11 +168,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         filter: [
           'all',
           ['==', ['geometry-type'], 'Polygon'],
+          ['!=', ['coalesce', ['get', 'visible'], 1], 0],
+          ['!=', ['get', 'is3D'], true],
+          ['!=', ['get', 'kind'], 'polygon3d'],
           ['<=', ['coalesce', ['get', 'height'], 0], 0],
         ],
         paint: {
           'fill-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#e8b84a'],
-          'fill-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.35], ['get', 'visible']],
+          'fill-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.35], ['coalesce', ['get', 'visible'], 1]],
         },
       });
 
@@ -170,12 +186,12 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         filter: [
           'all',
           ['==', ['geometry-type'], 'Polygon'],
-          ['<=', ['coalesce', ['get', 'height'], 0], 0],
+          ['!=', ['coalesce', ['get', 'visible'], 1], 0],
         ],
         paint: {
           'line-color': ['coalesce', ['get', 'borderColor'], ['get', 'color'], '#e8b84a'],
           'line-width': ['coalesce', ['get', 'width'], 3],
-          'line-opacity': ['*', ['coalesce', ['get', 'borderOpacity'], 0.9], ['get', 'visible']],
+          'line-opacity': ['*', ['coalesce', ['get', 'borderOpacity'], 0.9], ['coalesce', ['get', 'visible'], 1]],
         },
       });
 
@@ -186,13 +202,18 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         filter: [
           'all',
           ['==', ['geometry-type'], 'Polygon'],
-          ['>', ['coalesce', ['get', 'height'], 0], 0],
+          ['!=', ['coalesce', ['get', 'visible'], 1], 0],
+          ['any',
+            ['==', ['get', 'is3D'], true],
+            ['==', ['get', 'kind'], 'polygon3d'],
+            ['>', ['coalesce', ['get', 'height'], 0], 0]
+          ],
         ],
         paint: {
           'fill-extrusion-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#38bdf8'],
           'fill-extrusion-height': ['coalesce', ['get', 'height'], 35],
           'fill-extrusion-base': ['coalesce', ['get', 'baseHeight'], 0],
-          'fill-extrusion-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.85], ['get', 'visible']],
+          'fill-extrusion-opacity': 0.85,
         },
       });
 
@@ -751,70 +772,41 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           }
         }
         setDraft(nextDraft);
-      } else if (activeTool === 'polygon') {
-        const nextDraft = [...draft, ll];
-        if (nextDraft.length >= 3) {
+      } else if (activeTool === 'polygon' || activeTool === 'polygon3d') {
+        const is3D = activeTool === 'polygon3d';
+        if (draft.length >= 3) {
           const pScreen = map.project(ll);
-          for (const origin of draft) {
-            const vScreen = map.project(origin);
-            if (Math.hypot(pScreen.x - vScreen.x, pScreen.y - vScreen.y) < 18) {
-              addFeature({
-                id,
-                name: `Polygon ${id}`,
-                kind: 'polygon',
-                geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
-                props: {
-                  color: '#e8b84a',
-                  borderColor: '#e8b84a',
-                  width: 3,
-                  fillColor: '#e8b84a',
-                  fillOpacity: 0.35,
-                  borderOpacity: 0.9,
-                  visible: 1,
-                  attributes: { name: `Polygon ${id}` },
+          const originScreen = map.project(draft[0]);
+          if (Math.hypot(pScreen.x - originScreen.x, pScreen.y - originScreen.y) < 24) {
+            addFeature({
+              id,
+              name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
+              kind: is3D ? 'polygon3d' : 'polygon',
+              geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
+              props: {
+                is3D,
+                height: is3D ? 35 : 0,
+                baseHeight: 0,
+                color: is3D ? '#38bdf8' : '#e8b84a',
+                borderColor: is3D ? '#38bdf8' : '#e8b84a',
+                width: is3D ? 2 : 3,
+                fillColor: is3D ? '#38bdf8' : '#e8b84a',
+                fillOpacity: is3D ? 0.85 : 0.35,
+                borderOpacity: 0.9,
+                visible: 1,
+                attributes: {
+                  name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
+                  ...(is3D ? { height: '35m' } : {}),
                 },
-              });
-              setDraft([]);
-              setActiveTool(null);
-              setToast('Polygon closed');
-              return;
-            }
+              },
+            });
+            setDraft([]);
+            setActiveTool(null);
+            setToast(is3D ? '3D Building created!' : 'Polygon closed');
+            return;
           }
         }
-        setDraft(nextDraft);
-      } else if (activeTool === 'polygon3d') {
-        const nextDraft = [...draft, ll];
-        if (nextDraft.length >= 3) {
-          const pScreen = map.project(ll);
-          for (const origin of draft) {
-            const vScreen = map.project(origin);
-            if (Math.hypot(pScreen.x - vScreen.x, pScreen.y - vScreen.y) < 18) {
-              addFeature({
-                id,
-                name: `3D Building ${id}`,
-                kind: 'polygon3d',
-                geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
-                props: {
-                  is3D: true,
-                  height: 35,
-                  baseHeight: 0,
-                  color: '#38bdf8',
-                  fillColor: '#38bdf8',
-                  fillOpacity: 0.85,
-                  borderColor: '#38bdf8',
-                  width: 2,
-                  visible: 1,
-                  attributes: { name: `3D Building ${id}`, height: '35m' },
-                },
-              });
-              setDraft([]);
-              setActiveTool(null);
-              setToast('3D Polygon created');
-              return;
-            }
-          }
-        }
-        setDraft(nextDraft);
+        setDraft([...draft, ll]);
       } else if (activeTool === 'route') {
         const nextDraft = [...draft, ll];
         if (nextDraft.length >= 2) {
@@ -854,30 +846,35 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     };
 
     const handleDblClick = async (e: maplibregl.MapMouseEvent) => {
-      if (activeTool === 'polygon3d' && draft.length >= 3) {
+      if ((activeTool === 'polygon' || activeTool === 'polygon3d') && draft.length >= 3) {
         e.preventDefault();
+        const is3D = activeTool === 'polygon3d';
         const id = ++nextFid.current;
         addFeature({
           id,
-          name: `3D Building ${id}`,
-          kind: 'polygon3d',
+          name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
+          kind: is3D ? 'polygon3d' : 'polygon',
           geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
           props: {
-            is3D: true,
-            height: 35,
+            is3D,
+            height: is3D ? 35 : 0,
             baseHeight: 0,
-            color: '#38bdf8',
-            fillColor: '#38bdf8',
-            fillOpacity: 0.85,
-            borderColor: '#38bdf8',
-            width: 2,
+            color: is3D ? '#38bdf8' : '#e8b84a',
+            borderColor: is3D ? '#38bdf8' : '#e8b84a',
+            width: is3D ? 2 : 3,
+            fillColor: is3D ? '#38bdf8' : '#e8b84a',
+            fillOpacity: is3D ? 0.85 : 0.35,
+            borderOpacity: 0.9,
             visible: 1,
-            attributes: { name: `3D Building ${id}`, height: '35m' },
+            attributes: {
+              name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
+              ...(is3D ? { height: '35m' } : {}),
+            },
           },
         });
         setDraft([]);
         setActiveTool(null);
-        setToast('3D Polygon finalized');
+        setToast(is3D ? '3D Building finalized!' : 'Polygon finalized');
         return;
       }
       if (activeTool === 'route' && draft.length >= 2) {
