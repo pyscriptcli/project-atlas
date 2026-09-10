@@ -1,9 +1,9 @@
 import { create } from 'zustand';
-import { GISFeature, CustomGroups, LayerVisibilities, FeatureKind } from '../types/gis';
+import { GISFeature, CustomGroups, LayerVisibilities, FeatureKind, BuildingArchetype } from '../types/gis';
 import { DEFAULT_VISIBILITIES } from '../gis/map';
 
 interface MapState {
-  activeTool: FeatureKind | null;
+  activeTool: FeatureKind | 'placeBuilding' | null;
   editMode: boolean;
   selectedId: number | null;
   selectedLayerIds: number[];
@@ -30,7 +30,12 @@ interface MapState {
     markerSettings: boolean;
     textSettings: boolean;
     launcher: boolean;
+    buildingCatalog: boolean;
   };
+
+  // 3D Building Archetype Tool
+  selectedBuildingArchetype: BuildingArchetype;
+  setSelectedBuildingArchetype: (archetype: BuildingArchetype) => void;
 
   // Tool configs
   markerShape: 'pin' | 'star' | 'circle' | 'square' | 'flag' | 'heart' | 'pinball';
@@ -63,7 +68,7 @@ interface MapState {
   toastMessage: string | null;
 
   // Actions
-  setActiveTool: (tool: FeatureKind | null) => void;
+  setActiveTool: (tool: FeatureKind | 'placeBuilding' | null) => void;
   setEditMode: (mode: boolean, selectedId?: number | null) => void;
   setSelectedId: (id: number | null) => void;
   toggleLayerSelection: (id: number) => void;
@@ -133,7 +138,11 @@ export const useMapStore = create<MapState>((set, get) => ({
     markerSettings: false,
     textSettings: false,
     launcher: false,
+    buildingCatalog: false,
   },
+
+  selectedBuildingArchetype: 'skyscraper',
+  setSelectedBuildingArchetype: (archetype) => set({ selectedBuildingArchetype: archetype }),
 
   markerShape: 'pin',
   markerColor: '#1e40af',
@@ -310,6 +319,7 @@ export const useMapStore = create<MapState>((set, get) => ({
         markerSettings: false,
         textSettings: false,
         launcher: false,
+        buildingCatalog: false,
       },
     })),
 

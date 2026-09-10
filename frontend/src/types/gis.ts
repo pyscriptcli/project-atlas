@@ -7,6 +7,31 @@ export interface GeoJSONGeometry {
   coordinates: any;
 }
 
+export type BuildingArchetype =
+  | 'skyscraper'
+  | 'commercial'
+  | 'residential'
+  | 'hospital'
+  | 'warehouse'
+  | 'civic'
+  | 'villa'
+  | 'custom';
+
+export type FacadeTheme =
+  | 'glass'
+  | 'steel'
+  | 'concrete'
+  | 'brick'
+  | 'marble'
+  | 'neon';
+
+export type RoofType =
+  | 'flat'
+  | 'penthouse'
+  | 'helipad'
+  | 'spire'
+  | 'gable';
+
 export interface FeatureProps {
   color?: string;
   borderColor?: string;
@@ -20,12 +45,24 @@ export interface FeatureProps {
   visible?: number; // 1 or 0 for MapLibre expression multiplication
   rotation?: number;
 
-  // 3D Extrusion specific
+  // 3D Extrusion & Architectural Building specific
   is3D?: boolean;
   height?: number; // Height in meters above ground
   baseHeight?: number; // Base height in meters
+  buildingArchetype?: BuildingArchetype;
+  floors?: number;
+  floorHeight?: number;
+  facadeTheme?: FacadeTheme;
+  roofType?: RoofType;
+  hasPodium?: boolean;
+  podiumFloors?: number;
+  podiumHeight?: number;
+  hasHelipad?: boolean;
+  hasSpire?: boolean;
+  spireHeight?: number;
+  tierRole?: 'podium' | 'tower' | 'penthouse' | 'spire' | 'helipad';
+  parentBuildingId?: number;
 
-  
   // Marker specific
   shape?: 'pin' | 'star' | 'circle' | 'square' | 'flag' | 'heart' | 'pinball';
   iconKey?: string;

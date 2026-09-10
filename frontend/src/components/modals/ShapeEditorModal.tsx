@@ -5,6 +5,8 @@ import { X, Trash2, Check, RefreshCw } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { ColorPicker } from '../toolbar/ColorPicker';
 import { fetchMultiPointRoute } from '../../gis/routes';
+import { ARCHETYPE_CONFIGS, FACADE_PALETTES } from '../../gis/buildings3d';
+import { BuildingArchetype, FacadeTheme, RoofType } from '../../types/gis';
 
 export const ShapeEditorModal: React.FC = () => {
   const {
@@ -184,10 +186,17 @@ export const ShapeEditorModal: React.FC = () => {
             />
           </div>
 
-          {/* 3D Extrusion Section */}
-          <div className="border-t border-white/10 pt-3 flex flex-col gap-2">
+          {/* 3D Extrusion & Architectural Building Suite */}
+          <div className="border-t border-white/10 pt-3 flex flex-col gap-3">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-white">3D Extrusion</span>
+              <div className="flex items-center gap-1.5">
+                <span className="font-semibold text-white">3D Building</span>
+                {((f.props.height || 0) > 0 || !!f.props.is3D) && (
+                  <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-blue-500/20 text-sky-400 border border-blue-400/30">
+                    Active
+                  </span>
+                )}
+              </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
                   type="checkbox"
@@ -201,6 +210,9 @@ export const ShapeEditorModal: React.FC = () => {
                         ...feat.props,
                         is3D: enabled,
                         height: enabled ? (feat.props.height || 35) : 0,
+                        buildingArchetype: enabled ? (feat.props.buildingArchetype || 'skyscraper') : undefined,
+                        facadeTheme: enabled ? (feat.props.facadeTheme || 'glass') : undefined,
+                        floors: enabled ? (feat.props.floors || 10) : undefined,
                       },
                     }));
                   }}
@@ -213,30 +225,145 @@ export const ShapeEditorModal: React.FC = () => {
             </div>
 
             {((f.props.height || 0) > 0 || !!f.props.is3D) && (
-              <>
+              <div className="flex flex-col gap-3 pt-1">
+                {/* Architectural Archetype Pills */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] text-gray-400 font-medium">Architectural Archetype</span>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {Object.values(ARCHETYPE_CONFIGS).map((cfg) => {
+                      const isSel = (f.props.buildingArchetype || 'skyscraper') === cfg.id;
+                      return (
+                        <button
+                          key={cfg.id}
+                          type="button"
+                          onClick={() => {
+                            const pal = FACADE_PALETTES[cfg.facadeTheme];
+                            const totalH = cfg.defaultFloors * cfg.floorHeight;
+                            updateFeature(f.id, (feat) => ({
+                              ...feat,
+                              name: `${cfg.label} ${feat.id}`,
+                              props: {
+                                ...feat.props,
+                                buildingArchetype: cfg.id,
+                                facadeTheme: cfg.facadeTheme,
+                                floors: cfg.defaultFloors,
+                                floorHeight: cfg.floorHeight,
+                                height: totalH,
+                                roofType: cfg.roofType,
+                                hasPodium: cfg.hasPodium,
+                                color: pal.wall,
+                                fillColor: pal.wall,
+                                borderColor: pal.border,
+                                fillOpacity: pal.opacity,
+                              },
+                            }));
+                          }}
+                          className={`px-2 py-1.5 rounded-xl border text-[10px] font-semibold text-left truncate transition ${
+                            isSel
+                              ? 'bg-blue-600/30 border-sky-400 text-white shadow'
+                              : 'bg-white/5 border-white/10 text-gray-400 hover:text-gray-200 hover:bg-white/10'
+                          }`}
+                        >
+                          {cfg.label.split(' ')[0]} {cfg.label.split(' ')[1] || ''}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Facade Theme Selector */}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[11px] text-gray-400 font-medium">Facade Theme</span>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {(['glass', 'steel', 'concrete', 'brick', 'marble', 'neon'] as FacadeTheme[]).map((thm) => {
+                      const pal = FACADE_PALETTES[thm];
+                      const isSel = f.props.facadeTheme === thm;
+                      return (
+                        <button
+                          key={thm}
+                          type="button"
+                          onClick={() => {
+                            updateFeature(f.id, (feat) => ({
+                              ...feat,
+                              props: {
+                                ...feat.props,
+                                facadeTheme: thm,
+                                color: pal.wall,
+                                fillColor: pal.wall,
+                                borderColor: pal.border,
+                                fillOpacity: pal.opacity,
+                              },
+                            }));
+                          }}
+                          title={thm}
+                          className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] capitalize transition ${
+                            isSel
+                              ? 'border-sky-400 bg-sky-500/20 text-white'
+                              : 'border-white/10 bg-white/5 text-gray-300 hover:bg-white/10'
+                          }`}
+                        >
+                          <span className="w-2.5 h-2.5 rounded-full border border-white/30" style={{ backgroundColor: pal.wall }} />
+                          {thm}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Floors Slider */}
                 <div className="flex items-center justify-between">
-                  <span>Height (meters)</span>
+                  <span>Floors / Levels</span>
                   <div className="flex items-center gap-2">
                     <input
                       type="range"
                       min="1"
-                      max="300"
-                      step="5"
-                      value={f.props.height || 35}
-                      onChange={(e) =>
+                      max="100"
+                      step="1"
+                      value={f.props.floors || Math.max(Math.round((f.props.height || 35) / (f.props.floorHeight || 3.5)), 1)}
+                      onChange={(e) => {
+                        const nextFloors = parseInt(e.target.value, 10);
+                        const fh = f.props.floorHeight || 3.5;
+                        const nextH = Math.round(nextFloors * fh);
                         updateFeature(f.id, (feat) => ({
                           ...feat,
-                          props: { ...feat.props, height: parseFloat(e.target.value) },
-                        }))
-                      }
+                          props: { ...feat.props, floors: nextFloors, height: nextH },
+                        }));
+                      }}
                       className="accent-blue-600 w-24 cursor-pointer"
                     />
-                    <span className="font-mono text-xs w-10 text-right text-sky-400 font-bold">
+                    <span className="font-mono text-xs w-12 text-right text-sky-400 font-bold">
+                      {f.props.floors || Math.round((f.props.height || 35) / 3.5)} fl
+                    </span>
+                  </div>
+                </div>
+
+                {/* Total Height Slider */}
+                <div className="flex items-center justify-between">
+                  <span>Total Height</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="3"
+                      max="400"
+                      step="1"
+                      value={f.props.height || 35}
+                      onChange={(e) => {
+                        const h = parseFloat(e.target.value);
+                        const fl = Math.max(Math.round(h / (f.props.floorHeight || 3.5)), 1);
+                        updateFeature(f.id, (feat) => ({
+                          ...feat,
+                          props: { ...feat.props, height: h, floors: fl },
+                        }));
+                      }}
+                      className="accent-blue-600 w-24 cursor-pointer"
+                    />
+                    <span className="font-mono text-xs w-12 text-right text-sky-400 font-bold">
                       {f.props.height || 35}m
                     </span>
                   </div>
                 </div>
 
+                {/* Base Elevation */}
                 <div className="flex items-center justify-between">
                   <span>Base Elevation</span>
                   <div className="flex items-center gap-2">
@@ -254,12 +381,39 @@ export const ShapeEditorModal: React.FC = () => {
                       }
                       className="accent-blue-600 w-24 cursor-pointer"
                     />
-                    <span className="font-mono text-xs w-10 text-right text-gray-400">
+                    <span className="font-mono text-xs w-12 text-right text-gray-400">
                       {f.props.baseHeight || 0}m
                     </span>
                   </div>
                 </div>
-              </>
+
+                {/* Roof Style Selector */}
+                <div className="flex items-center justify-between pt-1 border-t border-white/5">
+                  <span className="text-[11px] text-gray-400">Rooftop Feature</span>
+                  <select
+                    value={f.props.roofType || 'flat'}
+                    onChange={(e) => {
+                      const rt = e.target.value as RoofType;
+                      updateFeature(f.id, (feat) => ({
+                        ...feat,
+                        props: {
+                          ...feat.props,
+                          roofType: rt,
+                          hasHelipad: rt === 'helipad',
+                          hasSpire: rt === 'spire',
+                        },
+                      }));
+                    }}
+                    className="bg-black/50 border border-white/15 rounded-lg px-2 py-1 text-white text-[11px] outline-none"
+                  >
+                    <option value="flat">Flat Roof</option>
+                    <option value="penthouse">Penthouse Crown</option>
+                    <option value="helipad">Helipad Deck [H]</option>
+                    <option value="spire">Antenna Spire</option>
+                    <option value="gable">Gable Pitch</option>
+                  </select>
+                </div>
+              </div>
             )}
           </div>
         </>

@@ -13,6 +13,7 @@ import { AttributeTableModal } from '../components/modals/AttributeTableModal';
 import { BasemapModal } from '../components/modals/BasemapModal';
 import { SearchModal } from '../components/modals/SearchModal';
 import { WorkspaceLauncherModal } from '../components/modals/WorkspaceLauncherModal';
+import { BuildingCatalogModal } from '../components/modals/BuildingCatalogModal';
 import { useMapStore } from '../store/useMapStore';
 import { useProjectStore } from '../store/useProjectStore';
 import { normalizeGeoJSON } from '../gis/importExport';
@@ -132,6 +133,7 @@ export default function WorkspacePage() {
       <BasemapModal mapInstance={mapInstance} />
       <SearchModal mapInstance={mapInstance} />
       <WorkspaceLauncherModal />
+      <BuildingCatalogModal mapInstance={mapInstance} />
 
       {/* Toast Notification */}
       {toastMessage && (

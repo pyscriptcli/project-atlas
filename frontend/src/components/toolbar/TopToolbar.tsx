@@ -20,6 +20,7 @@ import {
   Palette,
   Download,
   Box,
+  Building2,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
@@ -197,6 +198,18 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         }`}
       >
         <Box className="w-4 h-4 text-sky-400" />
+      </button>
+
+      <button
+        onClick={() => togglePanel('buildingCatalog')}
+        title="3D Architectural Building Catalog"
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
+          activePanels.buildingCatalog
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+            : 'text-gray-300 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Building2 className="w-4 h-4 text-sky-300" />
       </button>
 
       <button

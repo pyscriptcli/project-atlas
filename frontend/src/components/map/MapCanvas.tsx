@@ -10,6 +10,7 @@ import { circleCoords, haversineDist } from '../../gis/circles';
 import { getIconKey } from '../../gis/markers';
 import { fetchMultiPointRoute } from '../../gis/routes';
 import { generateLabelsGeoJSON } from '../../gis/labels';
+import { generateCompoundBuildingFeatures, ARCHETYPE_CONFIGS } from '../../gis/buildings3d';
 import { GISFeature } from '../../types/gis';
 
 interface MapCanvasProps {
@@ -50,6 +51,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     routeMode,
     routeColor,
     setToast,
+    selectedBuildingArchetype,
   } = useMapStore();
 
   // Internal drag state refs
@@ -667,6 +669,25 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
 
       const id = ++nextFid.current;
 
+      if (activeTool === 'placeBuilding') {
+        const archCfg = ARCHETYPE_CONFIGS[selectedBuildingArchetype] || ARCHETYPE_CONFIGS.skyscraper;
+        const bName = `${archCfg.label} ${id}`;
+        const compoundFeats = generateCompoundBuildingFeatures(
+          id,
+          bName,
+          selectedBuildingArchetype,
+          ll
+        );
+        nextFid.current += compoundFeats.length + 1;
+        compoundFeats.forEach((feat) => addFeature(feat));
+        const mainTower = compoundFeats.find((f) => f.props.tierRole === 'tower') || compoundFeats[0];
+        setSelectedId(mainTower.id);
+        togglePanel('shapeEditor', true);
+        setActiveTool(null);
+        setToast(`Placed ${archCfg.label}!`);
+        return;
+      }
+
       if (activeTool === 'marker') {
         const iconKey = customMarkerKey || getIconKey(markerShape, markerColor, map);
         addFeature({
@@ -788,32 +809,49 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           const pScreen = map.project(ll);
           const originScreen = map.project(draft[0]);
           if (Math.hypot(pScreen.x - originScreen.x, pScreen.y - originScreen.y) < 32) {
-            addFeature({
-              id,
-              name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
-              kind: is3D ? 'polygon3d' : 'polygon',
-              geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
-              props: {
-                is3D,
-                height: is3D ? 35 : 0,
-                baseHeight: 0,
-                color: is3D ? '#38bdf8' : '#e8b84a',
-                borderColor: is3D ? '#38bdf8' : '#e8b84a',
-                width: is3D ? 2 : 3,
-                fillColor: is3D ? '#38bdf8' : '#e8b84a',
-                fillOpacity: is3D ? 0.85 : 0.35,
-                borderOpacity: 0.9,
-                visible: 1,
-                attributes: {
-                  name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
-                  ...(is3D ? { height: '35m' } : {}),
+            const rawRing = [...draft, draft[0]];
+            if (is3D) {
+              const archCfg = ARCHETYPE_CONFIGS[selectedBuildingArchetype] || ARCHETYPE_CONFIGS.skyscraper;
+              const bName = `${archCfg.label} ${id}`;
+              const compoundFeats = generateCompoundBuildingFeatures(
+                id,
+                bName,
+                selectedBuildingArchetype,
+                ll,
+                undefined,
+                rawRing
+              );
+              nextFid.current += compoundFeats.length + 1;
+              compoundFeats.forEach((feat) => addFeature(feat));
+              const mainTower = compoundFeats.find((f) => f.props.tierRole === 'tower') || compoundFeats[0];
+              setSelectedId(mainTower.id);
+              togglePanel('shapeEditor', true);
+              setDraft([]);
+              setActiveTool(null);
+              setToast(`${archCfg.label} created!`);
+              return;
+            } else {
+              addFeature({
+                id,
+                name: `Polygon ${id}`,
+                kind: 'polygon',
+                geometry: { type: 'Polygon', coordinates: [rawRing] },
+                props: {
+                  color: '#e8b84a',
+                  borderColor: '#e8b84a',
+                  width: 3,
+                  fillColor: '#e8b84a',
+                  fillOpacity: 0.35,
+                  borderOpacity: 0.9,
+                  visible: 1,
+                  attributes: { name: `Polygon ${id}` },
                 },
-              },
-            });
-            setDraft([]);
-            setActiveTool(null);
-            setToast(is3D ? '3D Building created!' : 'Polygon closed');
-            return;
+              });
+              setDraft([]);
+              setActiveTool(null);
+              setToast('Polygon closed');
+              return;
+            }
           }
         }
         setDraft([...draft, ll]);
@@ -864,32 +902,49 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           (pt, i) => i === 0 || Math.hypot(pt[0] - draft[i - 1][0], pt[1] - draft[i - 1][1]) > 1e-6
         );
         if (pts.length >= 3) {
-          addFeature({
-            id,
-            name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
-            kind: is3D ? 'polygon3d' : 'polygon',
-            geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] },
-            props: {
-              is3D,
-              height: is3D ? 35 : 0,
-              baseHeight: 0,
-              color: is3D ? '#38bdf8' : '#e8b84a',
-              borderColor: is3D ? '#38bdf8' : '#e8b84a',
-              width: is3D ? 2 : 3,
-              fillColor: is3D ? '#38bdf8' : '#e8b84a',
-              fillOpacity: is3D ? 0.85 : 0.35,
-              borderOpacity: 0.9,
-              visible: 1,
-              attributes: {
-                name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
-                ...(is3D ? { height: '35m' } : {}),
+          const rawRing = [...pts, pts[0]];
+          if (is3D) {
+            const archCfg = ARCHETYPE_CONFIGS[selectedBuildingArchetype] || ARCHETYPE_CONFIGS.skyscraper;
+            const bName = `${archCfg.label} ${id}`;
+            const compoundFeats = generateCompoundBuildingFeatures(
+              id,
+              bName,
+              selectedBuildingArchetype,
+              pts[0],
+              undefined,
+              rawRing
+            );
+            nextFid.current += compoundFeats.length + 1;
+            compoundFeats.forEach((feat) => addFeature(feat));
+            const mainTower = compoundFeats.find((f) => f.props.tierRole === 'tower') || compoundFeats[0];
+            setSelectedId(mainTower.id);
+            togglePanel('shapeEditor', true);
+            setDraft([]);
+            setActiveTool(null);
+            setToast(`${archCfg.label} finalized!`);
+            return;
+          } else {
+            addFeature({
+              id,
+              name: `Polygon ${id}`,
+              kind: 'polygon',
+              geometry: { type: 'Polygon', coordinates: [rawRing] },
+              props: {
+                color: '#e8b84a',
+                borderColor: '#e8b84a',
+                width: 3,
+                fillColor: '#e8b84a',
+                fillOpacity: 0.35,
+                borderOpacity: 0.9,
+                visible: 1,
+                attributes: { name: `Polygon ${id}` },
               },
-            },
-          });
-          setDraft([]);
-          setActiveTool(null);
-          setToast(is3D ? '3D Building finalized!' : 'Polygon finalized');
-          return;
+            });
+            setDraft([]);
+            setActiveTool(null);
+            setToast('Polygon finalized');
+            return;
+          }
         }
       }
       if (activeTool === 'route' && draft.length >= 2) {
@@ -969,6 +1024,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     textOpacity,
     routeMode,
     routeColor,
+    selectedBuildingArchetype,
   ]);
 
   return <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" />;
