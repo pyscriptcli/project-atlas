@@ -197,8 +197,11 @@ Analyze the provided trade-area POI scan data (locations, categories, density, c
 
 CRITICAL GROUND-TRUTH RULES:
 1. Target Location: ${areaContext || `Coordinates: ${centerLat.toFixed(4)}, ${centerLon.toFixed(4)}`}.
-2. ZERO HALLUCINATION POLICY: Under NO circumstances should you mention 'Pedro Gil', 'Ermita', 'Taft Avenue', 'Quiapo', or Manila unless the coordinates and POI tags specifically place you there. If the scan is in Marikina, everything MUST be about Marikina!
-3. All cluster names, corridor street names, and key tenants MUST be strictly derived from the provided POI sample names, real streets (${detectedStreets.length ? detectedStreets.slice(0, 10).join(', ') : 'from nearby roads at these coordinates'}), and local district (${areaContext || 'this area'}).
+2. ZERO HALLUCINATION POLICY: Under NO circumstances should you mention 'Pedro Gil', 'Ermita', 'Taft Avenue', or Manila unless the coordinates specifically place you there. If scanning outside Manila, all districts and streets must match the local area!
+3. CORRIDOR & STREET ACCURACY:
+   - For each cluster, the "corridor" field MUST strictly be the exact primary road, avenue, or highway where those specific cluster POIs are addressed or situated (${detectedStreets.length ? detectedStreets.slice(0, 15).join(', ') : 'from nearby roads at these coordinates'}).
+   - The cluster "name" MUST incorporate this primary street or anchor establishment (e.g. '[Street Name] Commercial Strip').
+   - Never invent or assign an unrelated street name if the POIs are not situated along or adjacent to it.
 4. Each cluster's "center" MUST be the actual average [latitude, longitude] of the POIs grouped in that cluster.
 
 Return a valid JSON object ONLY (no markdown code blocks, no preamble) conforming to this exact TypeScript structure:
