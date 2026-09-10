@@ -70,6 +70,8 @@ interface MapState {
   // Cinematic Cluster Focus State
   activeCinematicCluster: any | null;
   setActiveCinematicCluster: (cluster: any | null) => void;
+  focusDisplayMode: 'popup' | 'rightPanel';
+  setFocusDisplayMode: (mode: 'popup' | 'rightPanel') => void;
 
   // Actions
   setActiveTool: (tool: FeatureKind | 'placeBuilding' | null) => void;
@@ -177,6 +179,8 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   activeCinematicCluster: null,
   setActiveCinematicCluster: (activeCinematicCluster) => set({ activeCinematicCluster }),
+  focusDisplayMode: 'popup',
+  setFocusDisplayMode: (focusDisplayMode) => set({ focusDisplayMode }),
 
   setActiveTool: (tool) => {
     set((state) => {

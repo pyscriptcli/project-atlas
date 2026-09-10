@@ -31,7 +31,7 @@ function adjustColorBrightness(hex: string, percent: number): string {
 
 /**
  * Draws a 3D Pinball with realistic ground drop shadow, needle, and specular highlight.
- * Color palette is strictly Dark Navy Blue (#002244 / #0a192f), Black, and Gold (#d4af37 / #fbbf24).
+ * Color palette is strictly Monochrome (Obsidian Black, Chrome, Silver, and Graphite).
  */
 export function draw3DPinball(
   ctx: CanvasRenderingContext2D,
@@ -41,38 +41,31 @@ export function draw3DPinball(
   // 1. Realistic ground contact drop shadow
   ctx.save();
   const shadowGrad = ctx.createRadialGradient(32, 57, 1, 32, 57, isCenter ? 15 : 12);
-  shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
-  shadowGrad.addColorStop(0.4, 'rgba(0, 0, 0, 0.4)');
+  shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.85)');
+  shadowGrad.addColorStop(0.45, 'rgba(0, 0, 0, 0.45)');
   shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
   ctx.fillStyle = shadowGrad;
   ctx.beginPath();
   ctx.ellipse(32, 57, isCenter ? 15 : 12, isCenter ? 5 : 4, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  // If center marker, draw a subtle glowing pulse target ring at ground in gold
+  // If center marker, draw a subtle glowing pulse target ring at ground in silver/white
   if (isCenter) {
-    ctx.strokeStyle = '#d4af37';
-    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1.75;
     ctx.beginPath();
     ctx.ellipse(32, 57, 16, 5, 0, 0, Math.PI * 2);
     ctx.stroke();
   }
   ctx.restore();
 
-  // 2. Metallic needle stem (Gold for center, dark gold/black for standard)
+  // 2. Metallic needle stem (Pure chrome/steel gradient)
   ctx.save();
   const needleGrad = ctx.createLinearGradient(29, 36, 35, 36);
-  if (isCenter) {
-    needleGrad.addColorStop(0, '#854d0e');
-    needleGrad.addColorStop(0.35, '#fef08a');
-    needleGrad.addColorStop(0.7, '#d4af37');
-    needleGrad.addColorStop(1, '#713f12');
-  } else {
-    needleGrad.addColorStop(0, '#000000');
-    needleGrad.addColorStop(0.35, '#d4af37');
-    needleGrad.addColorStop(0.7, '#1e293b');
-    needleGrad.addColorStop(1, '#000000');
-  }
+  needleGrad.addColorStop(0, '#18181b');
+  needleGrad.addColorStop(0.35, '#ffffff');
+  needleGrad.addColorStop(0.7, '#71717a');
+  needleGrad.addColorStop(1, '#000000');
 
   ctx.fillStyle = needleGrad;
   ctx.beginPath();
@@ -88,18 +81,18 @@ export function draw3DPinball(
   ctx.stroke();
   ctx.restore();
 
-  // 3. 3D Ball Sphere: Navy Blue for standard, Gold for center
+  // 3. 3D Ball Sphere: Obsidian Black for standard, Gleaming Chrome for center
   const cx = 32;
   const cy = 23;
   const r = isCenter ? 16 : 14;
 
-  const baseColor = isCenter ? '#d4af37' : '#002244';
-  const lightColor = isCenter ? '#fef08a' : '#1e3a8a';
-  const darkColor = isCenter ? '#854d0e' : '#020c1b';
-  const rimColor = isCenter ? '#451a03' : '#000000';
+  const baseColor = isCenter ? '#d4d4d8' : (color && color !== '#002244' && color !== '#fbbf24' ? color : '#18181b');
+  const lightColor = isCenter ? '#ffffff' : adjustColorBrightness(baseColor, 0.45);
+  const darkColor = isCenter ? '#52525b' : adjustColorBrightness(baseColor, -0.45);
+  const rimColor = isCenter ? '#18181b' : '#000000';
 
   ctx.save();
-  ctx.shadowColor = 'rgba(0, 0, 0, 0.7)';
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.75)';
   ctx.shadowBlur = 5;
   ctx.shadowOffsetY = 2;
 
@@ -124,24 +117,24 @@ export function draw3DPinball(
   ctx.fill();
   ctx.restore();
 
-  // 4. Outer rim outline in crisp Gold or Black
+  // 4. Outer rim outline in crisp silver/white
   ctx.save();
-  ctx.strokeStyle = isCenter ? '#ffffff' : '#d4af37';
+  ctx.strokeStyle = isCenter ? '#ffffff' : '#a1a1aa';
   ctx.lineWidth = isCenter ? 2 : 1.25;
   ctx.beginPath();
   ctx.arc(cx, cy, r, 0, Math.PI * 2);
   ctx.stroke();
   ctx.restore();
 
-  // 5. Specular highlight glints for pure 3D glass/metallic sheen
+  // 5. Specular highlight glints for pure 3D glass/chrome sheen
   ctx.save();
-  ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
   ctx.beginPath();
   ctx.ellipse(cx - r * 0.38, cy - r * 0.38, r * 0.35, r * 0.2, -Math.PI / 4, 0, Math.PI * 2);
   ctx.fill();
 
   // Secondary soft bounce glint at bottom-right
-  ctx.fillStyle = 'rgba(212, 175, 55, 0.35)';
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
   ctx.beginPath();
   ctx.arc(cx + r * 0.4, cy + r * 0.4, r * 0.2, 0, Math.PI * 2);
   ctx.fill();
