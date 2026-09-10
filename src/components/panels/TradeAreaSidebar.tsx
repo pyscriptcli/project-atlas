@@ -49,6 +49,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     customGroups,
     setCustomGroups,
     setToast,
+    setActiveCinematicCluster,
   } = useMapStore();
 
   const [activeTab, setActiveTab] = useState<'scan' | 'ai'>('scan');
@@ -274,12 +275,12 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
           coordinates: circlePolygonCoords,
         },
         props: {
-          color: '#0284c7',
-          borderColor: '#0284c7',
+          color: '#d4af37',
+          borderColor: '#d4af37',
           borderOpacity: 0.85,
           width: 2,
-          fillColor: '#38bdf8',
-          fillOpacity: 0.12,
+          fillColor: '#002244',
+          fillOpacity: 0.18,
           radiusMeters: radiusMeters,
           showLabel: true,
           visible: 1,
@@ -305,7 +306,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
     result.features.forEach((poi, idx) => {
       const poiId = Date.now() + idx + 1;
-      const color = CATEGORY_COLORS[poi.category] || '#3b82f6';
+      const color = CATEGORY_COLORS[poi.category] || '#002244';
       // Register 3D pinball with realistic drop shadow
       const iconKey = mapInstance
         ? getIconKey('pinball', color, mapInstance)
@@ -379,20 +380,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
   };
 
-  // Fly to and highlight a specific commercial cluster on the map
+  // Trigger cinematic focus on a commercial cluster on the map
   const handleFocusClusterOnMap = (cluster: CommercialCluster) => {
-    if (!mapInstance || !cluster.center) return;
-    const [lat, lon] = cluster.center;
-
-    mapInstance.easeTo({
-      center: [lon, lat],
-      zoom: 16,
-      pitch: 45,
-      bearing: -15,
-      duration: 1600,
-    });
-
-    setToast(`Focusing on ${cluster.name} (${cluster.poiCount} POIs)...`);
+    if (!cluster.center) return;
+    setActiveCinematicCluster(cluster);
+    setToast(`Cinematic focus on ${cluster.name} (${cluster.poiCount} POIs)...`);
   };
 
   const handleCopyReport = () => {
@@ -426,18 +418,18 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
   };
 
   return (
-    <div className="fixed top-16 left-4 bottom-4 w-[430px] max-w-[calc(100vw-2rem)] z-[1000] bg-[rgba(9,16,24,0.98)] border border-white/15 rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.9)] backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-gray-300 animate-in fade-in slide-in-from-left-4">
+    <div className="fixed top-16 left-4 bottom-4 w-[430px] max-w-[calc(100vw-2rem)] z-[1000] bg-[#050811] border border-[#d4af37]/40 rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.95)] backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-gray-300 animate-in fade-in slide-in-from-left-4">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 pb-3 border-b border-white/10 shrink-0 bg-white/[0.02]">
+      <div className="flex items-center justify-between p-4 pb-3 border-b border-[#d4af37]/20 shrink-0 bg-[#001529]/60">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-gradient-to-br from-blue-500/20 to-sky-500/10 border border-blue-500/30 flex items-center justify-center text-sky-400 shadow-inner">
+          <div className="w-9 h-9 rounded-2xl bg-[#002244] border border-[#d4af37]/60 flex items-center justify-center text-[#fbbf24] shadow-sm">
             <Radar className="w-5 h-5" />
           </div>
           <div>
             <h3 className="font-bold text-white text-sm tracking-tight leading-tight">
               Trade Area & POI Analysis
             </h3>
-            <span className="text-[10px] text-gray-400 font-medium">
+            <span className="text-[10px] text-[#d4af37] font-semibold">
               3D Pinball & AI Intelligence Suite
             </span>
           </div>
@@ -453,13 +445,13 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
       {/* Tabs Header */}
       <div className="px-4 pt-3 pb-2 shrink-0">
-        <div className="flex gap-1.5 p-1 bg-black/50 rounded-2xl border border-white/10">
+        <div className="flex gap-1.5 p-1 bg-[#000000] rounded-2xl border border-[#d4af37]/30">
           <button
             type="button"
             onClick={() => setActiveTab('scan')}
             className={`flex-1 py-2 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 ${
               activeTab === 'scan'
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+                ? 'bg-[#d4af37] text-black shadow-lg shadow-amber-500/20'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
@@ -471,14 +463,14 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
             onClick={() => setActiveTab('ai')}
             className={`flex-1 py-2 rounded-xl font-bold text-xs transition flex items-center justify-center gap-2 ${
               activeTab === 'ai'
-                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg shadow-indigo-500/30'
+                ? 'bg-[#002244] text-[#fbbf24] border border-[#d4af37] shadow-lg shadow-amber-500/20'
                 : 'text-gray-400 hover:text-white hover:bg-white/5'
             }`}
           >
             <Sparkles className="w-3.5 h-3.5 text-amber-300" />
             <span>AI Cluster Deep-Dive</span>
             {scannedPois.length > 0 && (
-              <span className="px-2 py-0.5 bg-sky-400/25 text-sky-300 rounded-full font-mono text-[10px]">
+              <span className="px-2 py-0.5 bg-[#000000] text-[#fbbf24] border border-[#d4af37]/40 rounded-full font-mono text-[10px]">
                 {scannedPois.length}
               </span>
             )}
@@ -759,7 +751,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     type="button"
                     onClick={() => setActiveTab('ai')}
-                    className="flex items-center gap-1.5 px-3 py-1 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-xl text-[11px] shadow transition"
+                    className="flex items-center gap-1.5 px-3 py-1 bg-[#002244] hover:bg-[#d4af37] text-[#fbbf24] hover:text-black font-bold rounded-xl text-[11px] border border-[#d4af37]/40 shadow transition"
                   >
                     <Sparkles className="w-3.5 h-3.5 text-amber-300" />
                     <span>View AI Deep-Dive &rarr;</span>
@@ -768,7 +760,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
                 <div className="grid grid-cols-2 gap-1.5 max-h-36 overflow-y-auto">
                   {Object.entries(categoryBreakdown).map(([cat, count]) => {
-                    const color = CATEGORY_COLORS[cat] || '#3b82f6';
+                    const color = CATEGORY_COLORS[cat] || '#002244';
                     return (
                       <div
                         key={cat}
@@ -790,8 +782,8 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
           /* Visual AI Cluster & Competitor Deep-Dive Tab */
           <div className="space-y-4">
             {scannedPois.length === 0 ? (
-              <div className="p-8 border border-white/10 rounded-2xl bg-black/30 flex flex-col items-center justify-center text-center gap-3">
-                <div className="w-12 h-12 rounded-2xl bg-blue-500/10 border border-blue-500/25 flex items-center justify-center text-sky-400">
+              <div className="p-8 border border-[#d4af37]/30 rounded-2xl bg-[#001529]/60 flex flex-col items-center justify-center text-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-[#000000] border border-[#d4af37]/50 flex items-center justify-center text-[#fbbf24]">
                   <Radar className="w-6 h-6" />
                 </div>
                 <div>
@@ -803,7 +795,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 <button
                   type="button"
                   onClick={() => setActiveTab('scan')}
-                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl transition mt-2"
+                  className="px-4 py-2 bg-[#d4af37] hover:bg-[#fbbf24] text-black font-bold rounded-xl transition mt-2 shadow-md shadow-amber-500/20"
                 >
                   Go to Scanner
                 </button>
@@ -811,10 +803,10 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
             ) : (
               <>
                 {/* AI Header & Trigger Button */}
-                <div className="p-3.5 bg-gradient-to-r from-blue-900/30 to-indigo-900/30 border border-white/15 rounded-2xl flex items-center justify-between">
+                <div className="p-3.5 bg-[#001529] border border-[#d4af37]/40 rounded-2xl flex items-center justify-between">
                   <div>
                     <span className="font-bold text-white text-xs block flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-300" />
+                      <Sparkles className="w-3.5 h-3.5 text-[#fbbf24]" />
                       <span>AI Intelligence Dashboard</span>
                     </span>
                     <span className="text-[10px] text-gray-400">
@@ -824,20 +816,20 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     onClick={handleTriggerAiAnalysis}
                     disabled={isAiLoading}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold rounded-xl text-xs transition shadow-lg shadow-indigo-500/30"
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#d4af37] hover:bg-[#fbbf24] disabled:opacity-50 text-black font-extrabold rounded-xl text-xs transition shadow-lg shadow-amber-500/20"
                   >
                     {isAiLoading ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
                     ) : (
-                      <RefreshCw className="w-3.5 h-3.5" />
+                      <RefreshCw className="w-3.5 h-3.5 text-black" />
                     )}
                     <span>{aiData ? 'Regenerate' : 'Analyze with DeepSeek AI'}</span>
                   </button>
                 </div>
 
                 {isAiLoading ? (
-                  <div className="p-12 border border-white/10 rounded-2xl bg-black/30 flex flex-col items-center justify-center text-center gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-sky-400" />
+                  <div className="p-12 border border-[#d4af37]/30 rounded-2xl bg-[#001529]/60 flex flex-col items-center justify-center text-center gap-3">
+                    <Loader2 className="w-8 h-8 animate-spin text-[#fbbf24]" />
                     <span className="text-white font-semibold">
                       DeepSeek AI is Clustering POIs...
                     </span>
@@ -848,10 +840,10 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 ) : aiData ? (
                   <div className="space-y-4">
                     {/* Scorecard Gauge */}
-                    <div className="p-4 bg-black/40 border border-white/10 rounded-2xl flex items-center gap-4">
-                      <div className="relative w-16 h-16 flex items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500/20 to-sky-500/10 border border-sky-400/30">
+                    <div className="p-4 bg-[#000000] border border-[#d4af37]/40 rounded-2xl flex items-center gap-4">
+                      <div className="relative w-16 h-16 flex items-center justify-center rounded-2xl bg-[#001529] border border-[#d4af37]">
                         <div className="text-center">
-                          <span className="text-xl font-black text-white font-mono block leading-none">
+                          <span className="text-xl font-black text-[#fbbf24] font-mono block leading-none">
                             {aiData.summary.commercialScore}
                           </span>
                           <span className="text-[8px] text-gray-400 uppercase font-semibold">
@@ -864,7 +856,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                           <span className="text-xs font-bold text-white">
                             {aiData.summary.saturationRating}
                           </span>
-                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                          <span className="px-2 py-0.5 rounded-full text-[9px] font-bold bg-[#002244] text-[#fbbf24] border border-[#d4af37]/50">
                             {aiData.summary.dominantCategory}
                           </span>
                         </div>
@@ -902,7 +894,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                               <button
                                 type="button"
                                 onClick={() => handleFocusClusterOnMap(cluster)}
-                                className="px-2.5 py-1 rounded-xl bg-blue-600/20 hover:bg-blue-600 text-sky-300 hover:text-white font-bold text-[10px] border border-blue-500/30 flex items-center gap-1 transition shrink-0"
+                                className="px-2.5 py-1 rounded-xl bg-[#002244] hover:bg-[#d4af37] text-[#fbbf24] hover:text-black font-extrabold text-[10px] border border-[#d4af37]/60 flex items-center gap-1 transition shrink-0 shadow-sm"
                               >
                                 <span>Focus</span>
                                 <ArrowUpRight className="w-3 h-3" />
@@ -1044,20 +1036,20 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
       {/* Sticky Bottom Action Bar for Scanner */}
       {activeTab === 'scan' && (
-        <div className="p-4 pt-3 border-t border-white/10 shrink-0 bg-black/40">
+        <div className="p-4 pt-3 border-t border-[#d4af37]/20 shrink-0 bg-[#000000]">
           <button
             onClick={handleRunScan}
             disabled={isScanning}
-            className="w-full py-3 bg-gradient-to-r from-blue-600 via-sky-600 to-blue-600 hover:from-blue-500 hover:to-sky-500 disabled:opacity-50 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/25 flex items-center justify-center gap-2 text-xs transition active:scale-[0.99]"
+            className="w-full py-3 bg-[#d4af37] hover:bg-[#fbbf24] disabled:opacity-50 text-black font-black rounded-2xl shadow-xl shadow-amber-500/20 flex items-center justify-center gap-2 text-xs transition active:scale-[0.99]"
           >
             {isScanning ? (
               <>
-                <Loader2 className="w-4 h-4 animate-spin text-white" />
+                <Loader2 className="w-4 h-4 animate-spin text-black" />
                 <span>Querying Overpass Multi-Endpoint API...</span>
               </>
             ) : (
               <>
-                <Radar className="w-4 h-4" />
+                <Radar className="w-4 h-4 text-black" />
                 <span>Execute Trade Area Scan</span>
               </>
             )}

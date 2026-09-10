@@ -14,6 +14,7 @@ import { BasemapModal } from '../components/modals/BasemapModal';
 import { SearchModal } from '../components/modals/SearchModal';
 import { WorkspaceLauncherModal } from '../components/modals/WorkspaceLauncherModal';
 import { BuildingCatalogModal } from '../components/modals/BuildingCatalogModal';
+import { CinematicClusterOverlay } from '../components/map/CinematicClusterOverlay';
 import { useMapStore } from '../store/useMapStore';
 import { useProjectStore } from '../store/useProjectStore';
 import { normalizeGeoJSON } from '../gis/importExport';
@@ -134,6 +135,7 @@ export default function WorkspacePage() {
       <SearchModal mapInstance={mapInstance} />
       <WorkspaceLauncherModal />
       <BuildingCatalogModal mapInstance={mapInstance} />
+      <CinematicClusterOverlay mapInstance={mapInstance} />
 
       {/* Toast Notification */}
       {toastMessage && (

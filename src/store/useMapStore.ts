@@ -67,6 +67,10 @@ interface MapState {
   redoStack: string[];
   toastMessage: string | null;
 
+  // Cinematic Cluster Focus State
+  activeCinematicCluster: any | null;
+  setActiveCinematicCluster: (cluster: any | null) => void;
+
   // Actions
   setActiveTool: (tool: FeatureKind | 'placeBuilding' | null) => void;
   setEditMode: (mode: boolean, selectedId?: number | null) => void;
@@ -170,6 +174,9 @@ export const useMapStore = create<MapState>((set, get) => ({
   undoStack: [],
   redoStack: [],
   toastMessage: null,
+
+  activeCinematicCluster: null,
+  setActiveCinematicCluster: (activeCinematicCluster) => set({ activeCinematicCluster }),
 
   setActiveTool: (tool) => {
     set((state) => {
@@ -297,11 +304,25 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((state) => {
       const currentState = state.activePanels[panel];
       const nextState = forceState !== undefined ? forceState : !currentState;
+
+      const mainSidebars = ['browser', 'myLayers', 'tradeArea'];
+      const isOpeningMainSidebar = mainSidebars.includes(panel) && nextState;
+
+      const updatedPanels = {
+        ...state.activePanels,
+        [panel]: nextState,
+      };
+
+      if (isOpeningMainSidebar) {
+        mainSidebars.forEach((p) => {
+          if (p !== panel) {
+            updatedPanels[p as keyof typeof state.activePanels] = false;
+          }
+        });
+      }
+
       return {
-        activePanels: {
-          ...state.activePanels,
-          [panel]: nextState,
-        },
+        activePanels: updatedPanels,
       };
     }),
 
