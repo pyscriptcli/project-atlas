@@ -19,6 +19,7 @@ import {
   Type,
   Palette,
   Download,
+  Box,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
@@ -179,6 +180,23 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         }`}
       >
         <Hexagon className="w-4 h-4" />
+      </button>
+
+      <button
+        onClick={() => {
+          setActiveTool('polygon3d');
+          if (mapInstance && mapInstance.getPitch() < 30) {
+            mapInstance.easeTo({ pitch: 60 });
+          }
+        }}
+        title="Draw 3D Polygon / Building Extrusion"
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
+          activeTool === 'polygon3d'
+            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
+            : 'text-gray-300 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Box className="w-4 h-4 text-sky-400" />
       </button>
 
       <button

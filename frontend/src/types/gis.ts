@@ -1,6 +1,6 @@
 export type GeometryType = 'Point' | 'LineString' | 'Polygon' | 'MultiPolygon';
 
-export type FeatureKind = 'marker' | 'textbox' | 'polyline' | 'polygon' | 'rectangle' | 'circle' | 'route';
+export type FeatureKind = 'marker' | 'textbox' | 'polyline' | 'polygon' | 'rectangle' | 'circle' | 'route' | 'polygon3d';
 
 export interface GeoJSONGeometry {
   type: GeometryType;
@@ -19,6 +19,12 @@ export interface FeatureProps {
   iconSize?: number;
   visible?: number; // 1 or 0 for MapLibre expression multiplication
   rotation?: number;
+
+  // 3D Extrusion specific
+  is3D?: boolean;
+  height?: number; // Height in meters above ground
+  baseHeight?: number; // Base height in meters
+
   
   // Marker specific
   shape?: 'pin' | 'star' | 'circle' | 'square' | 'flag' | 'heart' | 'pinball';

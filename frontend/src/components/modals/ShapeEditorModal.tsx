@@ -23,7 +23,7 @@ export const ShapeEditorModal: React.FC = () => {
   const f = features.find((x) => x.id === selectedId);
   if (!f) return null;
 
-  const isPolygon = ['polygon', 'rectangle', 'circle'].includes(f.kind);
+  const isPolygon = ['polygon', 'rectangle', 'circle', 'polygon3d'].includes(f.kind);
   const isMarker = f.kind === 'marker';
   const isText = f.kind === 'textbox';
   const isRoute = f.kind === 'route';
@@ -182,6 +182,85 @@ export const ShapeEditorModal: React.FC = () => {
               }
               className="accent-blue-600 w-28 cursor-pointer"
             />
+          </div>
+
+          {/* 3D Extrusion Section */}
+          <div className="border-t border-white/10 pt-3 flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-white">3D Extrusion</span>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={(f.props.height || 0) > 0 || !!f.props.is3D}
+                  onChange={(e) => {
+                    const enabled = e.target.checked;
+                    updateFeature(f.id, (feat) => ({
+                      ...feat,
+                      kind: enabled ? 'polygon3d' : (feat.kind === 'polygon3d' ? 'polygon' : feat.kind),
+                      props: {
+                        ...feat.props,
+                        is3D: enabled,
+                        height: enabled ? (feat.props.height || 35) : 0,
+                      },
+                    }));
+                  }}
+                  className="accent-blue-600 w-4 h-4 rounded cursor-pointer"
+                />
+                <span className="text-[11px] text-sky-400 font-bold">
+                  {(f.props.height || 0) > 0 || !!f.props.is3D ? 'Enabled' : 'Disabled'}
+                </span>
+              </label>
+            </div>
+
+            {((f.props.height || 0) > 0 || !!f.props.is3D) && (
+              <>
+                <div className="flex items-center justify-between">
+                  <span>Height (meters)</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="1"
+                      max="300"
+                      step="5"
+                      value={f.props.height || 35}
+                      onChange={(e) =>
+                        updateFeature(f.id, (feat) => ({
+                          ...feat,
+                          props: { ...feat.props, height: parseFloat(e.target.value) },
+                        }))
+                      }
+                      className="accent-blue-600 w-24 cursor-pointer"
+                    />
+                    <span className="font-mono text-xs w-10 text-right text-sky-400 font-bold">
+                      {f.props.height || 35}m
+                    </span>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span>Base Elevation</span>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min="0"
+                      max="100"
+                      step="2"
+                      value={f.props.baseHeight || 0}
+                      onChange={(e) =>
+                        updateFeature(f.id, (feat) => ({
+                          ...feat,
+                          props: { ...feat.props, baseHeight: parseFloat(e.target.value) },
+                        }))
+                      }
+                      className="accent-blue-600 w-24 cursor-pointer"
+                    />
+                    <span className="font-mono text-xs w-10 text-right text-gray-400">
+                      {f.props.baseHeight || 0}m
+                    </span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </>
       )}

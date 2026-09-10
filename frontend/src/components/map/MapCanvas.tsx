@@ -152,7 +152,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         id: 'draw-fill',
         type: 'fill',
         source: 'draw',
-        filter: ['==', ['geometry-type'], 'Polygon'],
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['<=', ['coalesce', ['get', 'height'], 0], 0],
+        ],
         paint: {
           'fill-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#e8b84a'],
           'fill-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.35], ['get', 'visible']],
@@ -163,11 +167,32 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         id: 'draw-outline',
         type: 'line',
         source: 'draw',
-        filter: ['==', ['geometry-type'], 'Polygon'],
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['<=', ['coalesce', ['get', 'height'], 0], 0],
+        ],
         paint: {
           'line-color': ['coalesce', ['get', 'borderColor'], ['get', 'color'], '#e8b84a'],
           'line-width': ['coalesce', ['get', 'width'], 3],
           'line-opacity': ['*', ['coalesce', ['get', 'borderOpacity'], 0.9], ['get', 'visible']],
+        },
+      });
+
+      map.addLayer({
+        id: 'draw-extrusion',
+        type: 'fill-extrusion',
+        source: 'draw',
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Polygon'],
+          ['>', ['coalesce', ['get', 'height'], 0], 0],
+        ],
+        paint: {
+          'fill-extrusion-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#38bdf8'],
+          'fill-extrusion-height': ['coalesce', ['get', 'height'], 35],
+          'fill-extrusion-base': ['coalesce', ['get', 'baseHeight'], 0],
+          'fill-extrusion-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.85], ['get', 'visible']],
         },
       });
 
@@ -372,7 +397,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         geometry: { type: 'Point', coordinates: edgeCoord },
         properties: { polyId: f.id, isRadiusHandle: true },
       });
-    } else if (['polygon', 'rectangle'].includes(f.kind) && f.geometry.coordinates?.[0]) {
+    } else if (['polygon', 'rectangle', 'polygon3d'].includes(f.kind) && f.geometry.coordinates?.[0]) {
       const coords = f.geometry.coordinates[0];
       for (let i = 0; i < coords.length - 1; i++) {
         handleFeats.push({
@@ -428,13 +453,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     });
 
     pts.forEach((p, i) => {
-      feats.push(ptFeat(p, i === 0 && tool === 'polygon', i === pts.length - 1 && tool === 'route'));
+      feats.push(
+        ptFeat(
+          p,
+          i === 0 && (tool === 'polygon' || tool === 'polygon3d'),
+          i === pts.length - 1 && tool === 'route'
+        )
+      );
     });
 
     if ((tool === 'polyline' || tool === 'route') && pts.length) {
       feats.push(lnFeat(cursor ? [...pts, cursor] : pts));
     }
-    if (tool === 'polygon' && pts.length) {
+    if ((tool === 'polygon' || tool === 'polygon3d') && pts.length) {
       const allPts = cursor ? [...pts, cursor] : pts;
       if (allPts.length > 1) feats.push(lnFeat([...allPts, allPts[0]]));
     }
@@ -493,7 +524,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
             const newRadius = haversineDist(f.props.centerCoord, ll);
             next.props.radiusMeters = newRadius;
             next.geometry.coordinates = circleCoords(f.props.centerCoord, ll).coords;
-          } else if (['polygon', 'rectangle'].includes(f.kind) && next.geometry.coordinates?.[0]) {
+          } else if (['polygon', 'rectangle', 'polygon3d'].includes(f.kind) && next.geometry.coordinates?.[0]) {
             const ring = [...next.geometry.coordinates[0]];
             ring[d.draggedVertexIdx] = ll;
             if (d.draggedVertexIdx === 0) ring[ring.length - 1] = ll;
@@ -543,7 +574,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       }
 
       const fs = map.queryRenderedFeatures(e.point, {
-        layers: ['draw-fill', 'draw-line', 'draw-outline', 'draw-marker', 'draw-text'],
+        layers: ['draw-fill', 'draw-extrusion', 'draw-line', 'draw-outline', 'draw-marker', 'draw-text'],
       });
       if (fs.length && fs[0].properties.id != null) {
         const id = parseInt(fs[0].properties.id, 10);
@@ -593,7 +624,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       if (!activeTool) {
         if (!editMode) {
           const fs = map.queryRenderedFeatures(e.point, {
-            layers: ['draw-fill', 'draw-line', 'draw-outline', 'draw-marker', 'draw-text'],
+            layers: ['draw-fill', 'draw-extrusion', 'draw-line', 'draw-outline', 'draw-marker', 'draw-text'],
           });
           if (fs.length && fs[0].properties.id != null) {
             const id = parseInt(fs[0].properties.id, 10);
@@ -751,6 +782,39 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           }
         }
         setDraft(nextDraft);
+      } else if (activeTool === 'polygon3d') {
+        const nextDraft = [...draft, ll];
+        if (nextDraft.length >= 3) {
+          const pScreen = map.project(ll);
+          for (const origin of draft) {
+            const vScreen = map.project(origin);
+            if (Math.hypot(pScreen.x - vScreen.x, pScreen.y - vScreen.y) < 18) {
+              addFeature({
+                id,
+                name: `3D Building ${id}`,
+                kind: 'polygon3d',
+                geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
+                props: {
+                  is3D: true,
+                  height: 35,
+                  baseHeight: 0,
+                  color: '#38bdf8',
+                  fillColor: '#38bdf8',
+                  fillOpacity: 0.85,
+                  borderColor: '#38bdf8',
+                  width: 2,
+                  visible: 1,
+                  attributes: { name: `3D Building ${id}`, height: '35m' },
+                },
+              });
+              setDraft([]);
+              setActiveTool(null);
+              setToast('3D Polygon created');
+              return;
+            }
+          }
+        }
+        setDraft(nextDraft);
       } else if (activeTool === 'route') {
         const nextDraft = [...draft, ll];
         if (nextDraft.length >= 2) {
@@ -790,6 +854,32 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     };
 
     const handleDblClick = async (e: maplibregl.MapMouseEvent) => {
+      if (activeTool === 'polygon3d' && draft.length >= 3) {
+        e.preventDefault();
+        const id = ++nextFid.current;
+        addFeature({
+          id,
+          name: `3D Building ${id}`,
+          kind: 'polygon3d',
+          geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
+          props: {
+            is3D: true,
+            height: 35,
+            baseHeight: 0,
+            color: '#38bdf8',
+            fillColor: '#38bdf8',
+            fillOpacity: 0.85,
+            borderColor: '#38bdf8',
+            width: 2,
+            visible: 1,
+            attributes: { name: `3D Building ${id}`, height: '35m' },
+          },
+        });
+        setDraft([]);
+        setActiveTool(null);
+        setToast('3D Polygon finalized');
+        return;
+      }
       if (activeTool === 'route' && draft.length >= 2) {
         e.preventDefault();
         setToast('Calculating route...');
@@ -824,7 +914,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     const handleContextMenu = (e: maplibregl.MapMouseEvent) => {
       e.preventDefault();
       const fs = map.queryRenderedFeatures(e.point, {
-        layers: ['draw-fill', 'draw-line', 'draw-outline', 'draw-marker', 'draw-text'],
+        layers: ['draw-fill', 'draw-extrusion', 'draw-line', 'draw-outline', 'draw-marker', 'draw-text'],
       });
       const hitId = fs.length && fs[0].properties.id != null ? parseInt(fs[0].properties.id, 10) : null;
 

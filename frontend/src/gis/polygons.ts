@@ -103,3 +103,38 @@ export function translateCoordinates(coords: any, dx: number, dy: number): any {
   }
   return coords.map((c: any) => translateCoordinates(c, dx, dy));
 }
+
+/**
+ * Helper to construct a standard 3D Polygon / Extrusion feature
+ */
+export function create3DPolygonFeature(
+  id: number,
+  coordinates: [number, number][][],
+  height: number = 35,
+  baseHeight: number = 0,
+  customProps: Partial<GISFeature['props']> = {}
+): GISFeature {
+  return {
+    id,
+    name: `3D Building ${id}`,
+    kind: 'polygon3d',
+    geometry: { type: 'Polygon', coordinates },
+    props: {
+      is3D: true,
+      height,
+      baseHeight,
+      color: '#38bdf8',
+      fillColor: '#38bdf8',
+      fillOpacity: 0.85,
+      borderColor: '#38bdf8',
+      width: 2,
+      visible: 1,
+      attributes: {
+        name: `3D Building ${id}`,
+        height: `${height}m`,
+      },
+      ...customProps,
+    },
+  };
+}
+
