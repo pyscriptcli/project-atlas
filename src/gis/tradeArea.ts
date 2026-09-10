@@ -175,33 +175,39 @@ export interface ScanResult {
 }
 
 /**
- * Robust fetch helper via our Next.js API proxy (which handles multi-endpoint failover and POST data encoding)
+ * Robust fetch helper via our Next.js API proxy with abort signal support
  */
-export async function robustOverpassFetch(query: string, timeout = 90): Promise<any | null> {
+export async function robustOverpassFetch(query: string, timeout = 30, signal?: AbortSignal): Promise<any | null> {
   try {
     const res = await fetch('/api/overpass', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ query, timeout }),
+      signal,
     });
     if (res.ok) {
       return await res.json();
     }
-  } catch (e) {
-    console.error('Overpass fetch failed:', e);
+  } catch (e: any) {
+    if (e.name === 'AbortError') {
+      console.log('Overpass scan cancelled by user.');
+    } else {
+      console.error('Overpass fetch failed:', e);
+    }
   }
   return null;
 }
 
 /**
- * Scan POIs around a center coordinate and radius in meters (exact working logic from Open Node Streamlit).
+ * Scan POIs around a center coordinate and radius in meters with optimized 'nw' (node + way) queries.
  */
 export async function scanTradeAreaCoordinates(
   lat: number,
   lon: number,
   radius: number,
   selectedTags: string[],
-  customTag?: string
+  customTag?: string,
+  signal?: AbortSignal
 ): Promise<ScanResult | null> {
   const tagsToQuery = [...selectedTags];
   if (customTag && customTag.trim()) {
@@ -216,14 +222,14 @@ export async function scanTradeAreaCoordinates(
 
   if (tagsToQuery.length === 0) return null;
 
-  // Build QL statements around coordinates
+  // Build optimized QL statements around coordinates (use 'nw' instead of 'nwr' for 5-10x speedup by skipping relations)
   const statements = tagsToQuery
-    .map((tag) => `  nwr[${tag}](around:${radius},${lat},${lon});`)
+    .map((tag) => `  nw[${tag}](around:${radius},${lat},${lon});`)
     .join('\n');
 
-  const ql = `[out:json][timeout:90];(\n${statements}\n);\nout center;`;
+  const ql = `[out:json][timeout:30];(\n${statements}\n);\nout center;`;
 
-  const data = await robustOverpassFetch(ql);
+  const data = await robustOverpassFetch(ql, 30, signal);
   if (!data || !data.elements) return null;
 
   return processOverpassElements(data.elements, selectedTags);
@@ -235,7 +241,8 @@ export async function scanTradeAreaCoordinates(
 export async function scanTradeAreaPolygon(
   targetPoly: GISFeature,
   selectedTags: string[],
-  customTag?: string
+  customTag?: string,
+  signal?: AbortSignal
 ): Promise<ScanResult | null> {
   const bnd = calcBounds(targetPoly);
   if (!bnd) return null;
@@ -255,12 +262,13 @@ export async function scanTradeAreaPolygon(
 
   if (tagsToQuery.length === 0) return null;
 
+  // Optimized 'nw' query
   const statements = tagsToQuery
-    .map((tag) => `  nwr[${tag}](${bbox});`)
+    .map((tag) => `  nw[${tag}](${bbox});`)
     .join('\n');
 
-  const ql = `[out:json][timeout:90];(\n${statements}\n);\nout center;`;
-  const data = await robustOverpassFetch(ql);
+  const ql = `[out:json][timeout:30];(\n${statements}\n);\nout center;`;
+  const data = await robustOverpassFetch(ql, 30, signal);
   if (!data || !data.elements) return null;
 
   // Filter with point-in-polygon if polygon coordinates are present

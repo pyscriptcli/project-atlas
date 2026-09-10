@@ -35,6 +35,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
     selectedLayerIds,
     toggleLayerSelection,
     selectAllLayers,
+    clearLayerSelection,
     removeFeature,
     updateFeature,
     setSelectedId,
@@ -123,6 +124,15 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
       )
     );
     setToast(allHidden ? 'Selected layers shown' : 'Selected layers hidden');
+  };
+
+  const handleBulkDeleteSelected = () => {
+    if (!selectedLayerIds.length) return;
+    const count = selectedLayerIds.length;
+    const remaining = features.filter((f) => !selectedLayerIds.includes(f.id));
+    setFeatures(remaining);
+    clearLayerSelection();
+    setToast(`Deleted ${count} selected layer(s)`);
   };
 
   // Grouped vs Ungrouped
@@ -244,7 +254,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
                   props: { ...feat.props, labelPos: e.target.value as any },
                 }))
               }
-              className="bg-black/40 border border-white/10 rounded px-1 text-[9px] text-gray-300 outline-none"
+              className="bg-black/40 border border-white/10 rounded px-1 text-[9px] text-zinc-300 outline-none"
             >
               <option value="center">center</option>
               <option value="top">top</option>
@@ -259,44 +269,56 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
   };
 
   return (
-    <div className="fixed top-16 left-4 bottom-4 w-96 z-[999] bg-[rgba(9,16,24,0.97)] border border-white/15 rounded-3xl p-4 shadow-2xl backdrop-blur-xl flex flex-col overflow-hidden text-xs text-gray-300">
+    <div className="fixed top-16 left-4 bottom-4 w-96 z-[999] bg-black/85 border border-white/15 rounded-3xl p-4 shadow-2xl backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-zinc-300">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-white/10">
         <div className="flex items-center gap-2 font-bold text-white text-sm">
-          <FolderTree className="w-4 h-4 text-sky-400" />
+          <FolderTree className="w-4 h-4 text-white" />
           <span>My Layers</span>
-          <span className="ml-1 text-[10px] px-2 py-0.5 rounded-full bg-blue-600 text-white font-semibold">
+          <span className="ml-1 text-[10px] px-2 py-0.5 rounded-full bg-white/15 border border-white/20 text-white font-semibold">
             {features.length}
           </span>
         </div>
         <button
           onClick={() => togglePanel('myLayers', false)}
-          className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10 transition"
+          className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Global Action Bar */}
-      <div className="flex items-center justify-between py-2 border-b border-white/5 text-[11px]">
-        <button
-          onClick={selectAllLayers}
-          className="flex items-center gap-1.5 text-gray-400 hover:text-white"
-        >
-          <CheckSquare className="w-3.5 h-3.5" />
-          <span>Select All</span>
-        </button>
+      <div className="flex items-center justify-between py-2 border-b border-white/10 text-[11px]">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={selectAllLayers}
+            className="flex items-center gap-1.5 text-zinc-400 hover:text-white transition font-medium"
+          >
+            <CheckSquare className="w-3.5 h-3.5" />
+            <span>Select All</span>
+          </button>
+          {selectedLayerIds.length > 0 && (
+            <button
+              onClick={handleBulkDeleteSelected}
+              className="px-2 py-0.5 bg-zinc-900 hover:bg-zinc-800 text-zinc-200 hover:text-white border border-white/20 rounded-lg flex items-center gap-1 text-[10px] transition shadow-sm font-semibold"
+              title={`Delete ${selectedLayerIds.length} selected layer(s)`}
+            >
+              <Trash2 className="w-3 h-3 text-zinc-300" />
+              <span>Delete ({selectedLayerIds.length})</span>
+            </button>
+          )}
+        </div>
         <div className="flex items-center gap-2">
           <button
             onClick={handleAddGroup}
-            className="px-2 py-1 bg-white/10 hover:bg-white/15 rounded-lg text-white font-semibold flex items-center gap-1 text-[10px]"
+            className="px-2 py-1 bg-white/10 hover:bg-white/20 rounded-lg text-white font-semibold flex items-center gap-1 text-[10px] transition border border-white/10"
           >
             <Plus className="w-3 h-3" />
             <span>GROUP</span>
           </button>
           <button
             onClick={handleBulkHideUnhide}
-            className="px-2 py-1 bg-black/40 hover:bg-black/60 border border-white/10 rounded-lg text-gray-300 text-[10px]"
+            className="px-2 py-1 bg-black/60 hover:bg-zinc-800 border border-white/10 rounded-lg text-zinc-300 text-[10px] transition"
           >
             Hide/Unhide
           </button>

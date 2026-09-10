@@ -2,71 +2,63 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const OVERPASS_ENDPOINTS = [
   'https://overpass-api.de/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
   'https://overpass.kumi.systems/api/interpreter',
   'https://overpass.openstreetmap.fr/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
 ];
 
 export async function POST(req: NextRequest) {
   try {
-    const { query, timeout = 90 } = await req.json();
+    const { query, timeout = 30 } = await req.json();
     if (!query) {
       return NextResponse.json({ error: 'Query parameter is required' }, { status: 400 });
     }
 
-    // 1. Attempt local/configured FastAPI spatial backend if available
-    const fastApiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
-    try {
-      const fastRes = await fetch(`${fastApiUrl}/api/overpass`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ query, timeout }),
-      });
-      if (fastRes.ok) {
-        const data = await fastRes.json();
-        return NextResponse.json(data);
-      }
-    } catch (e) {
-      // Fall through to Overpass multi-endpoint failover
-    }
-
-    // 2. Direct Overpass HTTP POST queries with failover
+    // Direct fast Overpass HTTP POST queries with rapid multi-mirror failover
     for (const endpoint of OVERPASS_ENDPOINTS) {
-      let retries = 3;
-      let delay = 1000;
-      while (retries > 0) {
-        try {
-          const controller = new AbortController();
-          const tid = setTimeout(() => controller.abort(), timeout * 1000);
+      if (req.signal?.aborted) {
+        return NextResponse.json({ error: 'Request aborted by client' }, { status: 499 });
+      }
 
-          // Use POST with form data 'data=...' and custom User-Agent to prevent 414 URI Too Long and rate limiting
-          const res = await fetch(endpoint, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
-              'User-Agent': 'OpenNode/3.1 (https://github.com/pyscriptcli/project-atlas)',
-            },
-            body: `data=${encodeURIComponent(query)}`,
-            signal: controller.signal,
-          });
-          clearTimeout(tid);
+      try {
+        const controller = new AbortController();
+        const perAttemptTimeout = Math.min(timeout, 14); // Quick 14s failover between mirrors
+        const tid = setTimeout(() => controller.abort(), perAttemptTimeout * 1000);
 
-          if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+        // Chain client abort signal if client cancels
+        if (req.signal) {
+          req.signal.addEventListener('abort', () => controller.abort());
+        }
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'User-Agent': 'AtlasGIS/3.0 (https://github.com/pyscriptcli/project-atlas)',
+          },
+          body: `data=${encodeURIComponent(query)}`,
+          signal: controller.signal,
+        });
+        clearTimeout(tid);
+
+        if (res.ok) {
           const data = await res.json();
           return NextResponse.json(data);
-        } catch (err: any) {
-          retries--;
-          if (retries === 0) break;
-          await new Promise((r) => setTimeout(r, delay));
-          delay *= 2;
         }
+      } catch (err: any) {
+        // Continue to next mirror immediately on timeout or error
       }
     }
 
     return NextResponse.json(
-      { error: 'All Overpass endpoints failed to respond. Please try reducing the radius or selecting fewer categories.' },
-      { status: 502 }
+      { error: 'All Overpass endpoints failed to respond in time. Please try a slightly smaller radius or fewer tags.' },
+      { status: 504 }
     );
   } catch (error: any) {
+    if (error.name === 'AbortError') {
+      return NextResponse.json({ error: 'Cancelled' }, { status: 499 });
+    }
     console.error('Overpass proxy error:', error);
     return NextResponse.json({ error: error.message || 'Internal error' }, { status: 500 });
   }

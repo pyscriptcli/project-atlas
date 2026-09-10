@@ -66,12 +66,12 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
   };
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] bg-[rgba(9,16,24,0.97)] border border-white/15 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-2xl backdrop-blur-md text-gray-200">
+    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] bg-black/85 border border-white/15 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-2xl backdrop-blur-xl text-zinc-200">
       {/* Workspace Switcher */}
       <button
         onClick={() => togglePanel('launcher', true)}
         title="Select Workspace"
-        className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
       >
         <FolderOpen className="w-4 h-4" />
       </button>
@@ -81,20 +81,20 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         <span
           onClick={handleRename}
           title="Click to rename workspace"
-          className="font-bold text-sky-400 text-xs max-w-[140px] truncate cursor-pointer hover:underline"
+          className="font-bold text-white text-xs max-w-[140px] truncate cursor-pointer hover:text-zinc-300 transition"
         >
           {currentProjectName}
         </span>
         <div
           className={`text-[9px] px-2 py-0.5 rounded-full font-semibold border flex items-center gap-1 ${
             saveStatus === 'saved'
-              ? 'text-emerald-400 border-emerald-500/30 bg-emerald-500/10'
+              ? 'text-white border-white/20 bg-white/10'
               : saveStatus === 'saving'
-              ? 'text-amber-400 border-amber-500/30 bg-amber-500/10'
-              : 'text-rose-400 border-rose-500/30 bg-rose-500/10'
+              ? 'text-zinc-300 border-white/20 bg-white/5 animate-pulse'
+              : 'text-zinc-400 border-white/10 bg-transparent'
           }`}
         >
-          <span>●</span>
+          <span className="text-[7px]">●</span>
           <span>
             {saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving...' : 'Unsaved'}
           </span>
@@ -105,14 +105,14 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
       <button
         onClick={undo}
         title="Undo (Ctrl+Z)"
-        className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
       >
         <Undo2 className="w-4 h-4" />
       </button>
       <button
         onClick={redo}
         title="Redo (Ctrl+Y)"
-        className="w-8 h-8 rounded-full flex items-center justify-center text-gray-400 hover:text-white hover:bg-white/10 transition"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
       >
         <Redo2 className="w-4 h-4" />
       </button>
@@ -121,7 +121,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
       <button
         onClick={handleSave}
         title="Save Workspace (Ctrl+S)"
-        className="w-8 h-8 rounded-full flex items-center justify-center text-emerald-400 hover:text-emerald-300 hover:bg-white/10 transition"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
       >
         <Save className="w-4 h-4" />
       </button>
@@ -154,7 +154,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         onClick={() => togglePanel('tradeArea')}
         title="Trade Area & POI Analysis"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
-          activePanels.tradeArea ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-gray-300 hover:text-white hover:bg-white/10'
+          activePanels.tradeArea ? 'bg-white text-black shadow-lg shadow-white/20' : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <Radar className="w-4 h-4" />
@@ -165,7 +165,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         onClick={() => togglePanel('search')}
         title="Search Place"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
-          activePanels.search ? 'bg-white/20 text-white' : 'text-gray-300 hover:text-white hover:bg-white/10'
+          activePanels.search ? 'bg-white/20 text-white' : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <Search className="w-4 h-4" />
@@ -175,7 +175,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
       <button
         onClick={onImportClick}
         title="Import Spatial Data (KML, KMZ, GeoJSON, SHP)"
-        className="w-8 h-8 rounded-full flex items-center justify-center text-gray-300 hover:text-white hover:bg-white/10 transition"
+        className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
       >
         <Upload className="w-4 h-4" />
       </button>
@@ -188,8 +188,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Draw Polygon"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'polygon'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <Hexagon className="w-4 h-4" />
@@ -205,11 +205,11 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Draw 3D Polygon / Building Extrusion"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'polygon3d'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
-        <Box className="w-4 h-4 text-sky-400" />
+        <Box className="w-4 h-4" />
       </button>
 
       <button
@@ -217,11 +217,11 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="3D Architectural Building Catalog"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activePanels.buildingCatalog
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
-        <Building2 className="w-4 h-4 text-sky-300" />
+        <Building2 className="w-4 h-4" />
       </button>
 
       <button
@@ -229,8 +229,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Draw Rectangle"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'rectangle'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <Square className="w-4 h-4" />
@@ -241,8 +241,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Draw Circle (with Radius)"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'circle'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <CircleIcon className="w-4 h-4" />
@@ -253,8 +253,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Draw Polyline"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'polyline'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <Spline className="w-4 h-4" />
@@ -265,8 +265,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Route A to B (OSRM)"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'route'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <Navigation className="w-4 h-4" />
@@ -277,8 +277,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Place Marker Pin"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'marker'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <MapPin className="w-4 h-4" />
@@ -289,8 +289,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         title="Add Text Label"
         className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
           activeTool === 'textbox'
-            ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30'
-            : 'text-gray-300 hover:text-white hover:bg-white/10'
+            ? 'bg-white text-black shadow-lg shadow-white/20'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
       >
         <Type className="w-4 h-4" />
