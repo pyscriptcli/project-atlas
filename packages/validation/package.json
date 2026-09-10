@@ -1,1 +1,0 @@
-{"name":"@atlas/validation","private":true,"type":"module","exports":"./src/index.ts","scripts":{"typecheck":"tsc --noEmit","test":"vitest run"},"dependencies":{"zod":"^4.1.5"},"devDependencies":{"vitest":"^3.2.4","typescript":"^5.9.2"}}

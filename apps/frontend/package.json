@@ -1,9 +1,0 @@
-{
-  "name": "@atlas/frontend",
-  "private": true,
-  "scripts": {"dev":"next dev","build":"next build","start":"next start","lint":"eslint","typecheck":"tsc --noEmit"},
-  "dependencies": {
-    "@atlas/geo":"*","@atlas/types":"*","@atlas/validation":"*","@supabase/ssr":"^0.7.0","@supabase/supabase-js":"^2.115.0","@tmcw/togeojson":"^7.1.2","@turf/turf":"^7.4.0","clsx":"^2.1.1","jszip":"^3.10.1","lucide-react":"^1.42.0","maplibre-gl":"^6.7.0","next":"16.3.4","react":"19.2.8","react-dom":"19.2.8","shpjs":"^6.2.0","tailwind-merge":"^3.6.0","zustand":"^5.0.15"
-  },
-  "devDependencies": {"@tailwindcss/postcss":"^4","@types/geojson":"^7946.0.16","@types/jszip":"^3.4.1","@types/node":"^20","@types/react":"^19","@types/react-dom":"^19","@types/shpjs":"^3.4.7","eslint":"^9","eslint-config-next":"16.3.4","tailwindcss":"^4","typescript":"^5.9.2"}
-}

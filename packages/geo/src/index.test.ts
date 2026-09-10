@@ -1,3 +1,0 @@
-import {describe,expect,it} from "vitest";
-import {calculateDistanceKm,createCircleFeature,isPointInsidePolygon} from "./index";
-describe("geospatial utilities",()=>{it("creates a closed circle with radius metadata",()=>{const feature=createCircleFeature([120.98,14.59],1000);expect(feature.geometry.coordinates[0][0]).toEqual(feature.geometry.coordinates[0].at(-1));expect(feature.properties?.radiusMeters).toBe(1000)});it("measures routes",()=>expect(calculateDistanceKm([[0,0],[0,1]])).toBeGreaterThan(100));it("checks containment",()=>{const polygon={type:"Polygon" as const,coordinates:[[[0,0],[1,0],[1,1],[0,1],[0,0]]]};expect(isPointInsidePolygon([.5,.5],polygon)).toBe(true);expect(isPointInsidePolygon([2,2],polygon)).toBe(false)})});

@@ -1,3 +1,0 @@
-import {describe,expect,it} from "vitest";
-import {POI_SCAN_SCHEMA,PROJECT_INPUT_SCHEMA,ROUTE_SCHEMA} from "./index";
-describe("public input schemas",()=>{it("rejects unsafe POI expressions",()=>expect(POI_SCAN_SCHEMA.safeParse({lat:1,lon:1,radius:1000,tags:["];delete;"]}).success).toBe(false));it("requires two route points",()=>expect(ROUTE_SCHEMA.safeParse({mode:"driving",waypoints:[[1,1]]}).success).toBe(false));it("rejects empty project names",()=>expect(PROJECT_INPUT_SCHEMA.safeParse({name:"",basemap:"OSM",center:[0,0],zoom:1,pitch:0,bearing:0,features:[],custom_groups:{},layer_visibilities:{}}).success).toBe(false))});

@@ -1,18 +1,10 @@
 {
   "name": "project-atlas",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "private": true,
-  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "concurrently \"npm run dev -w @atlas/frontend\" \"npm run dev -w @atlas/backend\"",
-    "build": "npm run build --workspaces --if-present",
-    "lint": "npm run lint --workspaces --if-present",
-    "typecheck": "npm run typecheck --workspaces --if-present",
-    "test": "npm run test --workspaces --if-present"
-  },
-  "dependencies": {},
-  "devDependencies": {
-    "concurrently": "^9.2.1",
-    "typescript": "^5.9.2"
+    "dev": "cd frontend && npm run dev",
+    "build": "cd frontend && npm run build",
+    "start": "cd frontend && npm run start"
   }
 }

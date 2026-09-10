@@ -1,7 +1,0 @@
-import { Router } from "express";
-import { adminClient } from "../db/supabase.js";
-import { fail, ok } from "../utils/responses.js";
-export const uploadsRouter=Router();
-uploadsRouter.post("/signed-upload",async(req,res)=>{const fileName=String(req.body?.fileName??"");if(!fileName||fileName.length>180)return void fail(res,400,"INVALID_FILE","A valid file name is required.");const safe=fileName.replace(/[^a-zA-Z0-9._-]/g,"-");const path=`${req.userId}/${crypto.randomUUID()}-${safe}`;const {data,error}=await adminClient.storage.from("atlas-assets").createSignedUploadUrl(path);if(error)return void fail(res,500,"UPLOAD_URL_FAILED",error.message);ok(res,{...data,path})});
-uploadsRouter.post("/signed-download",async(req,res)=>{const path=String(req.body?.path??"");if(!path.startsWith(`${req.userId}/`))return void fail(res,403,"ASSET_FORBIDDEN","This asset does not belong to the current user.");const {data,error}=await adminClient.storage.from("atlas-assets").createSignedUrl(path,3600);if(error)return void fail(res,404,"ASSET_NOT_FOUND",error.message);ok(res,data)});
-uploadsRouter.delete("/",async(req,res)=>{const path=String(req.body?.path??"");if(!path.startsWith(`${req.userId}/`))return void fail(res,403,"ASSET_FORBIDDEN","This asset does not belong to the current user.");const {error}=await adminClient.storage.from("atlas-assets").remove([path]);if(error)return void fail(res,500,"ASSET_DELETE_FAILED",error.message);ok(res,{deleted:true})});
