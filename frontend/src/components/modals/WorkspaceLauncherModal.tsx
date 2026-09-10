@@ -58,14 +58,13 @@ export const WorkspaceLauncherModal: React.FC = () => {
             <h2 className="text-xl font-extrabold text-white tracking-tight">Project Atlas</h2>
             <p className="text-xs text-gray-400">Select or create a workspace</p>
           </div>
-          {projects.length > 0 && (
-            <button
-              onClick={() => togglePanel('launcher', false)}
-              className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
-            >
-              <X className="w-5 h-5" />
-            </button>
-          )}
+          <button
+            onClick={() => togglePanel('launcher', false)}
+            className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+            title="Close"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         {/* Segmented Control */}

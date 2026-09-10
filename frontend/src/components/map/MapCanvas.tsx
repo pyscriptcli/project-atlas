@@ -89,11 +89,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     } as any);
 
     mapRef.current = map;
+    if (typeof window !== 'undefined') {
+      (window as any).__map = map;
+      (window as any).__store = useMapStore;
+    }
     map.getCanvas().addEventListener('contextmenu', (e) => e.preventDefault());
 
     map.on('load', () => {
       setupLayers(map);
-      applyVisibilities(map, visibilities);
+      applyVisibilities(map, useMapStore.getState().visibilities);
+      syncData(map, useMapStore.getState().features);
+      syncLabels(map, useMapStore.getState().features);
       onMapReady(map);
     });
 
@@ -104,16 +110,20 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
   }, []);
 
   // Update basemap style
+  const prevBasemapRef = useRef(currentBasemap);
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
+    if (prevBasemapRef.current === currentBasemap) return;
+    prevBasemapRef.current = currentBasemap;
     const style = ALL_STYLES[currentBasemap];
     if (style) {
       map.setStyle(style);
-      map.once('idle', () => {
+      map.once('styledata', () => {
         setupLayers(map);
         applyVisibilities(map, visibilities);
         syncData(map, features);
+        syncLabels(map, features);
       });
     }
   }, [currentBasemap]);
@@ -121,14 +131,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
   // Update visibilities
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
     applyVisibilities(map, visibilities);
   }, [visibilities]);
 
   // Update features data
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
     syncData(map, features);
     syncLabels(map, features);
     syncVertexHandles(map, features, editMode, selectedId);
@@ -137,7 +147,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
   // Update draft rendering
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
     renderDraftGeometry(map, draft, cursorLL, activeTool);
   }, [draft, cursorLL, activeTool]);
 
@@ -777,7 +787,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         if (draft.length >= 3) {
           const pScreen = map.project(ll);
           const originScreen = map.project(draft[0]);
-          if (Math.hypot(pScreen.x - originScreen.x, pScreen.y - originScreen.y) < 24) {
+          if (Math.hypot(pScreen.x - originScreen.x, pScreen.y - originScreen.y) < 32) {
             addFeature({
               id,
               name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
@@ -850,32 +860,37 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         e.preventDefault();
         const is3D = activeTool === 'polygon3d';
         const id = ++nextFid.current;
-        addFeature({
-          id,
-          name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
-          kind: is3D ? 'polygon3d' : 'polygon',
-          geometry: { type: 'Polygon', coordinates: [[...draft, draft[0]]] },
-          props: {
-            is3D,
-            height: is3D ? 35 : 0,
-            baseHeight: 0,
-            color: is3D ? '#38bdf8' : '#e8b84a',
-            borderColor: is3D ? '#38bdf8' : '#e8b84a',
-            width: is3D ? 2 : 3,
-            fillColor: is3D ? '#38bdf8' : '#e8b84a',
-            fillOpacity: is3D ? 0.85 : 0.35,
-            borderOpacity: 0.9,
-            visible: 1,
-            attributes: {
-              name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
-              ...(is3D ? { height: '35m' } : {}),
+        const pts = draft.filter(
+          (pt, i) => i === 0 || Math.hypot(pt[0] - draft[i - 1][0], pt[1] - draft[i - 1][1]) > 1e-6
+        );
+        if (pts.length >= 3) {
+          addFeature({
+            id,
+            name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
+            kind: is3D ? 'polygon3d' : 'polygon',
+            geometry: { type: 'Polygon', coordinates: [[...pts, pts[0]]] },
+            props: {
+              is3D,
+              height: is3D ? 35 : 0,
+              baseHeight: 0,
+              color: is3D ? '#38bdf8' : '#e8b84a',
+              borderColor: is3D ? '#38bdf8' : '#e8b84a',
+              width: is3D ? 2 : 3,
+              fillColor: is3D ? '#38bdf8' : '#e8b84a',
+              fillOpacity: is3D ? 0.85 : 0.35,
+              borderOpacity: 0.9,
+              visible: 1,
+              attributes: {
+                name: is3D ? `3D Building ${id}` : `Polygon ${id}`,
+                ...(is3D ? { height: '35m' } : {}),
+              },
             },
-          },
-        });
-        setDraft([]);
-        setActiveTool(null);
-        setToast(is3D ? '3D Building finalized!' : 'Polygon finalized');
-        return;
+          });
+          setDraft([]);
+          setActiveTool(null);
+          setToast(is3D ? '3D Building finalized!' : 'Polygon finalized');
+          return;
+        }
       }
       if (activeTool === 'route' && draft.length >= 2) {
         e.preventDefault();

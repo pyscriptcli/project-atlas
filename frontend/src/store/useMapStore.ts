@@ -132,7 +132,7 @@ export const useMapStore = create<MapState>((set, get) => ({
     routeSettings: false,
     markerSettings: false,
     textSettings: false,
-    launcher: true, // starts with launcher open
+    launcher: false,
   },
 
   markerShape: 'pin',
