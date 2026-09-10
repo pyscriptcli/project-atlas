@@ -6,7 +6,140 @@ export const ICON_SVGS: Record<string, string> = {
   flag: '<path d="M6 21V4"></path><path d="M6 4l12 3-12 3"></path>',
   heart: '<path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.4-7 10-7 10z"></path>',
   pinball: '<circle cx="12" cy="10" r="7"></circle><line x1="12" y1="17" x2="12" y2="22"></line>',
+  'center-pinball': '<circle cx="12" cy="10" r="7"></circle><line x1="12" y1="17" x2="12" y2="22"></line>',
 };
+
+/**
+ * Adjust color brightness by percentage (-1.0 to 1.0)
+ */
+function adjustColorBrightness(hex: string, percent: number): string {
+  let clean = hex.replace('#', '');
+  if (clean.length === 3) {
+    clean = clean.split('').map((c) => c + c).join('');
+  }
+  const num = parseInt(clean, 16);
+  let r = (num >> 16) + Math.round(255 * percent);
+  let g = ((num >> 8) & 0x00ff) + Math.round(255 * percent);
+  let b = (num & 0x0000ff) + Math.round(255 * percent);
+
+  r = Math.min(255, Math.max(0, r));
+  g = Math.min(255, Math.max(0, g));
+  b = Math.min(255, Math.max(0, b));
+
+  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1)}`;
+}
+
+/**
+ * Draws a 3D Pinball with realistic ground drop shadow, tapered needle, and specular highlight
+ */
+export function draw3DPinball(
+  ctx: CanvasRenderingContext2D,
+  color: string,
+  isCenter: boolean = false
+) {
+  // 1. Realistic ground contact drop shadow
+  ctx.save();
+  const shadowGrad = ctx.createRadialGradient(32, 57, 1, 32, 57, isCenter ? 14 : 11);
+  shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.65)');
+  shadowGrad.addColorStop(0.35, 'rgba(0, 0, 0, 0.35)');
+  shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0.0)');
+  ctx.fillStyle = shadowGrad;
+  ctx.beginPath();
+  ctx.ellipse(32, 57, isCenter ? 14 : 11, isCenter ? 5 : 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // If center marker, draw a subtle glowing pulse target ring at ground
+  if (isCenter) {
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.75)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.ellipse(32, 57, 15, 5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  // 2. Tapered metallic needle stem
+  ctx.save();
+  const needleGrad = ctx.createLinearGradient(29, 36, 35, 36);
+  needleGrad.addColorStop(0, '#64748b');
+  needleGrad.addColorStop(0.35, '#f8fafc');
+  needleGrad.addColorStop(0.7, '#cbd5e1');
+  needleGrad.addColorStop(1, '#475569');
+
+  ctx.fillStyle = needleGrad;
+  ctx.beginPath();
+  ctx.moveTo(30.5, 35);
+  ctx.lineTo(33.5, 35);
+  ctx.lineTo(32.5, 57);
+  ctx.lineTo(31.5, 57);
+  ctx.closePath();
+  ctx.fill();
+
+  // Thin needle outline for crispness
+  ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
+  ctx.lineWidth = 0.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. 3D Ball Sphere
+  const cx = 32;
+  const cy = 23;
+  const r = isCenter ? 16 : 14;
+
+  const lightColor = adjustColorBrightness(color, 0.55);
+  const darkColor = adjustColorBrightness(color, -0.45);
+  const rimColor = adjustColorBrightness(color, -0.75);
+
+  ctx.save();
+  // Ball ambient drop shadow on the needle
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 2;
+
+  // Multi-stop radial specular gradient
+  const sphereGrad = ctx.createRadialGradient(
+    cx - r * 0.35,
+    cy - r * 0.35,
+    1,
+    cx,
+    cy,
+    r
+  );
+  sphereGrad.addColorStop(0, '#ffffff');
+  sphereGrad.addColorStop(0.18, lightColor);
+  sphereGrad.addColorStop(0.6, color);
+  sphereGrad.addColorStop(0.88, darkColor);
+  sphereGrad.addColorStop(1.0, rimColor);
+
+  ctx.fillStyle = sphereGrad;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 4. Outer rim outline for high-contrast visibility against all basemaps
+  ctx.save();
+  ctx.strokeStyle = isCenter ? '#fbbf24' : '#ffffff';
+  ctx.lineWidth = isCenter ? 2 : 1.25;
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+
+  // 5. Glossy specular crescent glint
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+  ctx.beginPath();
+  ctx.ellipse(cx - r * 0.38, cy - r * 0.38, r * 0.35, r * 0.2, -Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Secondary soft bounce glint at bottom-right
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
+  ctx.beginPath();
+  ctx.arc(cx + r * 0.4, cy + r * 0.4, r * 0.2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
 
 /**
  * Draws a marker icon procedurally on a 64x64 canvas
@@ -19,6 +152,18 @@ export function renderIconCanvas(shape: string, color: string): HTMLCanvasElemen
   if (!ctx) return c;
 
   ctx.clearRect(0, 0, 64, 64);
+
+  // Dedicated 3D Pinball with Drop Shadow
+  if (shape === 'pinball') {
+    draw3DPinball(ctx, color, false);
+    return c;
+  }
+
+  if (shape === 'center-pinball') {
+    draw3DPinball(ctx, color || '#fbbf24', true);
+    return c;
+  }
+
   ctx.strokeStyle = '#ffffff';
   ctx.lineWidth = 3;
   ctx.fillStyle = color;
@@ -52,22 +197,6 @@ export function renderIconCanvas(shape: string, color: string): HTMLCanvasElemen
     ctx.moveTo(32, 54);
     ctx.bezierCurveTo(6, 34, 14, 10, 32, 22);
     ctx.bezierCurveTo(50, 10, 58, 34, 32, 54);
-  } else if (shape === 'pinball') {
-    ctx.arc(32, 26, 16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.moveTo(28, 42);
-    ctx.lineTo(36, 42);
-    ctx.lineTo(32, 56);
-    ctx.closePath();
-    ctx.fill();
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.fillStyle = '#ffffff';
-    ctx.arc(32, 26, 6, 0, Math.PI * 2);
-    ctx.fill();
-    return c;
   }
 
   ctx.fill();
