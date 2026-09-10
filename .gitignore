@@ -12,6 +12,7 @@ frontend/out/
 build/
 frontend/build/
 dist/
+.vercel/
 
 # Environment variables
 .env*.local

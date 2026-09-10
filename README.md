@@ -10,48 +10,54 @@ The repository is organized so that any developer can immediately locate and und
 
 ```
 project-atlas/
-├── frontend/                     # Next.js 15 WebGIS Client
-│   ├── src/
-│   │   ├── gis/                  # ★ DOMAIN-DRIVEN GIS MODULES
-│   │   │   ├── map.ts            # MapLibre setup, 2D/3D building extrusions, vector themes
-│   │   │   ├── polygons.ts       # Polygons, rectangles, vertex manipulation, centroid rotation
-│   │   │   ├── circles.ts        # Geodesic circles, Haversine distance, radius resizing
-│   │   │   ├── markers.ts        # Dynamic HTML5 canvas pins, sprites, custom image pin upload
-│   │   │   ├── routes.ts         # Multi-point OSRM routing, intermediate waypoints, rerouting
-│   │   │   ├── labels.ts         # Text labels, halo effects, dynamic offsets (top, bottom, etc.)
-│   │   │   ├── tradeArea.ts      # POI category taxonomy, polygon clipping, Overpass failover
-│   │   │   ├── layers.ts         # Custom groups, drag-and-drop layer reordering, bulk styling
-│   │   │   ├── attributes.ts     # Tabular schema, custom columns, image cells, cell updates
-│   │   │   └── importExport.ts   # KML, KMZ, GeoJSON, Shapefile (.zip) import & high-res PNG export
-│   │   │
-│   │   ├── components/
-│   │   │   ├── map/              # Canvas, right-click context menu, feature inspection popup
-│   │   │   ├── toolbar/          # Floating top action bar, color palette picker
-│   │   │   ├── panels/           # Data Browser (layer visibilities) & My Layers (hierarchy)
-│   │   │   └── modals/           # Shape editor, Trade Area analysis, Attributes table, Basemaps
-│   │   │
-│   │   ├── store/                # Zustand stores (useMapStore, useProjectStore)
-│   │   └── types/                # Strict TypeScript definitions (gis.ts)
+├── src/                          # Next.js 15 WebGIS Client
+│   ├── app/                      # App Router pages & API routes
+│   │   ├── api/ai/insights/      # DeepSeek AI trade area analytics proxy
+│   │   ├── api/overpass/         # Overpass API gateway
+│   │   └── api/geocode/          # Nominatim geocoding gateway
+│   ├── gis/                      # ★ DOMAIN-DRIVEN GIS MODULES
+│   │   ├── map.ts                # MapLibre setup, 2D/3D building extrusions, vector themes
+│   │   ├── buildings3d.ts        # 3D Building suite, archetype catalog, setbacks
+│   │   ├── polygons.ts           # Polygons, rectangles, vertex manipulation, centroid rotation
+│   │   ├── circles.ts            # Geodesic circles, Haversine distance, radius resizing
+│   │   ├── markers.ts            # Dynamic HTML5 canvas pins, sprites, custom image pin upload
+│   │   ├── routes.ts             # Multi-point OSRM routing, intermediate waypoints, rerouting
+│   │   ├── labels.ts             # Text labels, halo effects, dynamic offsets
+│   │   ├── tradeArea.ts          # POI category taxonomy, polygon clipping, Overpass failover
+│   │   ├── layers.ts             # Custom groups, drag-and-drop layer reordering, bulk styling
+│   │   ├── attributes.ts         # Tabular schema, custom columns, image cells, cell updates
+│   │   └── importExport.ts       # KML, KMZ, GeoJSON, Shapefile (.zip) import & high-res PNG export
+│   │
+│   ├── components/
+│   │   ├── map/                  # Canvas, right-click context menu, feature inspection popup
+│   │   ├── toolbar/              # Floating top action bar, color palette picker
+│   │   ├── panels/               # Data Browser (layer visibilities) & My Layers (hierarchy)
+│   │   └── modals/               # Shape editor, Trade Area analysis + AI, Attributes table, Basemaps
+│   │
+│   ├── store/                    # Zustand stores (useMapStore, useProjectStore)
+│   └── types/                    # Strict TypeScript definitions (gis.ts)
 │
-└── backend/                      # Python FastAPI Spatial Engine
-    ├── app/
-    │   ├── api/
-    │   │   ├── overpass.py       # Robust Overpass queries with multi-endpoint failover & OSMnx fallback
-    │   │   ├── osmnx_analytics.py# OSMnx street networks & isochrone walk/drive reachability
-    │   │   └── routing.py        # OSRM routing gateway
-    │   └── main.py               # FastAPI application entry point
-    ├── requirements.txt
-    └── Dockerfile
+├── backend/                      # Python FastAPI Spatial Engine
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── overpass.py       # Robust Overpass queries with multi-endpoint failover & OSMnx fallback
+│   │   │   ├── osmnx_analytics.py# OSMnx street networks & isochrone walk/drive reachability
+│   │   │   └── routing.py        # OSRM routing gateway
+│   │   └── main.py               # FastAPI application entry point
+│   ├── requirements.txt
+│   └── Dockerfile
+│
+├── package.json                  # Next.js dependencies & scripts (Root Vercel ready)
+└── tsconfig.json
 ```
 
 ---
 
 ## 🚀 Quick Start Guide
 
-### 1. Frontend Setup (Next.js)
+### 1. WebGIS Client (Next.js)
 
 ```bash
-cd frontend
 npm install
 npm run dev
 ```
