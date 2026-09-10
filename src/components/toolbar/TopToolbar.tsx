@@ -21,6 +21,7 @@ import {
   Download,
   Box,
   Building2,
+  Radar,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
@@ -146,6 +147,17 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         }`}
       >
         <FolderTree className="w-4 h-4" />
+      </button>
+
+      {/* Trade Area Analysis */}
+      <button
+        onClick={() => togglePanel('tradeArea')}
+        title="Trade Area & POI Analysis"
+        className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
+          activePanels.tradeArea ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/30' : 'text-gray-300 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Radar className="w-4 h-4" />
       </button>
 
       {/* Search Place */}

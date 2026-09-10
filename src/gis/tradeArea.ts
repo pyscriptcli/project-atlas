@@ -1,15 +1,8 @@
 import { GISFeature } from '../types/gis';
 import { calcBounds, pointInPolygon } from './polygons';
 
+// Full 7-category taxonomy ported directly from proven Open Node GIS engine
 export const POI_CONFIG: Record<string, [string, string][]> = {
-  "COMMERCIAL & OFFICES": [
-    ['Corporate Office', '"building"~"office|commercial",i'],
-    ['IT/Tech Center', '"office"~"it|telecommunication",i'],
-    ['Business Center', '"building"="commercial"'],
-    ['Bank', '"amenity"="bank"'],
-    ['ATM', '"amenity"="atm"'],
-    ['Office', '"office"="yes"'],
-  ],
   "RETAIL": [
     ['Mall/Department Store', '"shop"~"mall|department_store",i'],
     ['Supermarket', '"shop"~"market|grocery",i'],
@@ -17,7 +10,34 @@ export const POI_CONFIG: Record<string, [string, string][]> = {
     ['Pharmacy', '"amenity"="pharmacy"'],
     ['Hardware', '"shop"~"hardware|doityourself",i'],
     ['General Shops', '"shop"~"boutique|clothes|shoes",i'],
+    ['Beauty', '"shop"="beauty"'],
+    ['Bicycle', '"shop"="bicycle"'],
+    ['Books/Stationary', '"shop"~"books|stationary",i'],
+    ['Car', '"shop"="car"'],
+    ['Chemist', '"shop"="chemist"'],
+    ['Clothes', '"shop"="clothes"'],
+    ['Copyshop', '"shop"="copyshop"'],
+    ['Cosmetics', '"shop"="cosmetics"'],
+    ['Department store', '"shop"="department_store"'],
+    ['DIY/hardware', '"shop"~"hardware|doityourself",i'],
+    ['Garden centre', '"shop"="garden_centre"'],
+    ['General', '"shop"="general"'],
+    ['Gift', '"shop"="gift"'],
+    ['Hairdresser', '"shop"="hairdresser"'],
+    ['Jewelry', '"shop"="jewelry"'],
+    ['Kiosk', '"shop"="kiosk"'],
+    ['Leather', '"shop"="leather"'],
     ['Marketplace', '"amenity"="marketplace"'],
+    ['Musical instrument', '"shop"="musical_instrument"'],
+    ['Optician', '"shop"="optician"'],
+    ['Pets', '"shop"="pets"'],
+    ['Phone', '"shop"="mobile_phone"'],
+    ['Photo', '"shop"="photo"'],
+    ['Shoes', '"shop"="shoes"'],
+    ['Shopping centre', '"shop"="mall"'],
+    ['Textiles', '"shop"="textiles"'],
+    ['Toys', '"shop"="toys"'],
+    ['Travel agency', '"shop"="travel_agency"'],
   ],
   "FOOD, BEVERAGE & HOSPITALITY": [
     ['Restaurant', '"amenity"="restaurant"'],
@@ -25,22 +45,42 @@ export const POI_CONFIG: Record<string, [string, string][]> = {
     ['Fast Food', '"amenity"="fast_food"'],
     ['Bar/Pub/Nightclub', '"amenity"~"bar|pub|nightclub",i'],
     ['Bakery/Pastry', '"shop"="bakery"'],
+    ['BBQ', '"amenity"="bbq"'],
+    ['Biergarten', '"amenity"="biergarten"'],
     ['Food court', '"amenity"="food_court"'],
+    ['Ice cream', '"amenity"="ice_cream"'],
+    ['Pub', '"amenity"="pub"'],
     ['Hotel', '"tourism"="hotel"'],
+    ['Motel', '"tourism"="motel"'],
+    ['Alpine Hut', '"tourism"="alpine_hut"'],
+    ['Apartment', '"tourism"="apartment"'],
+    ['Camp Site', '"tourism"="camp_site"'],
+    ['Chalet', '"tourism"="chalet"'],
+    ['Guest House', '"tourism"="guest_house"'],
     ['Hostel', '"tourism"="hostel"'],
+    ['Casino', '"amenity"="casino"'],
   ],
   "RESIDENTIAL": [
     ['Apartments', '"building"="apartments"'],
     ['House', '"building"="house"'],
     ['Residential Area', '"landuse"="residential"'],
     ['Condominium', '"building"="residential"'],
+    ['City', '"place"="city"'],
+    ['Town', '"place"="town"'],
+    ['Village', '"place"="village"'],
+    ['Hamlet', '"place"="hamlet"'],
+    ['Suburb', '"place"="suburb"'],
+    ['Construction', '"landuse"="construction"'],
   ],
   "INDUSTRIAL & LOGISTICS": [
     ['Expressway Exits', '"highway"~"motorway_junction|toll_gantry",i'],
     ['Ports & Terminals', '"industrial"="port"'],
     ['Manufacturing Plants', '"industrial"~"factory|manufacturing|processing",i'],
+    ['Cold Storage Facilities', '"warehouse"~"cold_store|cold_storage",i'],
+    ['Industrial Parks/Estates', '"landuse"~"industrial|industrial_estate",i'],
     ['Warehouses & Depots', '"building"~"warehouse|depot",i'],
-    ['Industrial Parks', '"landuse"~"industrial|industrial_estate",i'],
+    ['Storage Facilities', '"building"="storage"'],
+    ['Truck Access Routes (HGV)', '"hgv"~"designated|yes",i'],
   ],
   "HEALTH & EMERGENCY SERVICES": [
     ['Hospital', '"amenity"~"hospital|clinic",i'],
@@ -48,33 +88,96 @@ export const POI_CONFIG: Record<string, [string, string][]> = {
     ['Pharmacy', '"amenity"="pharmacy"'],
     ['Police Station', '"amenity"="police"'],
     ['Fire Station', '"amenity"="fire_station"'],
+    ['Firestation', '"amenity"="fire_station"'],
+    ['Police', '"amenity"="police"'],
+    ['Hospital Adv', '"amenity"="hospital"'],
+    ['Defibrillator - AED', '"emergency"="defibrillator"'],
+    ['Fire hose/extinguisher', '"emergency"~"fire_hose|fire_extinguisher",i'],
   ],
   "GOVERNMENT, EDUCATION & INFRASTRUCTURE": [
     ['City Hall', '"amenity"="townhall"'],
     ['Airport Terminal', '"aeroway"~"terminal|aerodrome",i'],
     ['University/College', '"amenity"~"university|college",i'],
     ['K-12 School', '"amenity"="school"'],
+    ['Vocational/Other', '"amenity"="learning_centre"'],
+    ['Embassy', '"amenity"="embassy"'],
+    ['Library', '"amenity"="library"'],
+    ['Music School', '"amenity"="music_school"'],
+    ['Letter Box', '"amenity"="letter_box"'],
     ['Post Office', '"amenity"="post_office"'],
+    ['School/College', '"amenity"~"school|college",i'],
+    ['University', '"amenity"="university"'],
+    ['Kindergarten', '"amenity"="kindergarten"'],
+    ['Public camera', '"man_made"="surveillance"'],
   ],
   "LEISURE, SPORTS & PUBLIC SPACES": [
     ['Church', '"religion"="christian"'],
     ['Mosque', '"religion"="muslim"'],
+    ['Buddhist Temple', '"religion"="buddhist"'],
+    ['Hindu Temple', '"religion"="hindu"'],
+    ['Synagogue', '"religion"="jewish"'],
+    ['Cemetery', '"landuse"="cemetery"'],
+    ['Spa', '"leisure"="spa"'],
+    ['Sauna', '"leisure"="sauna"'],
+    ['Bench', '"amenity"="bench"'],
+    ['Bicycle Parking', '"amenity"="bicycle_parking"'],
+    ['Bicycle Rental', '"amenity"="bicycle_rental"'],
     ['Cinema', '"amenity"="cinema"'],
     ['Fuel', '"amenity"="fuel"'],
     ['Parking', '"amenity"="parking"'],
+    ['Taxi', '"amenity"="taxi"'],
+    ['Theatre', '"amenity"="theatre"'],
+    ['Toilets', '"amenity"="toilets"'],
+    ['American football', '"sport"="american_football"'],
+    ['Baseball', '"sport"="baseball"'],
+    ['Basketball', '"sport"="basketball"'],
+    ['Cycling', '"sport"="cycling"'],
+    ['Gymnastics', '"sport"="gymnastics"'],
+    ['Golf', '"sport"="golf"'],
+    ['Hockey', '"sport"="hockey"'],
+    ['Horse racing', '"sport"="horse_racing"'],
+    ['Ice hockey', '"sport"="ice_hockey"'],
+    ['Soccer', '"sport"="soccer"'],
     ['Sports centre', '"leisure"="sports_centre"'],
+    ['Surfing', '"sport"="surfing"'],
+    ['Swimming', '"sport"="swimming"'],
+    ['Tennis', '"sport"="tennis"'],
+    ['Volleyball', '"sport"="volleyball"'],
     ['Busstop', '"highway"="bus_stop"'],
+    ['E-bike charging', '"amenity"="charging_station"'],
+    ['Recycling', '"amenity"="recycling"'],
   ],
 };
 
-const OVERPASS_ENDPOINTS = [
-  "https://overpass-api.de/api/interpreter",
-  "https://overpass.kumi.systems/api/interpreter",
-  "https://overpass.openstreetmap.fr/api/interpreter",
-];
+export const CATEGORY_COLORS: Record<string, string> = {
+  "RETAIL": "#3b82f6",
+  "FOOD, BEVERAGE & HOSPITALITY": "#f59e0b",
+  "RESIDENTIAL": "#10b981",
+  "INDUSTRIAL & LOGISTICS": "#8b5cf6",
+  "HEALTH & EMERGENCY SERVICES": "#ef4444",
+  "GOVERNMENT, EDUCATION & INFRASTRUCTURE": "#06b6d4",
+  "LEISURE, SPORTS & PUBLIC SPACES": "#ec4899",
+};
 
+export interface ScannedPOI {
+  name: string;
+  type: string;
+  category: string;
+  lat: number;
+  lon: number;
+  tags: Record<string, string>;
+}
+
+export interface ScanResult {
+  features: ScannedPOI[];
+  counts: Record<string, number>;
+  categoryCounts: Record<string, number>;
+}
+
+/**
+ * Robust fetch helper via our Next.js API proxy (which handles multi-endpoint failover and POST data encoding)
+ */
 export async function robustOverpassFetch(query: string, timeout = 90): Promise<any | null> {
-  // First check if FastAPI backend or Next.js route is responding
   try {
     const res = await fetch('/api/overpass', {
       method: 'POST',
@@ -85,111 +188,133 @@ export async function robustOverpassFetch(query: string, timeout = 90): Promise<
       return await res.json();
     }
   } catch (e) {
-    // Fall back to direct browser overpass endpoints
-  }
-
-  for (const endpoint of OVERPASS_ENDPOINTS) {
-    let retries = 5;
-    let delay = 1000;
-    while (retries > 0) {
-      try {
-        const controller = new AbortController();
-        const tid = setTimeout(() => controller.abort(), timeout * 1000);
-        const url = `${endpoint}?data=${encodeURIComponent(query)}`;
-        const res = await fetch(url, { signal: controller.signal });
-        clearTimeout(tid);
-
-        if (res.status === 429 || res.status === 503 || res.status === 504) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        if (!data || !data.elements) throw new Error("Malformed JSON response");
-        return data;
-      } catch (err) {
-        retries--;
-        if (retries === 0) break;
-        await new Promise((r) => setTimeout(r, delay + Math.random() * 500));
-        delay *= 2;
-      }
-    }
+    console.error('Overpass fetch failed:', e);
   }
   return null;
 }
 
-export interface ScanResult {
-  features: {
-    name: string;
-    lat: number;
-    lon: number;
-    tags: Record<string, string>;
-  }[];
-  counts: Record<string, number>;
+/**
+ * Scan POIs around a center coordinate and radius in meters (exact working logic from Open Node Streamlit).
+ */
+export async function scanTradeAreaCoordinates(
+  lat: number,
+  lon: number,
+  radius: number,
+  selectedTags: string[],
+  customTag?: string
+): Promise<ScanResult | null> {
+  const tagsToQuery = [...selectedTags];
+  if (customTag && customTag.trim()) {
+    const cs = customTag.trim();
+    if (cs.includes('=')) {
+      const [k, v] = cs.split('=');
+      tagsToQuery.push(`"${k.trim()}"="${v.trim()}"`);
+    } else {
+      tagsToQuery.push(`"amenity"~"${cs}",i`);
+    }
+  }
+
+  if (tagsToQuery.length === 0) return null;
+
+  // Build QL statements around coordinates
+  const statements = tagsToQuery
+    .map((tag) => `  nwr[${tag}](around:${radius},${lat},${lon});`)
+    .join('\n');
+
+  const ql = `[out:json][timeout:90];(\n${statements}\n);\nout center;`;
+
+  const data = await robustOverpassFetch(ql);
+  if (!data || !data.elements) return null;
+
+  return processOverpassElements(data.elements, selectedTags);
 }
 
-export async function scanTradeAreaPOIs(
+/**
+ * Scan POIs inside an existing GIS polygon feature.
+ */
+export async function scanTradeAreaPolygon(
   targetPoly: GISFeature,
   selectedTags: string[],
-  customSearch?: string
+  customTag?: string
 ): Promise<ScanResult | null> {
   const bnd = calcBounds(targetPoly);
   if (!bnd) return null;
 
   const bbox = `${bnd[0][1]},${bnd[0][0]},${bnd[1][1]},${bnd[1][0]}`;
-  const allTags = [...selectedTags];
+  const tagsToQuery = [...selectedTags];
 
-  if (customSearch && customSearch.trim()) {
-    const cs = customSearch.trim();
+  if (customTag && customTag.trim()) {
+    const cs = customTag.trim();
     if (cs.includes('=')) {
       const [k, v] = cs.split('=');
-      allTags.push(`"${k}"="${v}"`);
+      tagsToQuery.push(`"${k.trim()}"="${v.trim()}"`);
     } else {
-      allTags.push(`"amenity"~"${cs}",i`);
+      tagsToQuery.push(`"amenity"~"${cs}",i`);
     }
   }
 
-  if (!allTags.length) return null;
+  if (tagsToQuery.length === 0) return null;
 
-  let queryParts = '';
-  allTags.forEach((rawTag) => {
-    if (rawTag.includes('~')) {
-      const parts = rawTag.split('~');
-      const k = parts[0].replace(/"/g, '');
-      const v = parts[1].replace(/"/g, '').replace(',i', '');
-      queryParts += `node["${k}"~"${v}",i](${bbox});way["${k}"~"${v}",i](${bbox});`;
-    } else if (rawTag.includes('=')) {
-      const parts = rawTag.split('=');
-      const k = parts[0].replace(/"/g, '');
-      const v = parts[1].replace(/"/g, '');
-      queryParts += `node["${k}"="${v}"](${bbox});way["${k}"="${v}"](${bbox});`;
-    }
-  });
+  const statements = tagsToQuery
+    .map((tag) => `  nwr[${tag}](${bbox});`)
+    .join('\n');
 
-  const overpassQuery = `[out:json][timeout:25];(${queryParts});out center 100;`;
-  const data = await robustOverpassFetch(overpassQuery);
+  const ql = `[out:json][timeout:90];(\n${statements}\n);\nout center;`;
+  const data = await robustOverpassFetch(ql);
   if (!data || !data.elements) return null;
 
-  const polyCoords: [number, number][] = targetPoly.geometry.coordinates[0];
-  const filtered = data.elements.filter((el: any) => {
-    const lat = el.lat || (el.center && el.center.lat);
-    const lon = el.lon || (el.center && el.center.lon);
-    return lat && lon && pointInPolygon([lon, lat], polyCoords);
-  });
+  // Filter with point-in-polygon if polygon coordinates are present
+  let elements = data.elements;
+  if (targetPoly.geometry && targetPoly.geometry.coordinates) {
+    const polyCoords: [number, number][] = targetPoly.geometry.coordinates[0];
+    elements = elements.filter((el: any) => {
+      const lat = el.lat || (el.center && el.center.lat);
+      const lon = el.lon || (el.center && el.center.lon);
+      return lat && lon && pointInPolygon([lon, lat], polyCoords);
+    });
+  }
 
+  return processOverpassElements(elements, selectedTags);
+}
+
+function processOverpassElements(elements: any[], selectedTags: string[]): ScanResult {
   const counts: Record<string, number> = {};
-  const features = filtered.map((el: any) => {
-    const poiName =
-      (el.tags && (el.tags.name || el.tags.amenity || el.tags.shop || el.tags.building)) || 'POI';
-    counts[poiName] = (counts[poiName] || 0) + 1;
+  const categoryCounts: Record<string, number> = {};
+  const features: ScannedPOI[] = [];
+
+  elements.forEach((el: any) => {
     const lat = el.lat || (el.center && el.center.lat);
     const lon = el.lon || (el.center && el.center.lon);
-    return {
-      name: poiName,
+    if (!lat || !lon) return;
+
+    const tags = el.tags || {};
+    const name = tags.name || tags['brand'] || tags.amenity || tags.shop || tags.building || 'Unnamed Location';
+    const poiType = tags.amenity || tags.shop || tags.building || tags.office || tags.tourism || tags.leisure || 'POI';
+
+    // Identify which high-level category this belongs to
+    let category = 'OTHER';
+    for (const [catName, items] of Object.entries(POI_CONFIG)) {
+      if (items.some(([_, tagQuery]) => {
+        const cleanTag = tagQuery.replace(/"/g, '').toLowerCase();
+        return Object.entries(tags).some(([k, v]) => `${k}=${v}`.toLowerCase().includes(cleanTag.split('=')[0]));
+      })) {
+        category = catName;
+        break;
+      }
+    }
+
+    counts[poiType] = (counts[poiType] || 0) + 1;
+    categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+
+    features.push({
+      name: String(name),
+      type: String(poiType),
+      category,
       lat,
       lon,
-      tags: el.tags || { name: poiName, type: 'custom' },
-    };
+      tags,
+    });
   });
 
-  return { features, counts };
+  return { features, counts, categoryCounts };
 }

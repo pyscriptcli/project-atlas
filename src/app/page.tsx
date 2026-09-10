@@ -8,7 +8,7 @@ import { MyLayersPanel } from '../components/panels/MyLayersPanel';
 import { MapContextMenu } from '../components/map/MapContextMenu';
 import { FeaturePopup } from '../components/map/FeaturePopup';
 import { ShapeEditorModal } from '../components/modals/ShapeEditorModal';
-import { TradeAreaModal } from '../components/modals/TradeAreaModal';
+import { TradeAreaSidebar } from '../components/panels/TradeAreaSidebar';
 import { AttributeTableModal } from '../components/modals/AttributeTableModal';
 import { BasemapModal } from '../components/modals/BasemapModal';
 import { SearchModal } from '../components/modals/SearchModal';
@@ -126,9 +126,9 @@ export default function WorkspacePage() {
       <MapContextMenu />
       <FeaturePopup />
 
-      {/* Floating Modals */}
+      {/* Floating Modals & Sidebars */}
       <ShapeEditorModal />
-      <TradeAreaModal mapInstance={mapInstance} />
+      <TradeAreaSidebar mapInstance={mapInstance} />
       <AttributeTableModal />
       <BasemapModal mapInstance={mapInstance} />
       <SearchModal mapInstance={mapInstance} />
