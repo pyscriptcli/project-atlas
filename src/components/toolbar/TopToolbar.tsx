@@ -22,6 +22,7 @@ import {
   Box,
   Building2,
   Radar,
+  Sun,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
@@ -46,6 +47,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     markerColor,
     markerSize,
     setToolConfig,
+    isSunDialOpen,
+    toggleSunDial,
   } = useMapStore();
 
   const { currentProjectName, updateProjectName, currentProjectId, saveCurrentProject } =
@@ -313,6 +316,20 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         }`}
       >
         <Palette className="w-4 h-4" />
+      </button>
+
+      {/* Studio Mode (Sun Dial, Lighting & 3D Atmosphere) */}
+      <button
+        onClick={() => toggleSunDial()}
+        title="Studio Mode (Sun Dial, Solar Lighting & 3D Atmosphere)"
+        className={`px-2.5 h-8 rounded-full flex items-center gap-1.5 transition text-xs font-bold ${
+          isSunDialOpen
+            ? 'bg-amber-400 text-black shadow-lg shadow-amber-400/20 font-black'
+            : 'text-zinc-300 hover:text-white hover:bg-white/10'
+        }`}
+      >
+        <Sun className={`w-3.5 h-3.5 ${isSunDialOpen ? 'text-black' : 'text-amber-400'}`} />
+        <span className="text-[11px] font-bold hidden sm:inline">Studio</span>
       </button>
 
       <button

@@ -55,6 +55,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     selectedBuildingArchetype,
     solarTime,
     isFogEnabled,
+    is3DTerrain,
   } = useMapStore();
 
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
@@ -210,6 +211,33 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       // Graceful fallback if style is raster-only without 3D extrusion lighting
     }
   }, [solarTime, isFogEnabled]);
+
+  // Apply 3D Terrain Elevation Mesh
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      if (typeof (map as any).setTerrain === 'function') {
+        if (is3DTerrain) {
+          if (!map.getSource('terrain-dem')) {
+            const demSource: any = {
+              type: 'raster-dem',
+              tiles: mapboxToken
+                ? [`https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${mapboxToken}`]
+                : ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+              tileSize: 256,
+              maxzoom: 14,
+              encoding: mapboxToken ? 'mapbox' : 'terrarium',
+            };
+            map.addSource('terrain-dem', demSource);
+          }
+          (map as any).setTerrain({ source: 'terrain-dem', exaggeration: 1.5 });
+        } else {
+          (map as any).setTerrain(null);
+        }
+      }
+    } catch (_) {}
+  }, [is3DTerrain, mapboxToken]);
 
   // Update visibilities
   useEffect(() => {

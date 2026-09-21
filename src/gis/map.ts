@@ -218,15 +218,28 @@ export function mapboxSatelliteXRayStyle(token?: string) {
         tileSize: token ? 512 : 256,
         maxzoom: 21
       },
+      terrain: {
+        type: "raster-dem",
+        tiles: token
+          ? [`https://api.mapbox.com/v4/mapbox.terrain-rgb/{z}/{x}/{y}.pngraw?access_token=${token}`]
+          : ["https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png"],
+        tileSize: 256,
+        maxzoom: 14,
+        encoding: token ? "mapbox" : "terrarium"
+      },
       omt: {
         type: "vector",
         url: "https://tiles.openfreemap.org/planet"
       }
     },
+    terrain: {
+      source: "terrain",
+      exaggeration: 1.5
+    },
     layers: [
       { id: "bg", type: "background", paint: { "background-color": "#000000" } },
       { id: "sat_layer", type: "raster", source: "sat", paint: { "raster-opacity": 0.95 } },
-      // Glowing vector building footprints (X-Ray Wireframe)
+      // Subtle architectural vector building footprints
       {
         id: "building-footprint-xray",
         type: "line",
@@ -235,11 +248,11 @@ export function mapboxSatelliteXRayStyle(token?: string) {
         minzoom: 14,
         paint: {
           "line-color": "#38bdf8",
-          "line-width": 1.0,
-          "line-opacity": 0.75
+          "line-width": 0.75,
+          "line-opacity": 0.35
         }
       },
-      // 3D Glass Extrusions (Translucent Smoked Glass on Satellite)
+      // Solid Architectural 3D Extrusions (Realistic Digital Twin)
       {
         id: "building-3d",
         type: "fill-extrusion",
@@ -248,10 +261,19 @@ export function mapboxSatelliteXRayStyle(token?: string) {
         minzoom: 13,
         layout: { visibility: "visible" },
         paint: {
-          "fill-extrusion-color": "#93c5fd",
-          "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 12],
+          "fill-extrusion-color": [
+            "interpolate",
+            ["linear"],
+            ["coalesce", ["get", "render_height"], ["get", "height"], 12],
+            0, "#e2e8f0",
+            20, "#cbd5e1",
+            50, "#94a3b8",
+            100, "#64748b",
+            250, "#334155"
+          ],
+          "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 14],
           "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
-          "fill-extrusion-opacity": 0.45
+          "fill-extrusion-opacity": 0.95
         }
       },
       // Major Roads & Highways luminous overlay

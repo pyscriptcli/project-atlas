@@ -80,6 +80,7 @@ interface MapState {
   isDroneOrbiting: boolean;
   droneOrbitSpeed: number;
   isFogEnabled: boolean;
+  is3DTerrain: boolean;
 
   setSolarTime: (solarTime: number) => void;
   toggleSunDial: (open?: boolean) => void;
@@ -87,6 +88,7 @@ interface MapState {
   setDroneOrbiting: (isDroneOrbiting: boolean) => void;
   setDroneOrbitSpeed: (speed: number) => void;
   toggleFog: (enabled?: boolean) => void;
+  toggleTerrain: (enabled?: boolean) => void;
 
   // Actions
   setActiveTool: (tool: FeatureKind | 'placeBuilding' | null) => void;
@@ -204,6 +206,7 @@ export const useMapStore = create<MapState>((set, get) => ({
   isDroneOrbiting: false,
   droneOrbitSpeed: 1,
   isFogEnabled: true,
+  is3DTerrain: true,
 
   setSolarTime: (solarTime) => set({ solarTime: Math.max(0, Math.min(24, solarTime)) }),
   toggleSunDial: (open) =>
@@ -216,6 +219,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   setDroneOrbitSpeed: (droneOrbitSpeed) => set({ droneOrbitSpeed }),
   toggleFog: (enabled) =>
     set((state) => ({ isFogEnabled: enabled !== undefined ? enabled : !state.isFogEnabled })),
+  toggleTerrain: (enabled) =>
+    set((state) => ({ is3DTerrain: enabled !== undefined ? enabled : !state.is3DTerrain })),
 
   setActiveTool: (tool) => {
     set((state) => {

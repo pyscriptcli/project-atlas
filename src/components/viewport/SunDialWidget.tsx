@@ -1,12 +1,41 @@
 'use client';
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Sun, Moon, Play, Pause, X, Compass, Sparkles, Clock } from 'lucide-react';
+import {
+  Sun,
+  Moon,
+  Play,
+  Pause,
+  X,
+  Compass,
+  Mountain,
+  Eye,
+  Video,
+  CloudSun,
+  Sparkles,
+} from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { calculateSolarLighting, formatSolarTime } from '../../gis/sunCalc';
 
 export const SunDialWidget: React.FC = () => {
-  const { solarTime, setSolarTime, isSunDialOpen, toggleSunDial } = useMapStore();
+  const {
+    solarTime,
+    setSolarTime,
+    isSunDialOpen,
+    toggleSunDial,
+    is3DTerrain,
+    toggleTerrain,
+    isSatelliteXRayActive,
+    toggleSatelliteXRay,
+    setBasemap,
+    currentBasemap,
+    isDroneOrbiting,
+    setDroneOrbiting,
+    isFogEnabled,
+    toggleFog,
+    setToast,
+  } = useMapStore();
+
   const [isPlaying, setIsPlaying] = useState(false);
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -34,15 +63,14 @@ export const SunDialWidget: React.FC = () => {
   const solarStats = calculateSolarLighting(solarTime);
 
   // Arc math: semi-circle from left (East / Sunrise 06:00) to top (Noon 12:00) to right (West / Sunset 18:00)
-  // Map daylight hours 06:00 - 18:00 to 0° - 180° along arc
   const daylightHours = Math.max(6, Math.min(18, solarTime));
   const daylightProgress = (daylightHours - 6) / 12; // 0 to 1
   const angleRad = Math.PI - daylightProgress * Math.PI; // PI (left) -> PI/2 (top) -> 0 (right)
 
   // Arc dimensions
   const cx = 140;
-  const cy = 110;
-  const r = 90;
+  const cy = 100;
+  const r = 80;
   const sunX = cx + r * Math.cos(angleRad);
   const sunY = cy - r * Math.sin(angleRad);
 
@@ -58,14 +86,12 @@ export const SunDialWidget: React.FC = () => {
 
     const rect = arcRef.current.getBoundingClientRect();
     const x = e.clientX - rect.left - (cx * rect.width) / 280;
-    const y = cy * (rect.height / 130) - (e.clientY - rect.top);
+    const y = cy * (rect.height / 115) - (e.clientY - rect.top);
 
-    // Calculate angle from center
-    let angle = Math.atan2(y, -x); // 0 on left (-x), PI/2 on top, PI on right
+    let angle = Math.atan2(y, -x);
     if (angle < 0) angle = 0;
     if (angle > Math.PI) angle = Math.PI;
 
-    // Convert angle to hours (0 rad = 6am, PI rad = 6pm)
     const progress = 1 - angle / Math.PI;
     const hours = 6 + progress * 12;
     setSolarTime(parseFloat(hours.toFixed(2)));
@@ -84,9 +110,22 @@ export const SunDialWidget: React.FC = () => {
     { label: 'Night', time: 21.0, icon: '🌙' },
   ];
 
+  // Satellite 3D X-Ray toggle
+  const handleToggleSatellite = () => {
+    if (isSatelliteXRayActive || currentBasemap === 'Satellite 3D X-Ray') {
+      toggleSatelliteXRay(false);
+      setBasemap('Midnight Blue');
+      setToast('Switched to Midnight Blue 3D Vector theme.');
+    } else {
+      toggleSatelliteXRay(true);
+      setBasemap('Satellite 3D X-Ray');
+      setToast('Activated 3D Satellite with Terrain Elevation & Solid Architecture.');
+    }
+  };
+
   return (
     <div
-      className="fixed bottom-24 right-6 z-[1200] w-80 bg-zinc-950/90 border border-white/20 rounded-3xl p-4 shadow-2xl backdrop-blur-2xl text-white select-none animate-in fade-in slide-in-from-bottom-4"
+      className="fixed top-16 left-1/2 -translate-x-1/2 z-[1100] w-[360px] max-w-[94vw] bg-zinc-950/95 border border-white/20 rounded-3xl p-4 shadow-2xl backdrop-blur-2xl text-white select-none animate-in fade-in slide-in-from-top-3"
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
     >
@@ -98,40 +137,38 @@ export const SunDialWidget: React.FC = () => {
           </div>
           <div>
             <h4 className="font-extrabold text-xs tracking-tight text-white flex items-center gap-1.5">
-              <span>Celestial Sun Dial</span>
+              <span>Studio Mode &amp; Sun Dial</span>
               <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-normal">
-                3D Shadows
+                3D Lighting
               </span>
             </h4>
-            <p className="text-[9.5px] text-zinc-400">Real-time solar pathing &amp; facade lighting</p>
+            <p className="text-[9.5px] text-zinc-400">Real-time solar pathing, 3D terrain &amp; solid shadows</p>
           </div>
         </div>
         <button
           onClick={() => toggleSunDial(false)}
           className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition"
+          title="Close Studio Menu"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Interactive Celestial Arc Canvas */}
-      <div className="relative py-2 flex flex-col items-center">
+      <div className="relative py-1 flex flex-col items-center">
         <svg
           ref={arcRef}
-          viewBox="0 0 280 130"
-          className="w-full h-32 cursor-pointer touch-none"
+          viewBox="0 0 280 115"
+          className="w-full h-28 cursor-pointer touch-none"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
         >
           <defs>
-            {/* Celestial Arc Gradient */}
             <linearGradient id="sunArcGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#f97316" stopOpacity="0.8" />
               <stop offset="50%" stopColor="#fef08a" stopOpacity="1" />
               <stop offset="100%" stopColor="#ec4899" stopOpacity="0.8" />
             </linearGradient>
-
-            {/* Glowing Sun Radial Gradient */}
             <radialGradient id="sunGlow">
               <stop offset="0%" stopColor="#ffffff" />
               <stop offset="40%" stopColor="#fbbf24" />
@@ -139,25 +176,24 @@ export const SunDialWidget: React.FC = () => {
             </radialGradient>
           </defs>
 
-          {/* Horizon Reference Baseline */}
+          {/* Horizon Reference Line */}
           <line
-            x1="30"
+            x1="35"
             y1={cy}
-            x2="250"
+            x2="245"
             y2={cy}
             stroke="rgba(255, 255, 255, 0.15)"
             strokeWidth="1.5"
             strokeDasharray="3 3"
           />
 
-          {/* Ground Compass Cardinal Markers */}
-          <text x="32" y={cy + 14} fill="#9ca3af" fontSize="9" fontWeight="bold" textAnchor="middle">
+          <text x="36" y={cy + 12} fill="#9ca3af" fontSize="8" fontWeight="bold" textAnchor="middle">
             EAST (06:00)
           </text>
-          <text x="140" y="16" fill="#9ca3af" fontSize="9" fontWeight="bold" textAnchor="middle">
+          <text x="140" y="14" fill="#9ca3af" fontSize="8" fontWeight="bold" textAnchor="middle">
             ZENITH (12:00)
           </text>
-          <text x="248" y={cy + 14} fill="#9ca3af" fontSize="9" fontWeight="bold" textAnchor="middle">
+          <text x="244" y={cy + 12} fill="#9ca3af" fontSize="8" fontWeight="bold" textAnchor="middle">
             WEST (18:00)
           </text>
 
@@ -179,7 +215,7 @@ export const SunDialWidget: React.FC = () => {
             strokeLinecap="round"
           />
 
-          {/* Connecting Ray to Center Pivot */}
+          {/* Connecting Ray */}
           <line
             x1={cx}
             y1={cy}
@@ -192,41 +228,40 @@ export const SunDialWidget: React.FC = () => {
           />
 
           {/* Center Pivot Marker */}
-          <circle cx={cx} cy={cy} r="3" fill="#ffffff" opacity="0.6" />
+          <circle cx={cx} cy={cy} r="2.5" fill="#ffffff" opacity="0.6" />
 
           {/* Sun Halo Pulse */}
-          <circle cx={sunX} cy={sunY} r="18" fill="url(#sunGlow)" opacity="0.4" />
+          <circle cx={sunX} cy={sunY} r="16" fill="url(#sunGlow)" opacity="0.4" />
 
-          {/* Glowing Sun Puck (Draggable Handle) */}
+          {/* Draggable Sun Puck */}
           <circle
             cx={sunX}
             cy={sunY}
-            r="8"
+            r="7.5"
             fill={solarStats.lightColor}
             stroke="#ffffff"
-            strokeWidth="2.5"
+            strokeWidth="2"
             className="filter drop-shadow-md cursor-grab active:cursor-grabbing"
           />
         </svg>
 
         {/* Current Time Badge & Solar Telemetry */}
-        <div className="w-full flex items-center justify-between px-2 pt-1">
-          <div className="flex items-center gap-2">
+        <div className="w-full flex items-center justify-between px-2 pt-0.5">
+          <div className="flex items-center gap-1.5">
             <span className="font-mono text-sm font-black text-white">
               {formatSolarTime(solarTime)}
             </span>
             <span
-              className="text-[9px] font-mono px-1.5 py-0.5 rounded border border-white/20 uppercase"
+              className="text-[8.5px] font-mono px-1.5 py-0.2 rounded border border-white/20 uppercase"
               style={{ color: solarStats.lightColor, borderColor: solarStats.lightColor }}
             >
               Alt: {Math.round(solarStats.altitudeDeg)}° • Az: {Math.round(solarStats.azimuthDeg)}°
             </span>
           </div>
 
-          {/* Play/Pause Timelapse */}
           <button
             onClick={() => setIsPlaying(!isPlaying)}
-            className={`p-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1.5 ${
+            className={`p-1.5 rounded-xl border text-xs font-bold transition flex items-center gap-1 ${
               isPlaying
                 ? 'bg-amber-400 text-black border-amber-300 shadow-md'
                 : 'bg-white/5 hover:bg-white/15 border-white/15 text-zinc-300'
@@ -234,7 +269,7 @@ export const SunDialWidget: React.FC = () => {
             title="Auto Solar Timelapse"
           >
             {isPlaying ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
-            <span className="text-[10px]">{isPlaying ? 'Stop' : 'Timelapse'}</span>
+            <span className="text-[9.5px]">{isPlaying ? 'Stop' : 'Timelapse'}</span>
           </button>
         </div>
       </div>
@@ -250,7 +285,7 @@ export const SunDialWidget: React.FC = () => {
                 setIsPlaying(false);
                 setSolarTime(p.time);
               }}
-              className={`py-1.5 px-1 rounded-xl text-[10px] font-semibold transition flex flex-col items-center gap-0.5 border ${
+              className={`py-1.5 px-1 rounded-xl text-[9.5px] font-semibold transition flex flex-col items-center gap-0.5 border ${
                 isActive
                   ? 'bg-white text-black border-white shadow-md font-bold'
                   : 'bg-white/[0.03] text-zinc-400 border-white/10 hover:text-white hover:bg-white/10'
@@ -261,6 +296,60 @@ export const SunDialWidget: React.FC = () => {
             </button>
           );
         })}
+      </div>
+
+      {/* Studio Environment Toggles Deck */}
+      <div className="pt-2.5 mt-2 border-t border-white/10 grid grid-cols-3 gap-1.5">
+        {/* 1. 3D Terrain Elevation */}
+        <button
+          type="button"
+          onClick={() => {
+            toggleTerrain();
+            setToast(is3DTerrain ? '3D terrain elevation disabled.' : '3D terrain elevation mesh enabled.');
+          }}
+          className={`py-1.5 px-2 rounded-xl text-[10px] font-bold border transition flex items-center justify-center gap-1.5 ${
+            is3DTerrain
+              ? 'bg-emerald-400/20 text-emerald-300 border-emerald-400/40 shadow-sm'
+              : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
+          }`}
+          title="Toggle 3D Elevation Terrain Mesh"
+        >
+          <Mountain className="w-3.5 h-3.5" />
+          <span>3D Terrain</span>
+        </button>
+
+        {/* 2. 3D Satellite X-Ray */}
+        <button
+          type="button"
+          onClick={handleToggleSatellite}
+          className={`py-1.5 px-2 rounded-xl text-[10px] font-bold border transition flex items-center justify-center gap-1.5 ${
+            isSatelliteXRayActive || currentBasemap === 'Satellite 3D X-Ray'
+              ? 'bg-sky-400 text-black border-sky-300 shadow-sm font-extrabold'
+              : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
+          }`}
+          title="Toggle 3D Satellite Mode"
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span>3D Satellite</span>
+        </button>
+
+        {/* 3. 360° Drone Orbit */}
+        <button
+          type="button"
+          onClick={() => {
+            setDroneOrbiting(!isDroneOrbiting);
+            toggleSunDial(false);
+          }}
+          className={`py-1.5 px-2 rounded-xl text-[10px] font-bold border transition flex items-center justify-center gap-1.5 ${
+            isDroneOrbiting
+              ? 'bg-red-500 text-white border-red-400 shadow-sm'
+              : 'bg-white/5 text-zinc-400 border-white/10 hover:text-white'
+          }`}
+          title="Launch 360° Drone Orbit"
+        >
+          <Video className="w-3.5 h-3.5" />
+          <span>360° Orbit</span>
+        </button>
       </div>
     </div>
   );
