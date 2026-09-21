@@ -181,7 +181,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         </div>
 
         {/* =========================================================================
-            SECTION 2: DATA & LAYERS (DIRECT INDIVIDUAL BUTTONS - NOT GROUPED)
+            SECTION 2: DATA & LAYERS (DIRECT ICON-ONLY BUTTONS)
            ========================================================================= */}
         <div className="flex items-center gap-1 shrink-0 pr-1.5 border-r border-white/15">
           {/* Data Browser */}
@@ -189,14 +189,13 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             type="button"
             onClick={() => togglePanel('browser')}
             title="Data Catalog Browser"
-            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
               activePanels.browser
-                ? 'bg-white text-black font-bold shadow-md'
+                ? 'bg-white text-black shadow-md'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[11px] hidden md:inline">Data Browser</span>
+            <Layers className="w-4 h-4 text-emerald-400" />
           </button>
 
           {/* My Layers */}
@@ -204,14 +203,13 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             type="button"
             onClick={() => togglePanel('myLayers')}
             title="My Layers"
-            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
               activePanels.myLayers
-                ? 'bg-white text-black font-bold shadow-md'
+                ? 'bg-white text-black shadow-md'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <FolderTree className="w-3.5 h-3.5 text-sky-400" />
-            <span className="text-[11px] hidden md:inline">My Layers</span>
+            <FolderTree className="w-4 h-4 text-sky-400" />
           </button>
 
           {/* Trade Area Scan */}
@@ -219,14 +217,13 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             type="button"
             onClick={() => togglePanel('tradeArea')}
             title="Trade Area & POI Scan"
-            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
               activePanels.tradeArea
-                ? 'bg-white text-black font-bold shadow-md'
+                ? 'bg-white text-black shadow-md'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Radar className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px] hidden lg:inline">Trade Area</span>
+            <Radar className="w-4 h-4 text-amber-400" />
           </button>
 
           {/* Search Places */}
@@ -234,14 +231,13 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             type="button"
             onClick={() => togglePanel('search')}
             title="Search Places (Geocoding)"
-            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
               activePanels.search
-                ? 'bg-white text-black font-bold shadow-md'
+                ? 'bg-white text-black shadow-md'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Search className="w-3.5 h-3.5 text-zinc-300" />
-            <span className="text-[11px] hidden lg:inline">Search</span>
+            <Search className="w-4 h-4 text-zinc-300" />
           </button>
 
           {/* Import */}
@@ -249,34 +245,33 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             type="button"
             onClick={onImportClick}
             title="Import GeoJSON / KML"
-            className="px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition"
+            className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
           >
-            <Upload className="w-3.5 h-3.5 text-indigo-400" />
-            <span className="text-[11px] hidden xl:inline">Import</span>
+            <Upload className="w-4 h-4 text-indigo-400" />
           </button>
         </div>
 
         {/* =========================================================================
-            SECTION 3: DRAW & 3D TOOLS (RENAMED TO EXACT SPECS)
+            SECTION 3: DRAW & 3D TOOLS (ICON-ONLY BUTTON)
            ========================================================================= */}
         <div className="relative shrink-0">
           <button
             type="button"
             onClick={() => toggleFlyout('draw')}
-            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+            title="Draw & 3D Tools"
+            className={`h-8 px-2.5 rounded-full flex items-center gap-1 transition ${
               openFolder === 'draw' || Boolean(activeTool) || activePanels.buildingCatalog
-                ? 'bg-white text-black font-bold shadow-lg shadow-white/10'
+                ? 'bg-white text-black shadow-lg shadow-white/10'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             {activeTool === 'polygon3d' ? (
-              <Box className="w-3.5 h-3.5 text-sky-500" />
+              <Box className="w-4 h-4 text-sky-500" />
             ) : activeTool === 'polygon' ? (
-              <Hexagon className="w-3.5 h-3.5 text-indigo-500" />
+              <Hexagon className="w-4 h-4 text-indigo-500" />
             ) : (
-              <PenTool className="w-3.5 h-3.5 text-sky-400" />
+              <PenTool className="w-4 h-4 text-sky-400" />
             )}
-            <span className="text-[11px]">Draw &amp; 3D</span>
             <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${openFolder === 'draw' ? 'rotate-180' : ''}`} />
           </button>
 
@@ -442,14 +437,14 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
           <button
             type="button"
             onClick={() => toggleFlyout('studio')}
-            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+            title="Studio Mode & Visual Styling"
+            className={`h-8 px-2.5 rounded-full flex items-center gap-1 transition ${
               openFolder === 'studio' || isSunDialOpen || activePanels.customMap
                 ? 'bg-white/20 text-white font-bold'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Sun className="w-3.5 h-3.5 text-amber-400" />
-            <span className="text-[11px]">Studio &amp; Style</span>
+            <Sun className="w-4 h-4 text-amber-400" />
             <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${openFolder === 'studio' ? 'rotate-180' : ''}`} />
           </button>
 
