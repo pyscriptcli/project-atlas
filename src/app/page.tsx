@@ -18,6 +18,8 @@ import { CinematicClusterOverlay } from '../components/map/CinematicClusterOverl
 import { ViewportStudioDock } from '../components/viewport/ViewportStudioDock';
 import { SunDialWidget } from '../components/viewport/SunDialWidget';
 import { DroneOrbitHUD } from '../components/viewport/DroneOrbitHUD';
+import { AtlasAIAssistant } from '../components/ai/AtlasAIAssistant';
+import { CinematicTourHUD } from '../components/viewport/CinematicTourHUD';
 import { useMapStore } from '../store/useMapStore';
 import { useProjectStore } from '../store/useProjectStore';
 import { normalizeGeoJSON } from '../gis/importExport';
@@ -71,6 +73,8 @@ export default function WorkspacePage() {
         setActiveTool(null);
         useMapStore.getState().setDroneOrbiting(false);
         useMapStore.getState().toggleSunDial(false);
+        useMapStore.getState().setActiveTour(null);
+        useMapStore.getState().toggleAtlasAI(false);
       }
     };
 
@@ -146,6 +150,10 @@ export default function WorkspacePage() {
       <ViewportStudioDock mapInstance={mapInstance} />
       <SunDialWidget />
       <DroneOrbitHUD mapInstance={mapInstance} />
+
+      {/* Floating atlas.ai Assistant (Right Corner) & Cinematic Street Tour HUD */}
+      <AtlasAIAssistant />
+      <CinematicTourHUD mapInstance={mapInstance} />
 
       {/* Toast Notification */}
       {toastMessage && (

@@ -82,6 +82,24 @@ interface MapState {
   isFogEnabled: boolean;
   is3DTerrain: boolean;
 
+  // Autonomous Cinematic Street Tour & Atlas.AI State
+  activeTour: {
+    streetName: string;
+    waypoints: [number, number][];
+    bearings: number[];
+    pois: Array<{
+      name: string;
+      category: string;
+      lon: number;
+      lat: number;
+      highlight?: string;
+    }>;
+    currentPoiIndex: number;
+    isPlaying: boolean;
+    speed: number;
+  } | null;
+  isAtlasAIOpen: boolean;
+
   setSolarTime: (solarTime: number) => void;
   toggleSunDial: (open?: boolean) => void;
   toggleSatelliteXRay: (active?: boolean) => void;
@@ -89,6 +107,11 @@ interface MapState {
   setDroneOrbitSpeed: (speed: number) => void;
   toggleFog: (enabled?: boolean) => void;
   toggleTerrain: (enabled?: boolean) => void;
+
+  setActiveTour: (tour: MapState['activeTour']) => void;
+  setTourPoiIndex: (index: number) => void;
+  setTourPlaying: (playing: boolean) => void;
+  toggleAtlasAI: (open?: boolean) => void;
 
   // Actions
   setActiveTool: (tool: FeatureKind | 'placeBuilding' | null) => void;
@@ -221,6 +244,17 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((state) => ({ isFogEnabled: enabled !== undefined ? enabled : !state.isFogEnabled })),
   toggleTerrain: (enabled) =>
     set((state) => ({ is3DTerrain: enabled !== undefined ? enabled : !state.is3DTerrain })),
+
+  activeTour: null,
+  isAtlasAIOpen: false,
+
+  setActiveTour: (activeTour) => set({ activeTour }),
+  setTourPoiIndex: (currentPoiIndex) =>
+    set((state) => (state.activeTour ? { activeTour: { ...state.activeTour, currentPoiIndex } } : {})),
+  setTourPlaying: (isPlaying) =>
+    set((state) => (state.activeTour ? { activeTour: { ...state.activeTour, isPlaying } } : {})),
+  toggleAtlasAI: (open) =>
+    set((state) => ({ isAtlasAIOpen: open !== undefined ? open : !state.isAtlasAIOpen })),
 
   setActiveTool: (tool) => {
     set((state) => {
