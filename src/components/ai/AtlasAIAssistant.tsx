@@ -12,36 +12,39 @@ import {
   Bot,
   User,
   Compass,
-  ArrowRight,
   Sun,
   Moon,
   Zap,
-  Heart,
   Eye,
   Camera,
   Layers,
+  MapPin,
+  Play,
+  Pause,
+  Sliders,
+  Maximize2,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { extractStreetQuery, buildStreetTour } from '../../gis/tourEngine';
+
+interface InteractiveWidget {
+  type: 'navigation' | 'lighting' | 'tour' | 'vitality';
+  title: string;
+  data: any;
+}
 
 interface AtlasMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
-  actionCard?: {
-    type: 'camera' | 'lighting' | 'tour' | 'scan' | 'pet';
-    title: string;
-    details: string;
-    status: 'success' | 'running';
-  };
+  widget?: InteractiveWidget;
 }
 
 interface AtlasAIAssistantProps {
   mapInstance?: any;
 }
 
-// Built-in Geocoded Landmark Registry for Instant Autonomous Navigation
-const KNOWN_DESTINATIONS: Record<string, { center: [number, number]; zoom: number; pitch: number; bearing: number; desc: string }> = {
+const DESTINATION_MAP: Record<string, { center: [number, number]; zoom: number; pitch: number; bearing: number; desc: string }> = {
   bgc: { center: [121.0504, 14.5507], zoom: 16, pitch: 62, bearing: -15, desc: 'Bonifacio Global City Financial Core' },
   'bonifacio global city': { center: [121.0504, 14.5507], zoom: 16, pitch: 62, bearing: -15, desc: 'Bonifacio Global City' },
   makati: { center: [121.0244, 14.5547], zoom: 15.8, pitch: 60, bearing: -25, desc: 'Makati Central Business District' },
@@ -51,40 +54,62 @@ const KNOWN_DESTINATIONS: Record<string, { center: [number, number]; zoom: numbe
   edsa: { center: [121.0359, 14.5831], zoom: 15, pitch: 58, bearing: -45, desc: 'EDSA Metro Transit Spine' },
   'manila bay': { center: [120.9785, 14.5777], zoom: 14.8, pitch: 60, bearing: -80, desc: 'Manila Bay Waterfront Promenade' },
   'quezon city': { center: [121.0494, 14.6488], zoom: 14.5, pitch: 55, bearing: 10, desc: 'Quezon City Civic & Innovation Hub' },
-  clark: { center: [120.5348, 15.1855], zoom: 14, pitch: 50, bearing: 0, desc: 'Clark Freeport Zone & New Clark City' },
-  cebu: { center: [123.9056, 10.3167], zoom: 15, pitch: 55, bearing: -30, desc: 'Cebu IT Park & Waterfront Corridor' },
+  clark: { center: [120.5348, 15.1855], zoom: 14, pitch: 50, bearing: 0, desc: 'Clark Freeport Zone' },
+  cebu: { center: [123.9056, 10.3167], zoom: 15, pitch: 55, bearing: -30, desc: 'Cebu IT Park' },
 };
 
 export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance }) => {
   const {
     isAtlasAIOpen,
     toggleAtlasAI,
+    activeTour,
     setActiveTour,
+    setTourPlaying,
     features,
     setToast,
     solarTime,
     setSolarTime,
     toggleNightGlow,
+    isNightGlowEnabled,
     toggleTerrain,
+    isDroneOrbiting,
+    setDroneOrbiting,
   } = useMapStore();
 
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [petMood, setPetMood] = useState<'happy' | 'curious' | 'flying' | 'scanning' | 'loved'>('curious');
-  const [petMessage, setPetMessage] = useState<string>('Watching the map! Ready to fly or scan.');
-  const [showPetHeart, setShowPetHeart] = useState(false);
+
+  // Live telemetry tracker
+  const [telemetry, setTelemetry] = useState({
+    center: [120.9842, 14.5995],
+    zoom: 14,
+    pitch: 60,
+    bearing: -15,
+  });
+
+  useEffect(() => {
+    if (!mapInstance) return;
+    const update = () => {
+      const c = mapInstance.getCenter();
+      setTelemetry({
+        center: [parseFloat(c.lng.toFixed(4)), parseFloat(c.lat.toFixed(4))],
+        zoom: parseFloat(mapInstance.getZoom().toFixed(1)),
+        pitch: Math.round(mapInstance.getPitch()),
+        bearing: Math.round(mapInstance.getBearing()),
+      });
+    };
+    update();
+    mapInstance.on('move', update);
+    return () => {
+      mapInstance.off('move', update);
+    };
+  }, [mapInstance]);
 
   const [messages, setMessages] = useState<AtlasMessage[]>([
     {
       id: 'welcome',
       role: 'assistant',
-      text: '🛸 *Chirp!* Greetings, human! I am **Atlas**, your AI pet drone & autonomous spatial agent.\n\nI don\'t just chat — I have direct flight controls over your 3D digital twin. Tell me to fly you anywhere, change the atmosphere, or tour commercial corridors!',
-      actionCard: {
-        type: 'pet',
-        title: 'ATLAS PET DRONE: ONLINE & MONITORING',
-        details: 'Flight telemetry connected to MapLibre camera • 3D Terrain Dem active',
-        status: 'success',
-      },
+      text: 'Welcome to **atlas.ai**, your autonomous geospatial copilot. I provide real-time spatial analysis, direct camera navigation, atmosphere control, and autonomous 3D corridor flybys.\n\nType a command or location (e.g. *"Fly to BGC"*, *"Make it sunset"*, *"Tour Tomas Morato"*, or *"Analyze commercial vitality"*).',
     },
   ]);
 
@@ -94,34 +119,7 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, isLoading]);
 
-  // Pet Atlas Interaction
-  const handlePetAtlas = () => {
-    setShowPetHeart(true);
-    setPetMood('loved');
-    setPetMessage('*Purr!* Atlas loves exploring this map with you! 🛸✨');
-    setToast('Atlas is happy! 🐾');
-
-    const petReply: AtlasMessage = {
-      id: Date.now().toString(),
-      role: 'assistant',
-      text: '🐾 *Purr!* Atlas chirps happily! Telemetry is running at 60 FPS. What would you like to explore next?',
-      actionCard: {
-        type: 'pet',
-        title: 'PET COMPANION: AFFECTION RECEIVED ❤️',
-        details: 'Atlas is feeling energetic and ready for high-speed corridor tours!',
-        status: 'success',
-      },
-    };
-
-    setMessages((prev) => [...prev, petReply]);
-
-    setTimeout(() => {
-      setShowPetHeart(false);
-      setPetMood('happy');
-    }, 2500);
-  };
-
-  // Autonomous Agent Action Dispatcher
+  // Autonomous Command Execution Engine
   const handleSend = async (userText: string) => {
     const query = userText.trim();
     if (!query || isLoading) return;
@@ -135,15 +133,13 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
-    setPetMood('scanning');
 
-    const lowerQuery = query.toLowerCase();
+    const lower = query.toLowerCase();
 
-    // 1. Agentic Fly Camera to Known Landmark
-    for (const [key, target] of Object.entries(KNOWN_DESTINATIONS)) {
-      if (lowerQuery.includes(key) && !lowerQuery.includes('tour me to') && !lowerQuery.includes('flyby')) {
-        setPetMood('flying');
-        setToast(`Atlas flying to ${target.desc}...`);
+    // 1. Navigation intent
+    for (const [key, target] of Object.entries(DESTINATION_MAP)) {
+      if (lower.includes(key) && !lower.includes('tour') && !lower.includes('flyby')) {
+        setToast(`Navigating camera to ${target.desc}...`);
 
         if (mapInstance) {
           mapInstance.flyTo({
@@ -151,128 +147,123 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
             zoom: target.zoom,
             pitch: target.pitch,
             bearing: target.bearing,
-            duration: 2500,
+            duration: 2200,
           });
         }
 
-        const agentMsg: AtlasMessage = {
+        const msg: AtlasMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          text: `🚀 **Flown to ${target.desc}**\n\nI have aligned your camera to coordinates \`[${target.center[0]}, ${target.center[1]}]\` at a **${target.pitch}° architectural pitch** with terrain mesh elevation enabled.`,
-          actionCard: {
-            type: 'camera',
-            title: `AUTONOMOUS CAMERA FLIGHT: ${target.desc.toUpperCase()}`,
-            details: `Coordinates: [${target.center.join(', ')}] • Pitch: ${target.pitch}° • Bearing: ${target.bearing}°`,
-            status: 'success',
+          text: `Navigated to **${target.desc}**. The camera is centered at coordinates \`[${target.center.join(', ')}]\` at a ${target.pitch}° architectural pitch.`,
+          widget: {
+            type: 'navigation',
+            title: target.desc,
+            data: {
+              center: target.center,
+              pitch: target.pitch,
+              bearing: target.bearing,
+              zoom: target.zoom,
+            },
           },
         };
 
-        setMessages((prev) => [...prev, agentMsg]);
+        setMessages((prev) => [...prev, msg]);
         setIsLoading(false);
-        setPetMood('happy');
         return;
       }
     }
 
-    // 2. Agentic Atmosphere & Lighting Shift (Sunset / Night / Noon)
-    if (lowerQuery.includes('sunset') || lowerQuery.includes('golden hour')) {
+    // 2. Lighting & Atmosphere intent
+    if (lower.includes('sunset') || lower.includes('golden hour')) {
       setSolarTime(17.25);
-      setToast('Atlas set golden hour lighting.');
+      setToast('Adjusted lighting to Golden Hour (17:15).');
 
-      const agentMsg: AtlasMessage = {
+      const msg: AtlasMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: '🌇 **Sunset Golden Hour Activated (17:15)**\n\nI have shifted the solar dial to sunset. Notice the elongated building shadows and warm amber facade illumination across the corridor.',
-        actionCard: {
+        text: 'Set solar time to **Golden Hour (17:15)**. Long-angle facade shadows and warm atmospheric scattering are now visible.',
+        widget: {
           type: 'lighting',
-          title: 'ATMOSPHERIC CONTROLLER: GOLDEN HOUR',
-          details: 'Solar Time: 17.25 (Sunset) • Shadow Cast: High-Angle Facade',
-          status: 'success',
+          title: 'Solar Lighting: Golden Hour',
+          data: { time: 17.25, label: 'Sunset (17:15)' },
         },
       };
-
-      setMessages((prev) => [...prev, agentMsg]);
+      setMessages((prev) => [...prev, msg]);
       setIsLoading(false);
-      setPetMood('happy');
       return;
     }
 
-    if (lowerQuery.includes('night') || lowerQuery.includes('neon') || lowerQuery.includes('dark')) {
+    if (lower.includes('night') || lower.includes('neon') || lower.includes('dark')) {
       setSolarTime(21.0);
       toggleNightGlow(true);
-      setToast('Atlas activated night illumination & neon city arteries.');
+      setToast('Night illumination and glowing arteries active.');
 
-      const agentMsg: AtlasMessage = {
+      const msg: AtlasMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: '🌃 **Night Illumination & Glowing Arteries Online**\n\nI shifted the clock to 21:00 and activated neon cyan road arteries with high-contrast architectural window illumination.',
-        actionCard: {
+        text: 'Activated **Night Illumination (21:00)**. Major roads are highlighted as glowing cyan arteries with high-contrast window illumination.',
+        widget: {
           type: 'lighting',
-          title: 'ATMOSPHERIC CONTROLLER: NIGHT ILLUMINATION',
-          details: 'Solar Time: 21:00 (Night) • Arteries: Cyan Glow #38bdf8 • Windows: Active',
-          status: 'success',
+          title: 'Solar Lighting: Night Illumination',
+          data: { time: 21.0, label: 'Night (21:00)' },
         },
       };
-
-      setMessages((prev) => [...prev, agentMsg]);
+      setMessages((prev) => [...prev, msg]);
       setIsLoading(false);
-      setPetMood('happy');
       return;
     }
 
-    if (lowerQuery.includes('noon') || lowerQuery.includes('day') || lowerQuery.includes('sunlight')) {
+    if (lower.includes('noon') || lower.includes('day') || lower.includes('sunlight')) {
       setSolarTime(12.0);
-      setToast('Atlas set high noon solar position.');
+      setToast('Set lighting to High Noon (12:00).');
 
-      const agentMsg: AtlasMessage = {
+      const msg: AtlasMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: '☀️ **High Noon Solar Calibration (12:00)**\n\nDirect zenith sunlight enabled with minimum building shadows and maximum terrain clarity.',
-        actionCard: {
+        text: 'Calibrated lighting to **High Noon (12:00)**. Direct vertical sunlight with minimal facade shadowing.',
+        widget: {
           type: 'lighting',
-          title: 'ATMOSPHERIC CONTROLLER: HIGH NOON',
-          details: 'Solar Time: 12.00 (Zenith) • Vertical Light Position: 90°',
-          status: 'success',
+          title: 'Solar Lighting: High Noon',
+          data: { time: 12.0, label: 'Noon (12:00)' },
         },
       };
-
-      setMessages((prev) => [...prev, agentMsg]);
+      setMessages((prev) => [...prev, msg]);
       setIsLoading(false);
-      setPetMood('happy');
       return;
     }
 
-    // 3. Agentic 3D Digital Twin Tilt & Elevation
-    if (lowerQuery.includes('tilt') || lowerQuery.includes('3d') || lowerQuery.includes('extrude')) {
+    // 3. 3D Digital Twin inspection
+    if (lower.includes('tilt') || lower.includes('3d') || lower.includes('extrude')) {
       if (mapInstance) {
-        mapInstance.easeTo({ pitch: 65, bearing: -20, duration: 1500 });
+        mapInstance.easeTo({ pitch: 65, duration: 1200 });
       }
       toggleTerrain(true);
-      setToast('Atlas tilted camera to 65° 3D digital twin perspective.');
+      setToast('Tilted camera to 65° with 3D terrain elevation.');
 
-      const agentMsg: AtlasMessage = {
+      const msg: AtlasMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: '🏙️ **3D Digital Twin Extrusion Mode Engaged**\n\nI have tilted your camera to a 65° cinematic pitch and verified 3D terrain elevation mesh rendering.',
-        actionCard: {
-          type: 'camera',
-          title: 'CAMERA CONTROLLER: 3D DIGITAL TWIN',
-          details: 'Pitch: 65° • 3D Terrain DEM: Enabled • Extruded Buildings: Visible',
-          status: 'success',
+        text: 'Adjusted camera perspective to **65° pitch** and verified that 3D terrain elevation mesh is active.',
+        widget: {
+          type: 'navigation',
+          title: '3D Perspective Inspection',
+          data: {
+            center: telemetry.center,
+            pitch: 65,
+            bearing: telemetry.bearing,
+            zoom: telemetry.zoom,
+          },
         },
       };
-
-      setMessages((prev) => [...prev, agentMsg]);
+      setMessages((prev) => [...prev, msg]);
       setIsLoading(false);
-      setPetMood('happy');
       return;
     }
 
-    // 4. Agentic Cinematic Corridor Tour
+    // 4. Corridor Flyby Tour
     const street = extractStreetQuery(query);
     if (street) {
-      setPetMood('flying');
-      setToast(`Atlas generating 3D autonomous flyby along ${street}...`);
+      setToast(`Generating 3D corridor flyby along ${street}...`);
       try {
         const tour = await buildStreetTour(street);
         setActiveTour({
@@ -285,55 +276,54 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
           speed: 1,
         });
 
-        const assistantMsg: AtlasMessage = {
+        const msg: AtlasMessage = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          text: `🎬 **Launching Autonomous 3D Flyby along ${tour.streetName}**\n\nAtlas is taking the helm! I will glide down the corridor at a 62° architectural pitch, banking smoothly into turns while projecting holographic HUD callouts over **${tour.pois.length} commercial anchors**.`,
-          actionCard: {
+          text: `Initiated **Autonomous 3D Flyby along ${tour.streetName}**.\n\nThe camera is gliding along the corridor at a 62° pitch, tracking road curves while projecting holographic callouts over **${tour.pois.length} commercial anchors**.`,
+          widget: {
             type: 'tour',
-            title: `AUTONOMOUS FLYBY: ${tour.streetName.toUpperCase()}`,
-            details: `Corridor Waypoints: ${tour.waypoints.length} nodes • Active POIs: ${tour.pois.length} anchors`,
-            status: 'running',
+            title: `Corridor Tour: ${tour.streetName}`,
+            data: {
+              street: tour.streetName,
+              waypoints: tour.waypoints.length,
+              pois: tour.pois.length,
+            },
           },
         };
-
-        setMessages((prev) => [...prev, assistantMsg]);
+        setMessages((prev) => [...prev, msg]);
         setIsLoading(false);
-        setPetMood('happy');
         return;
       } catch (err) {
-        console.error('Failed to launch tour:', err);
+        console.error('Tour generation error:', err);
       }
     }
 
-    // 5. Agentic Viewport Vitality Scan
-    if (lowerQuery.includes('vitality') || lowerQuery.includes('scan') || lowerQuery.includes('retail gap')) {
-      setPetMood('scanning');
-      const pointFeatures = features.filter((f) => f.geometry.type === 'Point');
+    // 5. Commercial Vitality Analysis
+    if (lower.includes('vitality') || lower.includes('scan') || lower.includes('commercial') || lower.includes('retail')) {
+      const markers = features.filter((f) => f.geometry.type === 'Point');
       const center = mapInstance ? mapInstance.getCenter() : { lng: 120.9842, lat: 14.5995 };
-      const zoom = mapInstance ? Math.round(mapInstance.getZoom()) : 14;
+      const score = Math.min(95, Math.max(72, 74 + markers.length * 3));
 
-      const vitalityScore = Math.min(96, Math.max(68, 70 + pointFeatures.length * 3));
-
-      const scanMsg: AtlasMessage = {
+      const msg: AtlasMessage = {
         id: (Date.now() + 1).toString(),
         role: 'assistant',
-        text: `📊 **Autonomous Spatial Vitality Audit Completed**\n\n• **Viewport Center**: \`[${center.lng.toFixed(4)}, ${center.lat.toFixed(4)}]\` (Zoom ${zoom})\n• **Commercial Vitality Rating**: **${vitalityScore}/100** (High Commercial Magnetism)\n• **Active Anchors**: ${pointFeatures.length} pinned POIs\n• **Key Takeaway**: High vehicular throughput along main artery with strong consumer density within 800m.`,
-        actionCard: {
-          type: 'scan',
-          title: 'SPATIAL VITALITY REPORT',
-          details: `Score: ${vitalityScore}/100 • Evaluated Parcels: ${pointFeatures.length} • Capture Radius: 800m`,
-          status: 'success',
+        text: `Completed **Commercial Vitality Audit** for current viewport center \`[${center.lng.toFixed(4)}, ${center.lat.toFixed(4)}]\`.\n\n• **Vitality Score**: **${score}/100**\n• **Active Spatial Anchors**: ${markers.length} pinned features\n• **Urban Corridor Assessment**: High vehicular throughput with concentrated commercial activity within an 800m catchment radius.`,
+        widget: {
+          type: 'vitality',
+          title: 'Viewport Vitality Audit',
+          data: {
+            score,
+            anchorCount: markers.length,
+            center: [center.lng, center.lat],
+          },
         },
       };
-
-      setMessages((prev) => [...prev, scanMsg]);
+      setMessages((prev) => [...prev, msg]);
       setIsLoading(false);
-      setPetMood('happy');
       return;
     }
 
-    // 6. Fallback General Spatial Query via API
+    // 6. Natural Language Spatial Intelligence Query (API)
     try {
       const scannedPois = features
         .filter((f) => f.kind === 'marker')
@@ -357,7 +347,7 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
       });
 
       const data = await res.json();
-      const reply = data.reply || data.summary?.strategicNarrative || 'Atlas has inspected your spatial layer configurations.';
+      const reply = data.reply || data.summary?.strategicNarrative || 'Analyzed spatial telemetry for your query.';
 
       setMessages((prev) => [
         ...prev,
@@ -373,162 +363,120 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
         {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
-          text: 'Atlas encountered an error reaching spatial telemetry. Try prompting me: "Fly to BGC", "Make it sunset", or "Tour me to Tomas Morato"!',
+          text: 'Encountered a network timeout reaching spatial telemetry. Try prompting: *"Fly to BGC"*, *"Make it sunset"*, or *"Tour me to Tomas Morato"*.',
         },
       ]);
     } finally {
       setIsLoading(false);
-      setPetMood('happy');
     }
   };
-
-  const agenticActionPills = [
-    { label: '🚁 Tour Tomas Morato', prompt: 'Tour me to Tomas Morato' },
-    { label: '🏙️ Fly to BGC', prompt: 'Fly to BGC' },
-    { label: '🌇 Set Sunset Mood', prompt: 'Make it sunset' },
-    { label: '🌃 Night City Arteries', prompt: 'Turn on night lights' },
-    { label: '📊 Scan Vitality Score', prompt: 'Scan commercial vitality' },
-    { label: '🐾 Pet Atlas', isPet: true },
-  ];
 
   return (
     <>
       {/* =========================================================================
-          PET AI COMPANION AVATAR (FLOATING TOP-RIGHT CORNER)
+          MONOCHROMATIC AI ASSISTANT TRIGGER PILL (TOP-RIGHT CORNER)
          ========================================================================= */}
-      <div className="fixed top-4 right-6 z-[1000] select-none flex items-center gap-2">
-        {/* Proactive Thought Speech Bubble */}
-        {!isAtlasAIOpen && (
-          <div
-            onClick={() => toggleAtlasAI(true)}
-            className="hidden sm:flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#0c1322]/90 border border-white/15 text-zinc-300 hover:text-white text-[10px] shadow-xl backdrop-blur-xl cursor-pointer hover:border-amber-400/40 transition animate-in fade-in slide-in-from-right-2"
-          >
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span className="truncate max-w-[170px]">{petMessage}</span>
-          </div>
-        )}
-
-        {/* Pet AI Drone Orb Button */}
+      <div className="fixed top-4 right-6 z-[1000] select-none">
         <button
           type="button"
           onClick={() => toggleAtlasAI()}
-          className={`relative group h-9 px-3 rounded-full flex items-center gap-2 border shadow-2xl backdrop-blur-2xl transition-all duration-300 active:scale-95 ${
+          className={`h-9 px-3.5 rounded-full flex items-center gap-2 border shadow-2xl backdrop-blur-2xl transition active:scale-95 ${
             isAtlasAIOpen
-              ? 'bg-amber-400 text-black border-amber-300 shadow-amber-400/20 font-black'
-              : 'bg-[#0c1322]/95 hover:bg-[#131c31] text-white border-white/20 hover:border-amber-400/50'
+              ? 'bg-white text-black border-white shadow-white/20 font-bold'
+              : 'bg-[#0c1322]/95 hover:bg-[#131c31] text-zinc-200 hover:text-white border-white/20 hover:border-white/40'
           }`}
-          title="atlas.ai - Autonomous Pet AI & Spatial Agent"
+          title="Open atlas.ai Geospatial Copilot"
         >
-          {/* Animated Pet Face Core */}
-          <div className="relative flex items-center justify-center w-5 h-5 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300">
-            {petMood === 'flying' ? (
-              <Navigation className="w-3 h-3 text-amber-400 animate-spin" />
-            ) : petMood === 'scanning' ? (
-              <Radar className="w-3 h-3 text-cyan-400 animate-spin" />
-            ) : (
-              <span className="text-[10px] font-mono leading-none">^◡^</span>
-            )}
-
-            {/* Orbiting Ring */}
-            <span className="absolute inset-0 rounded-full border border-amber-400/30 animate-ping opacity-40" />
-          </div>
-
-          <div className="flex flex-col text-left">
-            <span className="text-xs font-black tracking-tight leading-tight flex items-center gap-1">
-              <span>atlas.ai</span>
-              <span className="text-[8px] font-mono uppercase px-1 rounded bg-white/10 text-emerald-400">
-                PET AGENT
-              </span>
-            </span>
-          </div>
-
-          {/* Heart burst when pet */}
-          {showPetHeart && (
-            <span className="absolute -top-3 left-1/2 -translate-x-1/2 text-rose-400 animate-bounce text-xs">
-              ❤️
-            </span>
-          )}
+          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <Sparkles className="w-3.5 h-3.5" />
+          <span className="text-xs font-bold tracking-tight">atlas.ai</span>
         </button>
       </div>
 
       {/* =========================================================================
-          EXPANDABLE ATLAS AGENT DIALOG HUD
+          INTERACTIVE AI COPILOT DIALOG WINDOW
          ========================================================================= */}
       {isAtlasAIOpen && (
-        <div className="fixed top-16 right-6 z-[1200] w-[400px] max-w-[94vw] h-[540px] max-h-[78vh] bg-[#0c1322] border border-white/20 rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] backdrop-blur-3xl flex flex-col overflow-hidden text-white select-none animate-in fade-in zoom-in-95">
+        <div className="fixed top-16 right-6 z-[1200] w-[410px] max-w-[94vw] h-[560px] max-h-[80vh] bg-[#0c1322] border border-white/20 rounded-3xl shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] backdrop-blur-3xl flex flex-col overflow-hidden text-zinc-200 select-none">
           {/* Header */}
           <div className="p-3.5 px-4 border-b border-white/10 flex items-center justify-between bg-black/40">
             <div className="flex items-center gap-2.5">
-              {/* Pet Drone Avatar Face */}
-              <div
-                onClick={handlePetAtlas}
-                className="w-8 h-8 rounded-2xl bg-amber-400/20 border border-amber-400/40 flex items-center justify-center text-amber-300 font-mono text-xs cursor-pointer hover:scale-110 active:scale-95 transition shadow-lg"
-                title="Click to Pet Atlas!"
-              >
-                {petMood === 'loved' ? '❤️' : petMood === 'flying' ? '🚀' : '(^◡^)'}
+              <div className="w-8 h-8 rounded-2xl bg-white/10 border border-white/15 flex items-center justify-center text-white">
+                <Sparkles className="w-4 h-4" />
               </div>
-
               <div>
                 <div className="flex items-center gap-1.5">
-                  <h3 className="font-extrabold text-xs tracking-tight text-white">atlas.ai</h3>
-                  <span className="text-[8.5px] font-mono px-1.5 py-0.2 rounded-full bg-emerald-400/20 text-emerald-300 font-bold border border-emerald-400/30">
-                    AUTONOMOUS PET AGENT
+                  <h3 className="font-bold text-xs tracking-tight text-white">atlas.ai</h3>
+                  <span className="text-[8.5px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-semibold border border-white/15">
+                    GEOSPATIAL COPILOT
                   </span>
                 </div>
-                <p className="text-[9.5px] text-zinc-400">Direct flight navigation &amp; spatial analysis companion</p>
+                <p className="text-[9.5px] text-zinc-400">Autonomous GIS analysis &amp; viewport controller</p>
               </div>
             </div>
 
+            <button
+              type="button"
+              onClick={() => toggleAtlasAI(false)}
+              className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition"
+              title="Close atlas.ai"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+
+          {/* Interactive Live Telemetry Bar */}
+          <div className="px-4 py-2 border-b border-white/10 bg-black/25 flex items-center justify-between text-[10px] font-mono text-zinc-400">
+            <div className="flex items-center gap-2">
+              <span className="text-zinc-200 font-semibold">
+                [{telemetry.center[0]}, {telemetry.center[1]}]
+              </span>
+              <span>• Z{telemetry.zoom}</span>
+              <span>• {telemetry.pitch}°</span>
+            </div>
+
+            {/* Quick Interactive Tool Actions */}
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={handlePetAtlas}
-                className="p-1.5 rounded-xl text-rose-400 hover:text-rose-300 hover:bg-rose-400/10 transition"
-                title="Pet Atlas"
+                onClick={() => {
+                  if (mapInstance) mapInstance.easeTo({ pitch: telemetry.pitch === 65 ? 0 : 65, duration: 1000 });
+                }}
+                className="px-2 py-0.5 rounded bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-300 hover:text-white transition"
+                title="Toggle 2D / 3D Pitch"
               >
-                <Heart className="w-4 h-4 fill-rose-400/30" />
+                {telemetry.pitch > 30 ? '2D' : '3D'}
               </button>
-
               <button
                 type="button"
-                onClick={() => toggleAtlasAI(false)}
-                className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition"
-                title="Close atlas.ai"
+                onClick={() => setDroneOrbiting(!isDroneOrbiting)}
+                className={`px-2 py-0.5 rounded border transition ${
+                  isDroneOrbiting
+                    ? 'bg-red-500/20 text-red-300 border-red-500/40 font-bold'
+                    : 'bg-white/5 hover:bg-white/15 border-white/10 text-zinc-300'
+                }`}
+                title="Toggle 360° Orbit"
               >
-                <X className="w-4 h-4" />
+                Orbit
               </button>
             </div>
           </div>
 
-          {/* Agentic Action Pills Carousel */}
-          <div className="px-3 py-2 border-b border-white/10 bg-black/25 flex gap-1.5 overflow-x-auto scrollbar-none shrink-0">
-            {agenticActionPills.map((pill) => (
-              <button
-                key={pill.label}
-                type="button"
-                onClick={() => (pill.isPet ? handlePetAtlas() : handleSend(pill.prompt!))}
-                className="px-2.5 py-1 rounded-full text-[10px] font-semibold bg-white/5 hover:bg-white/15 border border-white/10 hover:border-amber-400/40 text-zinc-200 hover:text-white shrink-0 transition flex items-center gap-1 active:scale-95"
-              >
-                <span>{pill.label}</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Messages & Agent Action Stream */}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3.5 text-xs">
+          {/* Messages Stream */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs">
             {messages.map((m) => (
               <div
                 key={m.id}
                 className={`flex gap-2.5 ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
                 {m.role === 'assistant' && (
-                  <div className="w-6 h-6 rounded-xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0 text-amber-400 mt-0.5 text-[10px] font-mono">
-                    ^◡^
+                  <div className="w-6 h-6 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 text-white mt-0.5">
+                    <Bot className="w-3.5 h-3.5" />
                   </div>
                 )}
 
                 <div
-                  className={`max-w-[85%] p-3 rounded-2xl leading-relaxed text-[11.5px] ${
+                  className={`max-w-[85%] p-3.5 rounded-2xl leading-relaxed text-[11.5px] ${
                     m.role === 'user'
                       ? 'bg-white text-black font-semibold rounded-br-none shadow-md'
                       : 'bg-white/5 border border-white/10 text-zinc-200 rounded-bl-none'
@@ -536,25 +484,154 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
                 >
                   <p className="whitespace-pre-line">{m.text}</p>
 
-                  {/* Agentic Action Execution Card */}
-                  {m.actionCard && (
-                    <div className="mt-2.5 p-2 rounded-xl bg-[#080d18] border border-amber-400/30 font-mono text-[10px] text-zinc-300">
-                      <div className="flex items-center justify-between pb-1 border-b border-white/10">
-                        <span className="flex items-center gap-1.5 text-amber-300 font-bold">
-                          <Zap className="w-3 h-3 text-amber-400" />
-                          <span>{m.actionCard.title}</span>
+                  {/* Interactive Widgets embedded in messages */}
+                  {m.widget?.type === 'navigation' && (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-black/40 border border-white/15 font-mono text-[10px] space-y-1.5">
+                      <div className="flex items-center justify-between text-zinc-300 font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Compass className="w-3.5 h-3.5 text-zinc-300" />
+                          <span>{m.widget.title}</span>
                         </span>
-                        <span className="text-[8px] px-1 rounded bg-emerald-400/20 text-emerald-300 font-bold">
-                          {m.actionCard.status.toUpperCase()}
+                        <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-zinc-200">
+                          {m.widget.data.pitch}° Pitch
                         </span>
                       </div>
-                      <p className="text-zinc-400 pt-1 text-[9.5px]">{m.actionCard.details}</p>
+                      <div className="flex gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (mapInstance) {
+                              mapInstance.flyTo({
+                                center: m.widget?.data.center,
+                                zoom: m.widget?.data.zoom,
+                                pitch: m.widget?.data.pitch,
+                                bearing: m.widget?.data.bearing,
+                                duration: 1500,
+                              });
+                            }
+                          }}
+                          className="flex-1 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition text-center"
+                        >
+                          Re-Center View
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (mapInstance) mapInstance.zoomTo(m.widget?.data.zoom + 1, { duration: 800 });
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition"
+                        >
+                          Zoom +
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {m.widget?.type === 'lighting' && (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-black/40 border border-white/15 font-mono text-[10px] space-y-2">
+                      <div className="flex items-center justify-between text-zinc-300 font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Sun className="w-3.5 h-3.5 text-zinc-300" />
+                          <span>{m.widget.title}</span>
+                        </span>
+                        <span className="text-zinc-200">{m.widget.data.label}</span>
+                      </div>
+                      <div className="grid grid-cols-4 gap-1 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setSolarTime(6.5)}
+                          className={`py-1 rounded text-center transition ${
+                            Math.abs(solarTime - 6.5) < 1 ? 'bg-white text-black font-bold' : 'bg-white/5 hover:bg-white/15 text-zinc-300'
+                          }`}
+                        >
+                          Dawn
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSolarTime(12.0)}
+                          className={`py-1 rounded text-center transition ${
+                            Math.abs(solarTime - 12.0) < 1 ? 'bg-white text-black font-bold' : 'bg-white/5 hover:bg-white/15 text-zinc-300'
+                          }`}
+                        >
+                          Noon
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setSolarTime(17.25)}
+                          className={`py-1 rounded text-center transition ${
+                            Math.abs(solarTime - 17.25) < 1 ? 'bg-white text-black font-bold' : 'bg-white/5 hover:bg-white/15 text-zinc-300'
+                          }`}
+                        >
+                          Sunset
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSolarTime(21.0);
+                            toggleNightGlow(true);
+                          }}
+                          className={`py-1 rounded text-center transition ${
+                            Math.abs(solarTime - 21.0) < 1 ? 'bg-white text-black font-bold' : 'bg-white/5 hover:bg-white/15 text-zinc-300'
+                          }`}
+                        >
+                          Night
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {m.widget?.type === 'tour' && (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-black/40 border border-white/15 font-mono text-[10px] space-y-2">
+                      <div className="flex items-center justify-between text-zinc-300 font-bold">
+                        <span className="flex items-center gap-1.5">
+                          <Video className="w-3.5 h-3.5 text-zinc-300" />
+                          <span>{m.widget.title}</span>
+                        </span>
+                        <span className="text-emerald-400 font-bold">ACTIVE FLYBY</span>
+                      </div>
+                      <div className="flex gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => setTourPlaying(!activeTour?.isPlaying)}
+                          className="flex-1 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition flex items-center justify-center gap-1"
+                        >
+                          {activeTour?.isPlaying ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                          <span>{activeTour?.isPlaying ? 'Pause Flyby' : 'Resume'}</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setActiveTour(null)}
+                          className="px-3 py-1 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 font-semibold transition"
+                        >
+                          Stop
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {m.widget?.type === 'vitality' && (
+                    <div className="mt-2.5 p-2.5 rounded-xl bg-black/40 border border-white/15 font-mono text-[10px] space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-zinc-400 uppercase">Commercial Magnetism Index</span>
+                        <span className="text-white font-black text-xs">{m.widget.data.score}/100</span>
+                      </div>
+                      <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-white transition-all duration-500"
+                          style={{ width: `${m.widget.data.score}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between text-[9px] text-zinc-400 pt-0.5">
+                        <span>Low Vitality</span>
+                        <span>Balanced</span>
+                        <span>Prime High-Density</span>
+                      </div>
                     </div>
                   )}
                 </div>
 
                 {m.role === 'user' && (
-                  <div className="w-6 h-6 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center shrink-0 text-zinc-300 mt-0.5">
+                  <div className="w-6 h-6 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 text-zinc-300 mt-0.5">
                     <User className="w-3.5 h-3.5" />
                   </div>
                 )}
@@ -563,12 +640,12 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
 
             {isLoading && (
               <div className="flex gap-2.5 justify-start">
-                <div className="w-6 h-6 rounded-xl bg-amber-400/20 border border-amber-400/30 flex items-center justify-center shrink-0 text-amber-400 text-[10px] font-mono">
-                  •◡•
+                <div className="w-6 h-6 rounded-xl bg-white/10 border border-white/15 flex items-center justify-center shrink-0 text-white">
+                  <Bot className="w-3.5 h-3.5" />
                 </div>
                 <div className="p-3 bg-white/5 border border-white/10 rounded-2xl rounded-bl-none flex items-center gap-2 text-zinc-300 text-xs">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-400" />
-                  <span>Atlas is executing spatial commands on your map...</span>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin text-zinc-300" />
+                  <span>Executing spatial command &amp; synthesizing geometry...</span>
                 </div>
               </div>
             )}
@@ -588,14 +665,14 @@ export const AtlasAIAssistant: React.FC<AtlasAIAssistantProps> = ({ mapInstance 
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Tell Atlas: 'Fly to BGC', 'Make it sunset', 'Tour to Tomas Morato'..."
-              className="flex-1 bg-white/5 border border-white/15 rounded-2xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-amber-400/50 transition"
+              placeholder="Ask atlas.ai or command: 'Fly to BGC', 'Set sunset', 'Tour to Tomas Morato'..."
+              className="flex-1 bg-white/5 border border-white/15 rounded-2xl px-3.5 py-2.5 text-xs text-white placeholder-zinc-500 outline-none focus:border-white/40 transition"
             />
             <button
               type="submit"
               disabled={!input.trim() || isLoading}
-              className="p-2.5 bg-amber-400 text-black disabled:opacity-30 rounded-2xl font-bold transition hover:bg-amber-300 active:scale-95 shrink-0 shadow-md"
-              title="Command Atlas"
+              className="p-2.5 bg-white text-black disabled:opacity-30 rounded-2xl font-bold transition hover:bg-zinc-200 active:scale-95 shrink-0 shadow-md"
+              title="Send to atlas.ai"
             >
               <Send className="w-4 h-4" />
             </button>

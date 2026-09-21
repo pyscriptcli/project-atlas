@@ -131,7 +131,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             title="Switch Workspace"
             className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
           >
-            <FolderOpen className="w-4 h-4 text-sky-400" />
+            <FolderOpen className="w-4 h-4 text-zinc-300" />
           </button>
 
           {/* Project Meta Info */}
@@ -148,7 +148,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 saveStatus === 'saved'
                   ? 'text-zinc-300 border-white/20 bg-white/10'
                   : saveStatus === 'saving'
-                  ? 'text-amber-300 border-amber-400/30 bg-amber-400/10 animate-pulse'
+                  ? 'text-zinc-200 border-white/30 bg-white/10 animate-pulse'
                   : 'text-zinc-400 border-white/10 bg-transparent'
               }`}
             >
@@ -163,14 +163,14 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             title="Undo (Ctrl+Z)"
             className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
           >
-            <Undo2 className="w-3.5 h-3.5" />
+            <Undo2 className="w-3.5 h-3.5 text-zinc-400" />
           </button>
           <button
             onClick={redo}
             title="Redo (Ctrl+Y)"
             className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
           >
-            <Redo2 className="w-3.5 h-3.5" />
+            <Redo2 className="w-3.5 h-3.5 text-zinc-400" />
           </button>
 
           {/* Save */}
@@ -179,12 +179,12 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             title="Save Workspace (Ctrl+S)"
             className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
           >
-            <Save className="w-3.5 h-3.5" />
+            <Save className="w-3.5 h-3.5 text-zinc-300" />
           </button>
         </div>
 
         {/* =========================================================================
-            SECTION 2: DATA & LAYERS (DIRECT ICON-ONLY BUTTONS)
+            SECTION 2: DATA & LAYERS (DIRECT ICON-ONLY BUTTONS - MONOCHROME)
            ========================================================================= */}
         <div className="flex items-center gap-1 shrink-0 pr-1.5 border-r border-white/15">
           {/* Data Browser */}
@@ -201,7 +201,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Layers className="w-4 h-4 text-emerald-400" />
+            <Layers className={`w-4 h-4 ${activePanels.browser ? 'text-black' : 'text-zinc-300'}`} />
           </button>
 
           {/* My Layers */}
@@ -218,7 +218,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <FolderTree className="w-4 h-4 text-sky-400" />
+            <FolderTree className={`w-4 h-4 ${activePanels.myLayers ? 'text-black' : 'text-zinc-300'}`} />
           </button>
 
           {/* Trade Area Scan */}
@@ -235,7 +235,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Radar className="w-4 h-4 text-amber-400" />
+            <Radar className={`w-4 h-4 ${activePanels.tradeArea ? 'text-black' : 'text-zinc-300'}`} />
           </button>
 
           {/* Search Places */}
@@ -252,7 +252,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Search className="w-4 h-4 text-zinc-300" />
+            <Search className={`w-4 h-4 ${activePanels.search ? 'text-black' : 'text-zinc-300'}`} />
           </button>
 
           {/* Import */}
@@ -265,12 +265,12 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             title="Import GeoJSON / KML"
             className="w-8 h-8 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
           >
-            <Upload className="w-4 h-4 text-indigo-400" />
+            <Upload className="w-4 h-4 text-zinc-300" />
           </button>
         </div>
 
         {/* =========================================================================
-            SECTION 3: DRAW & 3D TOOLS (ICON-ONLY BUTTON)
+            SECTION 3: DRAW & 3D TOOLS (ICON-ONLY BUTTON - MONOCHROME)
            ========================================================================= */}
         <div className="relative shrink-0">
           <button
@@ -284,13 +284,13 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             }`}
           >
             {activeTool === 'polygon3d' ? (
-              <Box className="w-4 h-4 text-sky-500" />
+              <Box className={`w-4 h-4 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-300'}`} />
             ) : activeTool === 'polygon' ? (
-              <Hexagon className="w-4 h-4 text-indigo-500" />
+              <Hexagon className={`w-4 h-4 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-300'}`} />
             ) : (
-              <PenTool className="w-4 h-4 text-sky-400" />
+              <PenTool className={`w-4 h-4 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-300'}`} />
             )}
-            <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${openFolder === 'draw' ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-400'} transition-transform ${openFolder === 'draw' ? 'rotate-180' : ''}`} />
           </button>
 
           {openFolder === 'draw' && (
@@ -465,8 +465,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
-            <Sun className="w-4 h-4 text-amber-400" />
-            <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${openFolder === 'studio' ? 'rotate-180' : ''}`} />
+            <Sun className="w-4 h-4 text-zinc-300" />
+            <ChevronDown className={`w-3 h-3 ${openFolder === 'studio' || isSunDialOpen ? 'text-white' : 'text-zinc-400'} transition-transform ${openFolder === 'studio' ? 'rotate-180' : ''}`} />
           </button>
 
           {openFolder === 'studio' && (
