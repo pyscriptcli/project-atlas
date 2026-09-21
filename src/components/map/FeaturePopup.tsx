@@ -1,15 +1,20 @@
 'use client';
 
-import React from 'react';
-import { X, Table } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Table, MapPin, Copy, Check, ExternalLink, Sparkles } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
+import { CATEGORY_COLORS } from '../../gis/tradeArea';
 
 export const FeaturePopup: React.FC = () => {
-  const { selectedId, setSelectedId, features, togglePanel } = useMapStore();
+  const { selectedId, setSelectedId, features, togglePanel, setToast } = useMapStore();
+  const [copied, setCopied] = useState(false);
 
   if (!selectedId) return null;
   const f = features.find((x) => x.id === selectedId);
   if (!f) return null;
+
+  const category = f.props?.category || 'ASSET';
+  const categoryColor = CATEGORY_COLORS[category] || '#ffffff';
 
   let primaryImage: string | null = null;
   if (f.props.attrRows && f.props.attrRows.length > 0 && f.props.attrTypes) {
@@ -28,16 +33,42 @@ export const FeaturePopup: React.FC = () => {
     togglePanel('attributeTable', true);
   };
 
+  const handleCopyCoords = () => {
+    if (f.geometry.type === 'Point') {
+      const text = `${f.geometry.coordinates[1].toFixed(6)}, ${f.geometry.coordinates[0].toFixed(6)}`;
+      navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+      setToast(`Coordinates copied: ${text}`);
+    }
+  };
+
   return (
-    <div className="fixed bottom-6 right-6 z-[990] w-80 bg-[rgba(9,16,24,0.98)] border border-white/20 rounded-2xl p-4 shadow-2xl backdrop-blur-md text-xs text-gray-200 animate-in fade-in slide-in-from-bottom-4">
-      <div className="flex items-center justify-between border-b border-white/10 pb-2 mb-3">
-        <div>
-          <h3 className="font-bold text-sky-400 text-sm">{f.name}</h3>
-          <span className="text-[10px] text-gray-400 uppercase tracking-wider">{f.kind}</span>
+    <div className="fixed bottom-6 right-6 z-[990] w-84 max-w-[calc(100vw-2rem)] bg-zinc-950/85 border border-white/15 rounded-3xl p-4 shadow-[0_24px_70px_rgba(0,0,0,0.9)] backdrop-blur-2xl text-xs text-zinc-300 animate-in fade-in slide-in-from-bottom-3 select-none">
+      {/* Top Header */}
+      <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-3 mb-3">
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 mb-1">
+            <span
+              className="w-2 h-2 rounded-full shrink-0 shadow-sm"
+              style={{ backgroundColor: categoryColor }}
+            />
+            <span className="text-[9.5px] uppercase font-mono font-bold tracking-wider text-zinc-400 truncate">
+              {category}
+            </span>
+            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-mono">
+              {f.kind}
+            </span>
+          </div>
+          <h3 className="font-bold text-white text-sm tracking-tight leading-snug truncate" title={f.name}>
+            {f.name}
+          </h3>
         </div>
+
         <button
           onClick={() => setSelectedId(null)}
-          className="p-1 rounded-lg text-gray-400 hover:text-white hover:bg-white/10"
+          className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition shrink-0"
+          title="Close inspector"
         >
           <X className="w-4 h-4" />
         </button>
@@ -47,39 +78,62 @@ export const FeaturePopup: React.FC = () => {
         <img
           src={primaryImage}
           alt={f.name}
-          className="w-full h-36 object-cover rounded-xl border border-white/15 mb-3"
+          className="w-full h-36 object-cover rounded-2xl border border-white/15 mb-3"
         />
       )}
 
-      <div className="max-h-48 overflow-y-auto pr-1 flex flex-col gap-1.5 mb-3">
+      {/* Coordinate Pill if Point */}
+      {f.geometry.type === 'Point' && (
+        <div className="flex items-center justify-between p-2 mb-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px]">
+          <span className="font-mono text-zinc-400 flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-white" />
+            <span>{f.geometry.coordinates[1].toFixed(5)}, {f.geometry.coordinates[0].toFixed(5)}</span>
+          </span>
+          <button
+            type="button"
+            onClick={handleCopyCoords}
+            className="text-[10px] text-zinc-300 hover:text-white font-semibold flex items-center gap-1 transition"
+          >
+            {copied ? <Check className="w-3 h-3 text-white" /> : <Copy className="w-3 h-3" />}
+            <span>{copied ? 'Copied' : 'Copy'}</span>
+          </button>
+        </div>
+      )}
+
+      {/* Attribute Properties List */}
+      <div className="max-h-48 overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
         {f.props.osmTags && Object.keys(f.props.osmTags).length > 0 ? (
           Object.entries(f.props.osmTags).map(([k, v]) => (
-            <div key={k} className="flex justify-between gap-2 py-0.5 border-b border-white/5">
-              <span className="text-gray-400 font-mono text-[10px]">{k}</span>
-              <span className="text-gray-200 text-right truncate max-w-[160px]">{String(v)}</span>
+            <div key={k} className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/5 border-b border-white/5 transition">
+              <span className="text-zinc-400 font-mono text-[10px] truncate max-w-[100px]">{k}</span>
+              <span className="text-zinc-200 text-right font-medium text-[10.5px] truncate max-w-[170px]">{String(v)}</span>
             </div>
           ))
         ) : f.props.attributes && Object.keys(f.props.attributes).length > 0 ? (
           Object.entries(f.props.attributes)
             .filter(([_, v]) => typeof v === 'string' && !v.startsWith('data:image'))
             .map(([k, v]) => (
-              <div key={k} className="flex justify-between gap-2 py-0.5 border-b border-white/5">
-                <span className="text-gray-400 font-mono text-[10px]">{k}</span>
-                <span className="text-gray-200 text-right truncate max-w-[160px]">{String(v)}</span>
+              <div key={k} className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/5 border-b border-white/5 transition">
+                <span className="text-zinc-400 font-mono text-[10px] truncate max-w-[100px]">{k}</span>
+                <span className="text-zinc-200 text-right font-medium text-[10.5px] truncate max-w-[170px]">{String(v)}</span>
               </div>
             ))
         ) : (
-          <div className="text-gray-500 py-2 text-center">No metadata available</div>
+          <div className="text-zinc-500 py-3 text-center text-[10.5px]">No metadata attributes available</div>
         )}
       </div>
 
-      <div className="flex justify-end pt-2 border-t border-white/10">
+      {/* Footer Actions */}
+      <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
+        <span className="text-[9.5px] text-zinc-500 font-mono">
+          ID: {f.id}
+        </span>
         <button
           onClick={handleOpenTable}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-gray-200 text-[11px] font-semibold transition"
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white text-[11px] font-bold transition shadow-sm"
         >
-          <Table className="w-3.5 h-3.5 text-amber-400" />
-          <span>Open Full Attribute Table</span>
+          <Table className="w-3.5 h-3.5 text-white" />
+          <span>Attribute Table</span>
         </button>
       </div>
     </div>

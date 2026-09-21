@@ -338,10 +338,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       geometry: { type: 'Polygon', coordinates: ringCoords },
       props: {
         color: '#ffffff',
-        fillOpacity: 0.05,
+        fillColor: '#ffffff',
+        fillOpacity: 0.03,
         borderColor: '#ffffff',
-        borderOpacity: 0.45,
-        width: 1.75,
+        borderOpacity: 0.75,
+        width: 1.5,
         visible: 1,
         centerCoord: [targetLon, targetLat],
         radiusMeters: targetRadius,
@@ -1566,29 +1567,90 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
             {/* AI Dossier Analysis (When Generated) */}
             {aiData && (
               <div className="space-y-3 animate-in fade-in">
-                {/* Vitality & Saturation Scorecard */}
-                <div className="p-3.5 bg-black/60 border border-white/10 rounded-2xl flex items-center justify-between backdrop-blur-xl">
-                  <div>
-                    <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider block">
-                      Commercial Score
-                    </span>
-                    <div className="flex items-baseline gap-1 mt-0.5">
-                      <span className="text-2xl font-black text-white font-mono">
-                        {aiData.summary.commercialScore}
-                      </span>
-                      <span className="text-zinc-500 font-mono text-xs">/100</span>
+                {/* Executive Radial Vitality Scorecard */}
+                <div className="p-4 bg-black/60 border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl shadow-inner">
+                  <div className="flex items-center gap-3.5">
+                    {/* Radial Progress Ring */}
+                    <div className="relative w-16 h-16 shrink-0 flex items-center justify-center">
+                      <svg className="w-16 h-16 transform -rotate-90" viewBox="0 0 64 64">
+                        <circle
+                          cx="32"
+                          cy="32"
+                          r="26"
+                          stroke="rgba(255, 255, 255, 0.1)"
+                          strokeWidth="4"
+                          fill="transparent"
+                        />
+                        <circle
+                          cx="32"
+                          cy="32"
+                          r="26"
+                          stroke="#ffffff"
+                          strokeWidth="4.5"
+                          strokeDasharray={163.36}
+                          strokeDashoffset={163.36 - (163.36 * Math.min(100, Math.max(0, aiData.summary.commercialScore))) / 100}
+                          strokeLinecap="round"
+                          fill="transparent"
+                          className="transition-all duration-1000 ease-out"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex flex-col items-center justify-center leading-none">
+                        <span className="text-base font-black text-white font-mono">
+                          {aiData.summary.commercialScore}
+                        </span>
+                        <span className="text-[7.5px] font-mono text-zinc-400 uppercase tracking-tighter mt-0.5">
+                          INDEX
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Score Context & Benchmark */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 mb-0.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[9.5px] text-zinc-400 uppercase font-mono font-bold tracking-wider">
+                          COMMERCIAL VITALITY
+                        </span>
+                      </div>
+                      <h4 className="text-sm font-extrabold text-white tracking-tight truncate">
+                        {aiData.summary.saturationRating}
+                      </h4>
+                      <p className="text-[10px] text-zinc-400 font-mono mt-0.5 truncate">
+                        {aiData.summary.totalPois} Assets • {aiData.summary.dominantCategory} Anchor
+                      </p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider block">
-                      Saturation Level
-                    </span>
-                    <span className="text-xs font-bold text-white block mt-0.5">
-                      {aiData.summary.saturationRating}
-                    </span>
-                    <span className="text-[10px] text-zinc-400 font-mono">
-                      {aiData.summary.totalPois} POIs • {aiData.summary.dominantCategory}
-                    </span>
+
+                  {/* 3-Metric Institutional Benchmark Bar */}
+                  <div className="grid grid-cols-3 gap-2 pt-2.5 border-t border-white/10">
+                    <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-center">
+                      <span className="text-[8.5px] uppercase font-mono text-zinc-500 font-bold block">
+                        Footfall Rating
+                      </span>
+                      <span className="text-[11px] font-bold text-white flex items-center justify-center gap-1 mt-0.5">
+                        <TrendingUp className="w-3 h-3 text-white" />
+                        <span>{aiData.summary.commercialScore > 70 ? 'High' : 'Moderate'}</span>
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-center">
+                      <span className="text-[8.5px] uppercase font-mono text-zinc-500 font-bold block">
+                        Competition
+                      </span>
+                      <span className="text-[11px] font-bold text-white flex items-center justify-center gap-1 mt-0.5">
+                        <Flame className="w-3 h-3 text-white" />
+                        <span>{aiData.summary.totalPois > 40 ? 'Intense' : 'Balanced'}</span>
+                      </span>
+                    </div>
+
+                    <div className="p-2 rounded-xl bg-white/[0.02] border border-white/5 text-center">
+                      <span className="text-[8.5px] uppercase font-mono text-zinc-500 font-bold block">
+                        Primary Anchor
+                      </span>
+                      <span className="text-[11px] font-bold text-white truncate block mt-0.5" title={aiData.summary.dominantCategory}>
+                        {aiData.summary.dominantCategory.split(' ')[0]}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1605,41 +1667,81 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 {/* Commercial Corridors & Clusters */}
                 {aiData.clusters && aiData.clusters.length > 0 && (
                   <div className="space-y-2">
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
-                      Commercial Clusters & Corridors
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                        Commercial Corridors & Clusters ({aiData.clusters.length})
+                      </span>
+                      <span className="text-[9.5px] text-zinc-500 font-mono">
+                        Click Focus to center
+                      </span>
+                    </div>
+
                     <div className="space-y-2">
                       {aiData.clusters.map((cl, i) => (
                         <div
                           key={i}
-                          className="p-3 bg-white/[0.02] border border-white/10 rounded-2xl space-y-2 hover:border-white/20 transition"
+                          className="p-3.5 bg-white/[0.02] border border-white/10 hover:border-white/25 rounded-2xl space-y-2.5 transition backdrop-blur-sm group"
                         >
-                          <div className="flex items-center justify-between">
-                            <div className="truncate pr-2">
-                              <h5 className="font-bold text-white text-[11px] truncate">
-                                {cl.name}
-                              </h5>
-                              <span className="text-[10px] text-zinc-400 font-mono">
-                                {cl.corridor} • {cl.poiCount} POIs
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="flex items-start gap-2.5 min-w-0">
+                              <span className="font-mono text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/10 text-white border border-white/15 shrink-0 mt-0.5">
+                                {String(i + 1).padStart(2, '0')}
                               </span>
+                              <div className="truncate">
+                                <h5 className="font-bold text-white text-xs tracking-tight truncate group-hover:text-zinc-100 transition">
+                                  {cl.name}
+                                </h5>
+                                <span className="text-[10px] text-zinc-400 font-mono block">
+                                  {cl.corridor} • {cl.poiCount} Establishments
+                                </span>
+                              </div>
                             </div>
+
                             <button
                               type="button"
                               onClick={() => handleFlyToCluster(cl)}
-                              className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-[10px] transition shrink-0 flex items-center gap-1"
+                              className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-[10px] transition flex items-center gap-1 shadow-sm active:scale-95 shrink-0"
+                              title="Fly camera to this corridor"
                             >
                               <span>Focus</span>
-                              <ArrowUpRight className="w-3 h-3" />
+                              <ArrowUpRight className="w-3 h-3 text-white" />
                             </button>
                           </div>
+
                           <p className="text-[10.5px] text-zinc-300 leading-normal">
                             {cl.insight}
                           </p>
+
                           {cl.keyTenants && cl.keyTenants.length > 0 && (
-                            <div className="text-[9.5px] text-zinc-400 font-mono truncate">
-                              Tenants: {cl.keyTenants.join(', ')}
+                            <div className="flex flex-wrap items-center gap-1 pt-0.5">
+                              <span className="text-[9px] uppercase font-mono text-zinc-500 font-bold mr-1">
+                                Anchors:
+                              </span>
+                              {cl.keyTenants.map((tenant, tIdx) => (
+                                <span
+                                  key={tIdx}
+                                  className="px-2 py-0.5 rounded-lg bg-white/5 border border-white/10 text-[9.5px] text-zinc-300 font-medium"
+                                >
+                                  {tenant}
+                                </span>
+                              ))}
                             </div>
                           )}
+
+                          {/* Quick ask AI about this corridor */}
+                          <div className="pt-1 flex items-center justify-between border-t border-white/5 text-[9.5px]">
+                            <button
+                              type="button"
+                              onClick={() => handleSendQaMessage(`Analyze commercial dynamics and competitor saturation specifically for ${cl.name} along ${cl.corridor}`)}
+                              className="text-zinc-400 hover:text-white flex items-center gap-1 font-medium transition"
+                            >
+                              <Sparkles className="w-3 h-3 text-zinc-400" />
+                              <span>Ask AI about {cl.corridor}</span>
+                            </button>
+                            <span className="font-mono text-zinc-500">
+                              {cl.saturation} Saturation
+                            </span>
+                          </div>
                         </div>
                       ))}
                     </div>
@@ -1720,9 +1822,9 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               </div>
 
               {/* Conversation Feed */}
-              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+              <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
                 {qaMessages.length === 0 ? (
-                  <div className="p-5 border border-white/10 rounded-2xl bg-black/40 text-center space-y-1.5">
+                  <div className="p-4 border border-white/10 rounded-2xl bg-black/40 text-center space-y-1.5">
                     <Bot className="w-5 h-5 text-zinc-400 mx-auto" />
                     <p className="text-zinc-300 text-[11px] font-medium">
                       Ask the Spatial Analyst
@@ -1777,40 +1879,44 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 )}
                 <div ref={chatBottomRef} />
               </div>
-
-              {/* Chat Input Bar */}
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  handleSendQaMessage();
-                }}
-                className="flex items-center gap-2 pt-1"
-              >
-                <input
-                  type="text"
-                  value={qaInput}
-                  onChange={(e) => setQaInput(e.target.value)}
-                  placeholder={
-                    scannedPois.length > 0
-                      ? 'Ask about this trade area (e.g. competitor density, retail gaps)...'
-                      : 'Scan an area first to ask questions...'
-                  }
-                  disabled={scannedPois.length === 0 || isQaLoading}
-                  className="flex-1 bg-black/50 border border-white/15 rounded-2xl px-3.5 py-2.5 text-white placeholder-zinc-500 outline-none focus:border-white/40 text-xs transition disabled:opacity-40"
-                />
-                <button
-                  type="submit"
-                  disabled={!qaInput.trim() || isQaLoading || scannedPois.length === 0}
-                  className="p-2.5 bg-white text-black disabled:opacity-30 rounded-2xl font-bold transition hover:bg-zinc-200 shadow-md shrink-0"
-                  title="Send inquiry"
-                >
-                  <Send className="w-4 h-4" />
-                </button>
-              </form>
             </div>
           </div>
         )}
       </div>
+
+      {/* Sticky Bottom Action Bar for AI Tab (Pinned Persistent Inquiry Input) */}
+      {activeTab === 'ai' && (
+        <div className="p-3.5 border-t border-white/10 shrink-0 bg-black/80 backdrop-blur-2xl">
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleSendQaMessage();
+            }}
+            className="flex items-center gap-2"
+          >
+            <input
+              type="text"
+              value={qaInput}
+              onChange={(e) => setQaInput(e.target.value)}
+              placeholder={
+                scannedPois.length > 0
+                  ? 'Ask spatial analyst (e.g. retail gaps, foot traffic)...'
+                  : 'Scan area first to query...'
+              }
+              disabled={scannedPois.length === 0 || isQaLoading}
+              className="flex-1 bg-black/60 border border-white/15 rounded-2xl px-3.5 py-2.5 text-white placeholder-zinc-500 outline-none focus:border-white/40 text-xs transition disabled:opacity-40 backdrop-blur-sm"
+            />
+            <button
+              type="submit"
+              disabled={!qaInput.trim() || isQaLoading || scannedPois.length === 0}
+              className="p-2.5 bg-white text-black disabled:opacity-30 rounded-2xl font-bold transition hover:bg-zinc-200 shadow-md shrink-0 active:scale-95"
+              title="Send inquiry"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </form>
+        </div>
+      )}
 
       {/* Sticky Bottom Action Bar (Setup Tab) */}
       {activeTab === 'target_layers' && (

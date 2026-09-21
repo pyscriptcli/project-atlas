@@ -186,8 +186,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           ['<=', ['coalesce', ['get', 'height'], 0], 0],
         ],
         paint: {
-          'fill-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#e8b84a'],
-          'fill-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.35], ['coalesce', ['get', 'visible'], 1]],
+          'fill-color': ['coalesce', ['get', 'fillColor'], ['get', 'color'], '#ffffff'],
+          'fill-opacity': ['*', ['coalesce', ['get', 'fillOpacity'], 0.04], ['coalesce', ['get', 'visible'], 1]],
         },
       });
 
@@ -201,9 +201,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           ['!=', ['coalesce', ['get', 'visible'], 1], 0],
         ],
         paint: {
-          'line-color': ['coalesce', ['get', 'borderColor'], ['get', 'color'], '#e8b84a'],
-          'line-width': ['coalesce', ['get', 'width'], 3],
-          'line-opacity': ['*', ['coalesce', ['get', 'borderOpacity'], 0.9], ['coalesce', ['get', 'visible'], 1]],
+          'line-color': ['coalesce', ['get', 'borderColor'], ['get', 'color'], '#ffffff'],
+          'line-width': ['coalesce', ['get', 'width'], 1.5],
+          'line-opacity': ['*', ['coalesce', ['get', 'borderOpacity'], 0.8], ['coalesce', ['get', 'visible'], 1]],
         },
       });
 

@@ -162,14 +162,14 @@ export const POI_CONFIG: Record<string, [string, string][]> = {
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  "COMMERCIAL & OFFICES": "#ffffff", // Pure White
-  "RETAIL": "#e4e4e7", // Platinum Zinc
-  "FOOD, BEVERAGE & HOSPITALITY": "#d4d4d8", // Silver Gray
-  "RESIDENTIAL": "#a1a1aa", // Cool Silver
-  "INDUSTRIAL & LOGISTICS": "#71717a", // Slate Zinc
-  "HEALTH & EMERGENCY SERVICES": "#52525b", // Charcoal Slate
-  "GOVERNMENT, EDUCATION & INFRASTRUCTURE": "#3f3f46", // Graphite
-  "LEISURE, SPORTS & PUBLIC SPACES": "#27272a", // Dark Obsidian
+  "COMMERCIAL & OFFICES": "#ffffff", // Pure White / Platinum
+  "RETAIL": "#38bdf8", // Ice Sky Blue
+  "FOOD, BEVERAGE & HOSPITALITY": "#fbbf24", // Warm Amber Glow
+  "HEALTH & EMERGENCY SERVICES": "#f43f5e", // Rose Crimson
+  "RESIDENTIAL": "#94a3b8", // Titanium Gray
+  "INDUSTRIAL & LOGISTICS": "#a1a1aa", // Steel Slate
+  "GOVERNMENT, EDUCATION & INFRASTRUCTURE": "#c084fc", // Violet Lilac
+  "LEISURE, SPORTS & PUBLIC SPACES": "#34d399", // Emerald Mint
 };
 
 export interface ScannedPOI {
