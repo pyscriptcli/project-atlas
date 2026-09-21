@@ -216,7 +216,7 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { pois, radiusMeters, summary, center, question, history } = body;
 
-    if (!pois || (Array.isArray(pois) && pois.length === 0 && !summary)) {
+    if (!question && (!pois || (Array.isArray(pois) && pois.length === 0 && !summary))) {
       return NextResponse.json(
         { error: 'Missing POI data in request body. Run a trade area scan first.' },
         { status: 400 }
