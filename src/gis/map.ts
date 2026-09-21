@@ -207,8 +207,6 @@ export const ALL_STYLES: Record<string, any> = {
   "Midnight Blue": vectorStyle(THEMES["Midnight Blue"]),
   "Monochrome": vectorStyle(THEMES["Monochrome"]),
   "White Gold": vectorStyle(THEMES["White Gold"]),
-  "CartoDB Light": rasterStyle(["https://a.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png", "https://b.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png"], "#f8f9fa"),
-  "CartoDB Dark": rasterStyle(["https://a.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", "https://b.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"], "#000000"),
   "OSM": rasterStyle(["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], "#f2efe9", 19),
   "Satellite": rasterStyle(["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], "#000000", 19),
 };

@@ -44,7 +44,7 @@ import {
 } from '../../gis/tradeArea';
 import { circleCoordsFromRadius } from '../../gis/circles';
 import { getIconKey } from '../../gis/markers';
-import { GISFeature } from '../../types/gis';
+import { GISFeature, MarkerShape } from '../../types/gis';
 import { AIInsightsPayload, CommercialCluster } from '../../app/api/ai/insights/route';
 
 interface TradeAreaSidebarProps {
@@ -84,20 +84,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [selectedCircleId, setSelectedCircleId] = useState<number | ''>('');
   const [selectedShapeId, setSelectedShapeId] = useState<number | ''>('');
 
-  // Taxonomy & Search State
+  // Taxonomy & Search State - CLEARED BY DEFAULT
   const [searchQuery, setSearchQuery] = useState<string>('');
-  const [selectedTags, setSelectedTags] = useState<string[]>([
-    '"building"~"office|commercial",i',
-    '"shop"~"mall|department_store",i',
-    '"shop"~"market|grocery",i',
-    '"amenity"="restaurant"',
-    '"amenity"~"cafe|coffee",i',
-    '"amenity"="bank"',
-  ]);
-  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({
-    'COMMERCIAL & OFFICES': true,
-    RETAIL: true,
-  });
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   const [customTag, setCustomTag] = useState<string>('');
 
   // Scanning, Multi-Stage Progress, & Cancel State
@@ -107,10 +97,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [scannedPois, setScannedPois] = useState<ScannedPOI[]>([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState<Record<string, number>>({});
 
-  // Global & Per-Layer Marker Styling State
-  const [globalMarkerStyle, setGlobalMarkerStyle] = useState<'modern-pin' | 'pinball' | 'dots' | 'pin'>('modern-pin');
+  // Global & Per-Layer Marker Styling State (Monochrome Defaults)
+  const [globalMarkerStyle, setGlobalMarkerStyle] = useState<MarkerShape>('modern-pin');
   const [globalMarkerSize, setGlobalMarkerSize] = useState<number>(20);
-  const [globalMarkerColor, setGlobalMarkerColor] = useState<string>('#003366');
+  const [globalMarkerColor, setGlobalMarkerColor] = useState<string>('#ffffff');
 
   // Custom Layer Clusters: { clusterName: [categoryKey1, categoryKey2] }
   const [clusters, setClusters] = useState<Record<string, string[]>>({});
@@ -175,15 +165,15 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     return null;
   };
 
-  // Sync center target and buffer circle on map
+  // Sync center target and buffer circle on map (Monochrome glass styling)
   const syncTargetRadiusGraphics = (targetLat: number, targetLon: number, targetRadius: number) => {
     if (!showRadiusGraphics) return;
 
-    // 1. Center Target Marker
+    // 1. Center Target Marker (Monochrome Silver/White)
     const cId = centerMarkerId || Date.now() + 9999;
     const centerIconKey = mapInstance
-      ? getIconKey('center-pinball', '#C9AB4C', mapInstance)
-      : 'ico_center-pinball_C9AB4C';
+      ? getIconKey('center-pinball', '#ffffff', mapInstance)
+      : 'ico_center-pinball_ffffff';
 
     addFeature({
       id: cId,
@@ -192,7 +182,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       geometry: { type: 'Point', coordinates: [targetLon, targetLat] },
       props: {
         shape: 'center-pinball',
-        color: '#C9AB4C',
+        color: '#ffffff',
         iconSize: 1.1,
         iconKey: centerIconKey,
         visible: 1,
@@ -205,7 +195,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     });
     setCenterMarkerId(cId);
 
-    // 2. Radius Buffer Circle
+    // 2. Radius Buffer Circle (Monochrome Glass Stroke & Fill)
     const bufId = activeBufferFeatureId || Date.now() + 8888;
     const ringCoords = circleCoordsFromRadius([targetLon, targetLat], targetRadius);
     addFeature({
@@ -214,11 +204,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       kind: 'circle',
       geometry: { type: 'Polygon', coordinates: ringCoords },
       props: {
-        color: '#003366',
-        fillOpacity: 0.08,
-        borderColor: '#C9AB4C',
-        borderOpacity: 0.9,
-        width: 2,
+        color: '#ffffff',
+        fillOpacity: 0.05,
+        borderColor: '#ffffff',
+        borderOpacity: 0.45,
+        width: 1.75,
         visible: 1,
         centerCoord: [targetLon, targetLat],
         radiusMeters: targetRadius,
@@ -425,7 +415,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
 
     if (!result || !result.features.length) {
-      setToast('No matching POIs found within this area. Try expanding your radius or selecting more tags.');
+      setToast('No matching POIs found within this area. Try expanding your radius or selecting tags.');
       setScannedPois([]);
       setCategoryBreakdown({});
       return;
@@ -489,7 +479,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   // Apply global styling to all scanned features
   const handleApplyGlobalMarkerStyle = (
-    style: 'modern-pin' | 'pinball' | 'dots' | 'pin',
+    style: MarkerShape,
     size: number,
     color: string
   ) => {
@@ -498,7 +488,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setGlobalMarkerColor(color);
 
     activeScannedFeatures.forEach((f) => {
-      const fColor = color || f.props?.color || '#003366';
+      const fColor = color || f.props?.color || '#ffffff';
       const iconKey = mapInstance ? getIconKey(style, fColor, mapInstance) : undefined;
       updateFeature(f.id, (prev) => ({
         ...prev,
@@ -637,7 +627,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   // Batch style cluster
   const handleBatchStyleCluster = (
     clusterName: string,
-    style: 'modern-pin' | 'pinball' | 'dots' | 'pin',
+    style: MarkerShape,
     color: string,
     size: number
   ) => {
@@ -788,17 +778,17 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
   };
 
   return (
-    <div className="fixed top-16 left-4 bottom-4 w-[430px] max-w-[calc(100vw-2rem)] z-[1000] bg-black/85 border border-white/15 rounded-3xl shadow-[0_24px_70px_rgba(0,0,0,0.9)] backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-zinc-300 animate-in fade-in slide-in-from-left-4">
+    <div className="fixed top-16 left-4 bottom-4 w-[430px] max-w-[calc(100vw-2rem)] z-[1000] bg-black/75 border border-white/10 rounded-3xl shadow-[0_24px_80px_rgba(0,0,0,0.85)] backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-zinc-300 animate-in fade-in slide-in-from-left-4">
       {/* Header */}
       <div className="flex items-center justify-between p-4 pb-3 border-b border-white/10 shrink-0 bg-white/[0.02]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-zinc-900 border border-white/20 flex items-center justify-center text-white shadow-sm">
-            <Radar className="w-5 h-5 text-[#C9AB4C]" />
+          <div className="w-9 h-9 rounded-2xl bg-white/[0.05] border border-white/15 flex items-center justify-center text-white shadow-inner">
+            <Radar className="w-5 h-5 text-white" />
           </div>
           <div>
             <h3 className="font-bold text-white text-sm tracking-tight leading-tight flex items-center gap-2">
               <span>Open Node</span>
-              <span className="text-[9px] px-2 py-0.5 rounded-full bg-[#003366] text-white border border-[#C9AB4C]/50 uppercase font-mono font-extrabold tracking-wider">
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/10 text-zinc-300 border border-white/20 uppercase font-mono font-bold tracking-wider">
                 GIS Scanner
               </span>
             </h3>
@@ -829,19 +819,19 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
         </div>
       </div>
 
-      {/* 3-Tab Workflow Navigation Header */}
+      {/* 3-Tab Workflow Navigation Header (Monochrome Glassmorphism) */}
       <div className="px-4 pt-3 pb-2 shrink-0">
-        <div className="flex gap-1 p-1 bg-zinc-950/70 rounded-2xl border border-white/10 backdrop-blur-md">
+        <div className="flex gap-1 p-1 bg-black/60 rounded-2xl border border-white/10 backdrop-blur-xl">
           <button
             type="button"
             onClick={() => setActiveTab('setup')}
             className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-1.5 ${
               activeTab === 'setup'
-                ? 'bg-[#003366] text-white shadow-lg shadow-black/50 border border-[#C9AB4C]/50'
+                ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Radar className="w-3.5 h-3.5 text-[#C9AB4C]" />
+            <Radar className={`w-3.5 h-3.5 ${activeTab === 'setup' ? 'text-black' : 'text-zinc-400'}`} />
             <span>Target & Scan</span>
           </button>
 
@@ -850,14 +840,18 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
             onClick={() => setActiveTab('layers')}
             className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-1.5 ${
               activeTab === 'layers'
-                ? 'bg-[#003366] text-white shadow-lg shadow-black/50 border border-[#C9AB4C]/50'
+                ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Layers className="w-3.5 h-3.5 text-[#C9AB4C]" />
+            <Layers className={`w-3.5 h-3.5 ${activeTab === 'layers' ? 'text-black' : 'text-zinc-400'}`} />
             <span>Layers & Style</span>
             {activeScannedFeatures.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-[#C9AB4C] text-[#003366] rounded-full font-mono text-[9px] font-black">
+              <span
+                className={`px-1.5 py-0.2 rounded-full font-mono text-[9px] font-black ${
+                  activeTab === 'layers' ? 'bg-black text-white' : 'bg-white/15 text-zinc-200 border border-white/20'
+                }`}
+              >
                 {activeScannedFeatures.length}
               </span>
             )}
@@ -868,11 +862,11 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
             onClick={() => setActiveTab('export_ai')}
             className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-1.5 ${
               activeTab === 'export_ai'
-                ? 'bg-[#003366] text-white shadow-lg shadow-black/50 border border-[#C9AB4C]/50'
+                ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Download className="w-3.5 h-3.5 text-[#C9AB4C]" />
+            <Download className={`w-3.5 h-3.5 ${activeTab === 'export_ai' ? 'text-black' : 'text-zinc-400'}`} />
             <span>Export & AI</span>
           </button>
         </div>
@@ -886,19 +880,19 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
         {activeTab === 'setup' && (
           <>
             {/* Target Mode Selector Card */}
-            <div className="bg-black/40 border border-white/10 rounded-2xl p-3.5 space-y-3 shrink-0 backdrop-blur-md">
+            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-3.5 space-y-3 shrink-0 backdrop-blur-xl shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Crosshair className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                  <Crosshair className="w-3.5 h-3.5 text-white" />
                   <span>Target Area Definition</span>
                 </span>
-                <div className="flex gap-1 p-0.5 bg-black/60 rounded-lg border border-white/10">
+                <div className="flex gap-1 p-0.5 bg-black/60 rounded-xl border border-white/10">
                   <button
                     type="button"
                     onClick={() => setAreaMode('coords')}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'coords'
-                        ? 'bg-[#003366] text-white border border-[#C9AB4C]/40'
+                        ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -907,9 +901,9 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     type="button"
                     onClick={() => setAreaMode('circle')}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'circle'
-                        ? 'bg-[#003366] text-white border border-[#C9AB4C]/40'
+                        ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -918,9 +912,9 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     type="button"
                     onClick={() => setAreaMode('shape')}
-                    className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'shape'
-                        ? 'bg-[#003366] text-white border border-[#C9AB4C]/40'
+                        ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
@@ -941,14 +935,14 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         <button
                           type="button"
                           onClick={handleSetFromMapCenter}
-                          className="px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-[9px] text-[#C9AB4C] font-semibold transition"
+                          className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] text-zinc-300 hover:text-white font-semibold transition"
                         >
                           Map Center
                         </button>
                         <button
                           type="button"
                           onClick={handleSetFromCurrentLocation}
-                          className="px-2 py-0.5 rounded-md bg-white/10 hover:bg-white/20 text-[9px] text-zinc-300 font-semibold transition"
+                          className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] text-zinc-300 hover:text-white font-semibold transition"
                         >
                           GPS
                         </button>
@@ -959,7 +953,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                       value={coordsInput}
                       onChange={(e) => setCoordsInput(e.target.value)}
                       placeholder="14.5995, 120.9842"
-                      className="w-full bg-black/60 border border-white/15 rounded-xl px-3 py-2 text-white font-mono text-xs outline-none focus:border-[#C9AB4C] transition"
+                      className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white font-mono text-xs outline-none focus:border-white/40 transition backdrop-blur-sm"
                     />
                   </div>
 
@@ -968,7 +962,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                       <label className="text-[10px] font-bold text-zinc-300 uppercase tracking-wide">
                         Search Radius
                       </label>
-                      <span className="text-[11px] font-mono font-bold text-[#C9AB4C]">
+                      <span className="text-[11px] font-mono font-bold text-white">
                         {radiusMeters >= 1000 ? `${(radiusMeters / 1000).toFixed(1)} km` : `${radiusMeters} m`}
                       </span>
                     </div>
@@ -980,7 +974,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         step="100"
                         value={radiusMeters}
                         onChange={(e) => setRadiusMeters(Number(e.target.value))}
-                        className="flex-1 accent-[#C9AB4C] h-1.5 bg-white/10 rounded-lg cursor-pointer"
+                        className="flex-1 accent-white h-1.5 bg-white/10 rounded-lg cursor-pointer"
                       />
                       <input
                         type="number"
@@ -989,7 +983,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         step="100"
                         value={radiusMeters}
                         onChange={(e) => setRadiusMeters(Math.max(100, Number(e.target.value)))}
-                        className="w-20 bg-black/60 border border-white/15 rounded-xl px-2 py-1 text-white font-mono text-xs text-right outline-none"
+                        className="w-20 bg-black/50 border border-white/15 rounded-xl px-2 py-1 text-white font-mono text-xs text-right outline-none focus:border-white/40"
                       />
                     </div>
                   </div>
@@ -1000,7 +994,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         type="checkbox"
                         checked={showRadiusGraphics}
                         onChange={(e) => setShowRadiusGraphics(e.target.checked)}
-                        className="accent-[#003366] rounded"
+                        className="accent-white rounded"
                       />
                       <span>Display Target Pin & Buffer on Map</span>
                     </label>
@@ -1016,7 +1010,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                       <select
                         value={selectedCircleId}
                         onChange={(e) => setSelectedCircleId(Number(e.target.value))}
-                        className="w-full bg-black/60 border border-white/15 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none"
+                        className="w-full bg-black/50 border border-white/15 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-white/40"
                       >
                         {drawnCircles.map((c) => {
                           const cR = c.props?.radiusMeters || 0;
@@ -1032,7 +1026,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         onClick={handleStartDrawingCircle}
                         className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] border border-white/15 transition flex items-center justify-center gap-1.5"
                       >
-                        <CircleIcon className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                        <CircleIcon className="w-3.5 h-3.5 text-white" />
                         <span>Draw New Circle on Map</span>
                       </button>
                     </div>
@@ -1040,9 +1034,9 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                     <button
                       type="button"
                       onClick={handleStartDrawingCircle}
-                      className="w-full py-2.5 bg-[#003366] hover:bg-[#002244] text-white border border-[#C9AB4C]/50 font-bold rounded-xl flex items-center justify-center gap-2 transition text-xs shadow-md"
+                      className="w-full py-2.5 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2 transition text-xs shadow-md hover:bg-zinc-200"
                     >
-                      <CircleIcon className="w-4 h-4 text-[#C9AB4C]" />
+                      <CircleIcon className="w-4 h-4 text-black" />
                       <span>Draw Circle Area on Map</span>
                     </button>
                   )}
@@ -1055,7 +1049,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <select
                     value={selectedShapeId}
                     onChange={(e) => setSelectedShapeId(e.target.value ? parseInt(e.target.value, 10) : '')}
-                    className="w-full bg-black/60 border border-white/15 rounded-xl px-3 py-2 text-white outline-none focus:border-white/40 text-xs"
+                    className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white outline-none focus:border-white/40 text-xs"
                   >
                     <option value="">-- Choose Drawn Polygon or Rectangle --</option>
                     {drawnShapes.map((s) => (
@@ -1079,11 +1073,11 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
             {/* Scanning In-Progress Feedback Card */}
             {isScanning && (
-              <div className="p-5 bg-zinc-950/90 border border-[#C9AB4C]/40 rounded-2xl backdrop-blur-2xl flex flex-col items-center text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95 shrink-0">
+              <div className="p-5 bg-zinc-950/90 border border-white/20 rounded-2xl backdrop-blur-2xl flex flex-col items-center text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95 shrink-0">
                 <div className="relative w-12 h-12 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border border-[#C9AB4C]/40 animate-ping opacity-40" />
-                  <div className="w-10 h-10 rounded-full bg-[#003366] border border-[#C9AB4C] flex items-center justify-center text-[#C9AB4C]">
-                    <Radar className="w-5 h-5 animate-spin" style={{ animationDuration: '3s' }} />
+                  <div className="absolute inset-0 rounded-full border border-white/30 animate-ping opacity-40" />
+                  <div className="w-10 h-10 rounded-full bg-white/10 border border-white/30 flex items-center justify-center text-white">
+                    <Radar className="w-5 h-5 animate-spin text-white" style={{ animationDuration: '3s' }} />
                   </div>
                 </div>
 
@@ -1105,7 +1099,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   ].map((st, i) => (
                     <div key={i} className="flex items-center gap-2 text-[11px]">
                       {st.done ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-[#C9AB4C] shrink-0" />
+                        <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
                       ) : st.active ? (
                         <Loader2 className="w-3.5 h-3.5 text-white animate-spin shrink-0" />
                       ) : (
@@ -1129,11 +1123,11 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
               </div>
             )}
 
-            {/* POI Taxonomy Categories Selection */}
+            {/* POI Taxonomy Categories Selection (Cleared by Default) */}
             <div className="space-y-2.5 shrink-0">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                  <Building2 className="w-3.5 h-3.5 text-white" />
                   <span>POI Categories ({Object.keys(POI_CONFIG).length})</span>
                 </span>
                 <span className="text-[10px] text-zinc-400 font-mono">
@@ -1149,7 +1143,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   placeholder="Filter parameters (e.g. office, bank, hospital, restaurant)..."
-                  className="w-full bg-black/40 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-white placeholder-zinc-500 outline-none focus:border-[#C9AB4C] text-xs transition"
+                  className="w-full bg-black/50 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-white placeholder-zinc-500 outline-none focus:border-white/40 text-xs transition backdrop-blur-sm"
                 />
               </div>
 
@@ -1158,21 +1152,21 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 <button
                   type="button"
                   onClick={() => handleSelectPreset('commercial')}
-                  className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-300 hover:text-white transition"
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-300 hover:text-white transition"
                 >
                   Commercial & Retail
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSelectPreset('all')}
-                  className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-[#C9AB4C] transition"
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-300 hover:text-white transition"
                 >
                   Select All
                 </button>
                 <button
                   type="button"
                   onClick={() => handleSelectPreset('clear')}
-                  className="px-2 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-400 hover:text-white transition"
+                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-400 hover:text-white transition"
                 >
                   Clear Selection
                 </button>
@@ -1195,22 +1189,22 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   const catSelectedCount = filteredItems.filter(([_, tag]) =>
                     selectedTags.includes(tag)
                   ).length;
-                  const color = CATEGORY_COLORS[category] || '#003366';
+                  const color = CATEGORY_COLORS[category] || '#ffffff';
 
                   return (
                     <div
                       key={category}
-                      className="border border-white/10 rounded-2xl bg-black/30 overflow-hidden shrink-0 transition"
+                      className="border border-white/10 rounded-2xl bg-white/[0.02] overflow-hidden shrink-0 transition hover:border-white/20 backdrop-blur-sm"
                     >
                       <div
                         onClick={() =>
                           setOpenCategories((prev) => ({ ...prev, [category]: !isOpen }))
                         }
-                        className="flex items-center justify-between p-3 hover:bg-white/5 cursor-pointer transition select-none"
+                        className="flex items-center justify-between p-3 hover:bg-white/[0.04] cursor-pointer transition select-none"
                       >
                         <div className="flex items-center gap-2.5 truncate">
                           <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm border border-white/20"
+                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm border border-white/30"
                             style={{ backgroundColor: color }}
                           />
                           <span className="font-semibold text-white text-[11px] truncate">
@@ -1227,7 +1221,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                               e.stopPropagation();
                               handleCategorySelectAll(category);
                             }}
-                            className="text-[10px] text-white hover:text-zinc-200 font-semibold px-2 py-0.5 rounded-md bg-white/10 border border-white/20 transition"
+                            className="text-[10px] text-zinc-300 hover:text-white font-semibold px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 transition"
                           >
                             {catSelectedCount === filteredItems.length ? 'Clear' : 'All'}
                           </button>
@@ -1250,7 +1244,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                                 onClick={() => handleTagToggle(tag)}
                                 className={`px-2.5 py-1 rounded-lg border text-[10px] font-medium transition flex items-center gap-1.5 ${
                                   isChecked
-                                    ? 'bg-[#003366] border-[#C9AB4C] text-white font-semibold shadow-sm'
+                                    ? 'bg-white text-black font-bold border-white shadow-sm'
                                     : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
                                 }`}
                               >
@@ -1275,7 +1269,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   value={customTag}
                   onChange={(e) => setCustomTag(e.target.value)}
                   placeholder='e.g. "amenity"="clinic" or "shop"="bakery"'
-                  className="w-full bg-black/40 border border-white/15 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-[#C9AB4C] transition"
+                  className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-white/40 transition"
                 />
               </div>
             </div>
@@ -1288,10 +1282,10 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
         {activeTab === 'layers' && (
           <div className="space-y-4">
             {/* Header with Group Layers button & Results count */}
-            <div className="p-3.5 bg-zinc-950/80 border border-white/15 rounded-2xl flex items-center justify-between backdrop-blur-xl">
+            <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between backdrop-blur-xl">
               <div className="flex items-center gap-2">
                 <span className="font-bold text-white text-xs">Mapped Assets</span>
-                <span className="px-2 py-0.5 rounded-full bg-[#003366] border border-[#C9AB4C]/50 text-[#C9AB4C] font-mono font-bold text-[10px]">
+                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-zinc-200 font-mono font-bold text-[10px]">
                   {activeScannedFeatures.length} PINS
                 </span>
               </div>
@@ -1299,7 +1293,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 <button
                   type="button"
                   onClick={() => setShowClusterModal(true)}
-                  className="px-2.5 py-1.5 rounded-xl bg-[#003366] hover:bg-[#002244] border border-[#C9AB4C] text-[#C9AB4C] font-bold text-[10px] flex items-center gap-1 transition"
+                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-[10px] flex items-center gap-1 transition"
                 >
                   <Plus className="w-3 h-3" />
                   <span>Group Layers</span>
@@ -1319,7 +1313,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
             {/* Modal: Create Cluster Group */}
             {showClusterModal && (
-              <div className="p-3.5 bg-zinc-950 border border-[#C9AB4C] rounded-2xl space-y-3 animate-in fade-in">
+              <div className="p-3.5 bg-zinc-950/95 border border-white/20 rounded-2xl space-y-3 backdrop-blur-2xl shadow-2xl animate-in fade-in">
                 <div className="flex items-center justify-between border-b border-white/10 pb-2">
                   <span className="font-bold text-white text-xs uppercase tracking-wide">
                     Create Layer Cluster Group
@@ -1337,7 +1331,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   value={newClusterName}
                   onChange={(e) => setNewClusterName(e.target.value)}
                   placeholder="Enter cluster name (e.g. Commercial Core)..."
-                  className="w-full bg-black/60 border border-white/15 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-[#C9AB4C]"
+                  className="w-full bg-black/60 border border-white/15 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-white/40"
                 />
                 <div className="max-h-36 overflow-y-auto space-y-1">
                   {Object.keys(featuresByCategory).map((cat) => (
@@ -1350,7 +1344,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                             e.target.checked ? [...prev, cat] : prev.filter((c) => c !== cat)
                           );
                         }}
-                        className="accent-[#003366]"
+                        className="accent-white"
                       />
                       <span>{cat} ({featuresByCategory[cat].length})</span>
                     </label>
@@ -1360,7 +1354,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     type="button"
                     onClick={handleCreateCluster}
-                    className="flex-1 py-1.5 bg-[#003366] text-[#C9AB4C] border border-[#C9AB4C] font-bold rounded-xl text-xs hover:bg-[#002244] transition"
+                    className="flex-1 py-1.5 bg-white text-black font-bold rounded-xl text-xs hover:bg-zinc-200 transition"
                   >
                     Build Cluster
                   </button>
@@ -1376,10 +1370,10 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
             )}
 
             {/* Global Marker Styling Suite Card */}
-            <div className="p-3.5 bg-black/40 border border-white/10 rounded-2xl space-y-3 shrink-0 backdrop-blur-md">
+            <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3 shrink-0 backdrop-blur-xl shadow-sm">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                  <Sliders className="w-3.5 h-3.5 text-white" />
                   <span>Global Marker Styling Suite</span>
                 </span>
               </div>
@@ -1396,7 +1390,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         globalMarkerColor
                       )
                     }
-                    className="w-full bg-black/60 border border-white/15 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-[#C9AB4C]"
+                    className="w-full bg-black/60 border border-white/15 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-white/40"
                   >
                     <option value="modern-pin">Modern Drop-Pin</option>
                     <option value="pinball">3D Pinball</option>
@@ -1422,7 +1416,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         globalMarkerColor
                       )
                     }
-                    className="w-full accent-[#C9AB4C] h-1.5 bg-white/10 rounded-lg cursor-pointer mt-2"
+                    className="w-full accent-white h-1.5 bg-white/10 rounded-lg cursor-pointer mt-2"
                   />
                 </div>
               </div>
@@ -1444,11 +1438,12 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   />
                   <div className="flex items-center gap-1.5 flex-1">
                     {[
-                      { label: 'Midnight', color: '#003366' },
-                      { label: 'Gold', color: '#C9AB4C' },
-                      { label: 'Crimson', color: '#AA2E20' },
-                      { label: 'Steel', color: '#1A5A8A' },
-                      { label: 'Emerald', color: '#059669' },
+                      { label: 'White', color: '#ffffff' },
+                      { label: 'Platinum', color: '#e4e4e7' },
+                      { label: 'Silver', color: '#a1a1aa' },
+                      { label: 'Slate', color: '#71717a' },
+                      { label: 'Graphite', color: '#3f3f46' },
+                      { label: 'Obsidian', color: '#18181b' },
                     ].map((swatch) => (
                       <button
                         key={swatch.label}
@@ -1461,10 +1456,10 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                           )
                         }
                         style={{ backgroundColor: swatch.color }}
-                        className="flex-1 py-1.5 rounded-lg border border-white/20 text-[8px] font-bold text-white shadow-sm hover:scale-105 transition"
+                        className="flex-1 py-1.5 rounded-lg border border-white/20 text-[8px] font-bold text-black shadow-sm hover:scale-105 transition"
                         title={swatch.label}
                       >
-                        {swatch.label[0]}
+                        •
                       </button>
                     ))}
                   </div>
@@ -1487,11 +1482,11 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   return (
                     <div
                       key={clusterName}
-                      className="p-3 bg-zinc-900 border-l-4 border-l-[#C9AB4C] border border-white/10 rounded-2xl space-y-2"
+                      className="p-3 bg-white/[0.03] border-l-4 border-l-white/60 border border-white/10 rounded-2xl space-y-2 backdrop-blur-xl"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-1.5">
-                          <span className="text-[#C9AB4C] font-bold">⚡</span>
+                          <span className="text-white font-bold">⚡</span>
                           <span className="font-bold text-white text-xs">{clusterName}</span>
                           <span className="text-[10px] text-zinc-400 font-mono">
                             ({clusterFeats.length} PINS)
@@ -1536,7 +1531,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         </select>
                         <input
                           type="color"
-                          defaultValue="#003366"
+                          defaultValue="#ffffff"
                           onChange={(e) =>
                             handleBatchStyleCluster(
                               clusterName,
@@ -1556,7 +1551,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
             {/* Mapped Categories & POI Hierarchy List */}
             {Object.keys(featuresByCategory).length === 0 ? (
-              <div className="p-8 border border-white/10 rounded-2xl bg-black/30 flex flex-col items-center justify-center text-center gap-2">
+              <div className="p-8 border border-white/10 rounded-2xl bg-white/[0.02] flex flex-col items-center justify-center text-center gap-2 backdrop-blur-sm">
                 <MapPin className="w-8 h-8 text-zinc-500" />
                 <span className="font-bold text-white text-xs">No POIs Mapped Yet</span>
                 <span className="text-[10px] text-zinc-400 max-w-xs">
@@ -1570,24 +1565,24 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 </span>
                 {Object.entries(featuresByCategory).map(([category, feats]) => {
                   const isVisible = feats.some((f) => f.props.visible !== 0);
-                  const color = CATEGORY_COLORS[category] || '#003366';
+                  const color = CATEGORY_COLORS[category] || '#ffffff';
 
                   return (
                     <div
                       key={category}
-                      className="border border-white/10 rounded-2xl bg-black/40 overflow-hidden"
+                      className="border border-white/10 rounded-2xl bg-white/[0.02] overflow-hidden backdrop-blur-sm"
                     >
                       {/* Category Header */}
-                      <div className="flex items-center justify-between p-3 hover:bg-white/5 transition select-none">
+                      <div className="flex items-center justify-between p-3 hover:bg-white/[0.04] transition select-none">
                         <div className="flex items-center gap-2 truncate">
                           <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm border border-white/20"
+                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm border border-white/30"
                             style={{ backgroundColor: color }}
                           />
                           <span className="font-bold text-white text-[11px] truncate">
                             {category}
                           </span>
-                          <span className="text-[10px] text-[#C9AB4C] font-mono shrink-0">
+                          <span className="text-[10px] text-zinc-400 font-mono shrink-0">
                             ({feats.length})
                           </span>
                         </div>
@@ -1620,13 +1615,13 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                       </div>
 
                       {/* POI Items List */}
-                      <div className="p-2 pt-0 max-h-40 overflow-y-auto space-y-1 bg-black/20">
+                      <div className="p-2 pt-0 max-h-40 overflow-y-auto space-y-1 bg-black/30">
                         {feats.map((f) => {
                           const itemVisible = f.props.visible !== 0;
                           return (
                             <div
                               key={f.id}
-                              className={`p-2 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between text-[10px] transition ${
+                              className={`p-2 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-[10px] transition ${
                                 itemVisible ? '' : 'opacity-40'
                               }`}
                             >
@@ -1681,9 +1676,9 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
         {activeTab === 'export_ai' && (
           <div className="space-y-4">
             {/* Export Card */}
-            <div className="p-4 bg-black/40 border border-white/10 rounded-2xl space-y-3 backdrop-blur-md">
+            <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl shadow-sm">
               <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                <Download className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                <Download className="w-3.5 h-3.5 text-white" />
                 <span>Export Spatial Data</span>
               </span>
               <p className="text-[10px] text-zinc-400">
@@ -1694,29 +1689,29 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   type="button"
                   onClick={handleExportGeoJSON}
                   disabled={activeScannedFeatures.length === 0}
-                  className="py-2.5 bg-[#003366] hover:bg-[#002244] disabled:opacity-40 text-white border border-[#C9AB4C]/50 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                  className="py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white border border-white/20 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <Download className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                  <Download className="w-3.5 h-3.5 text-white" />
                   <span>GeoJSON</span>
                 </button>
                 <button
                   type="button"
                   onClick={handleExportKML}
                   disabled={activeScannedFeatures.length === 0}
-                  className="py-2.5 bg-[#003366] hover:bg-[#002244] disabled:opacity-40 text-white border border-[#C9AB4C]/50 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
+                  className="py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white border border-white/20 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
                 >
-                  <Download className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                  <Download className="w-3.5 h-3.5 text-white" />
                   <span>Google KML</span>
                 </button>
               </div>
             </div>
 
             {/* DeepSeek AI Commercial Intelligence */}
-            <div className="p-4 bg-zinc-950/80 border border-white/15 rounded-2xl space-y-3 backdrop-blur-xl">
+            <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl shadow-sm">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-bold text-white text-xs block flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5 text-[#C9AB4C]" />
+                    <Sparkles className="w-3.5 h-3.5 text-white" />
                     <span>DeepSeek AI Commercial Analyst</span>
                   </span>
                   <span className="text-[10px] text-zinc-400">
@@ -1726,20 +1721,20 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 <button
                   onClick={handleTriggerAiAnalysis}
                   disabled={isAiLoading || scannedPois.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#C9AB4C] hover:bg-[#b0933c] disabled:opacity-50 text-[#003366] font-black rounded-xl text-xs transition shadow-lg"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-50 text-black font-black rounded-xl text-xs transition shadow-lg shadow-white/5"
                 >
                   {isAiLoading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-[#003366]" />
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
                   ) : (
-                    <RefreshCw className="w-3.5 h-3.5 text-[#003366]" />
+                    <RefreshCw className="w-3.5 h-3.5 text-black" />
                   )}
                   <span>{aiData ? 'Regenerate' : 'Analyze'}</span>
                 </button>
               </div>
 
               {isAiLoading ? (
-                <div className="p-8 border border-white/10 rounded-2xl bg-black/60 flex flex-col items-center justify-center text-center gap-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-[#C9AB4C]" />
+                <div className="p-8 border border-white/10 rounded-2xl bg-black/60 flex flex-col items-center justify-center text-center gap-3 backdrop-blur-md">
+                  <Loader2 className="w-8 h-8 animate-spin text-white" />
                   <span className="text-white font-semibold text-xs">
                     Synthesizing Commercial Clusters...
                   </span>
@@ -1750,12 +1745,12 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
               ) : aiData ? (
                 <div className="space-y-4 pt-1">
                   {/* Gauge Card */}
-                  <div className="p-3 bg-black/60 border border-white/10 rounded-xl flex items-center justify-between">
+                  <div className="p-3 bg-black/50 border border-white/10 rounded-xl flex items-center justify-between backdrop-blur-sm">
                     <div>
                       <span className="text-[10px] text-zinc-400 uppercase font-bold block">
                         Commercial Vitality
                       </span>
-                      <span className="text-xl font-black text-[#C9AB4C] font-mono">
+                      <span className="text-xl font-black text-white font-mono">
                         {aiData.summary.commercialScore}/100
                       </span>
                     </div>
@@ -1763,7 +1758,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                       <span className="text-[10px] text-zinc-400 uppercase font-bold block">
                         Saturation Rating
                       </span>
-                      <span className="text-xs font-bold text-white">
+                      <span className="text-xs font-bold text-zinc-200">
                         {aiData.summary.saturationRating}
                       </span>
                     </div>
@@ -1787,7 +1782,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                     <div className="space-y-1 bg-black/40 p-3 rounded-xl border border-white/10">
                       {aiData.recommendations.map((rec, i) => (
                         <div key={i} className="flex items-start gap-2 text-[10px]">
-                          <CheckCircle2 className="w-3 h-3 text-[#C9AB4C] shrink-0 mt-0.5" />
+                          <CheckCircle2 className="w-3 h-3 text-white shrink-0 mt-0.5" />
                           <span className="text-zinc-300 leading-relaxed">{rec}</span>
                         </div>
                       ))}
@@ -1830,7 +1825,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 </div>
               ) : (
                 <div className="p-6 border border-white/10 rounded-xl bg-black/40 flex flex-col items-center justify-center text-center gap-2">
-                  <Sparkles className="w-6 h-6 text-[#C9AB4C]" />
+                  <Sparkles className="w-6 h-6 text-white" />
                   <span className="text-white font-bold text-xs">Ready for AI Assessment</span>
                   <span className="text-zinc-400 text-[10px] max-w-xs">
                     Click "Analyze" to detect commercial clusters and strategic tenant recommendations.
@@ -1842,23 +1837,23 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
         )}
       </div>
 
-      {/* Sticky Bottom Action Bar for Setup Tab */}
+      {/* Sticky Bottom Action Bar for Setup Tab (Monochrome Glassmorphic) */}
       {activeTab === 'setup' && (
-        <div className="p-4 pt-3 border-t border-white/10 shrink-0 bg-zinc-950/90 backdrop-blur-xl flex gap-2">
+        <div className="p-4 pt-3 border-t border-white/10 shrink-0 bg-black/60 backdrop-blur-2xl flex gap-2">
           {isScanning ? (
             <>
               <button
                 type="button"
                 disabled
-                className="flex-1 py-3 bg-[#003366] text-white font-black rounded-2xl flex items-center justify-center gap-2 text-xs opacity-75"
+                className="flex-1 py-3.5 bg-white/20 text-zinc-300 font-black rounded-2xl flex items-center justify-center gap-2 text-xs border border-white/15"
               >
-                <Loader2 className="w-4 h-4 animate-spin text-[#C9AB4C]" />
+                <Loader2 className="w-4 h-4 animate-spin text-white" />
                 <span>Scanning OpenStreetMap...</span>
               </button>
               <button
                 type="button"
                 onClick={handleCancelScan}
-                className="px-4 py-3 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-2xl text-xs transition flex items-center gap-1.5"
+                className="px-4 py-3.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-2xl text-xs transition flex items-center gap-1.5"
               >
                 <X className="w-4 h-4 text-zinc-300" />
                 <span>Cancel</span>
@@ -1867,10 +1862,10 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
           ) : (
             <button
               onClick={handleRunScan}
-              className="flex-1 py-3.5 bg-[#003366] hover:bg-[#002244] text-[#C9AB4C] border border-[#C9AB4C] font-black rounded-2xl shadow-xl flex items-center justify-center gap-2 text-xs transition active:scale-[0.99]"
+              className="flex-1 py-3.5 bg-white hover:bg-zinc-200 text-black font-black rounded-2xl shadow-xl shadow-white/10 flex items-center justify-center gap-2 text-xs transition active:scale-[0.99] border border-white/40"
             >
-              <Radar className="w-4 h-4 text-[#C9AB4C]" />
-              <span className="tracking-wide">SCAN AREA</span>
+              <Radar className="w-4 h-4 text-black" />
+              <span className="tracking-wider uppercase font-black">SCAN AREA</span>
             </button>
           )}
         </div>

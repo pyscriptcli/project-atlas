@@ -6,7 +6,6 @@ import {
   X,
   ChevronRight,
   ChevronDown,
-  Radar,
   Upload,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
@@ -157,18 +156,6 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
           >
             3D BUILDINGS
           </button>
-        </div>
-
-        {/* Trade Area Analysis Shortcut */}
-        <div
-          onClick={() => togglePanel('tradeArea', true)}
-          className="flex items-center justify-between p-2.5 rounded-xl bg-sky-500/10 border border-sky-500/20 hover:bg-sky-500/20 text-sky-400 cursor-pointer transition"
-        >
-          <div className="flex items-center gap-2 font-semibold">
-            <Radar className="w-4 h-4" />
-            <span>Trade Area Analysis</span>
-          </div>
-          <ChevronRight className="w-4 h-4" />
         </div>
 
         {/* Accordions */}
