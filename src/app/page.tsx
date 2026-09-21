@@ -155,8 +155,8 @@ export default function WorkspacePage() {
       <HeightCaliperHUD mapInstance={mapInstance} />
       <RadiantBeaconsOverlay />
 
-      {/* Floating atlas.ai Assistant (Right Corner) & Cinematic Street Tour HUD */}
-      <AtlasAIAssistant />
+      {/* Floating atlas.ai Pet Companion & Autonomous Agent HUD */}
+      <AtlasAIAssistant mapInstance={mapInstance} />
       <CinematicTourHUD mapInstance={mapInstance} />
 
       {/* Toast Notification */}
