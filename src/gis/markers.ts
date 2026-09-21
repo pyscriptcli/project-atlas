@@ -253,6 +253,107 @@ export function draw3DDropPin(ctx: CanvasRenderingContext2D, color: string) {
 }
 
 /**
+ * Draws Open Node's modern drop-pin with ground drop shadow, dark metal pin stalk, and vibrant round head
+ */
+export function drawModernPin(ctx: CanvasRenderingContext2D, color: string) {
+  // 1. Realistic ground contact drop shadow
+  ctx.save();
+  const shadowGrad = ctx.createRadialGradient(32, 56, 1, 32, 56, 12);
+  shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.6)');
+  shadowGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.25)');
+  shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = shadowGrad;
+  ctx.beginPath();
+  ctx.ellipse(32, 56, 12, 4, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 2. Dark metallic pin stalk
+  ctx.save();
+  ctx.strokeStyle = '#0f172a';
+  ctx.lineWidth = 3.2;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(32, 24);
+  ctx.lineTo(32, 54);
+  ctx.stroke();
+  ctx.restore();
+
+  // 3. Vibrant circular head with outline and specular gloss
+  const cx = 32;
+  const cy = 20;
+  const r = 14;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
+
+  // Outer border & fill
+  ctx.fillStyle = color || '#003366';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 1.8;
+  ctx.stroke();
+  ctx.restore();
+
+  // Subtle inner gloss curve
+  ctx.save();
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.beginPath();
+  ctx.ellipse(cx - 3, cy - 4, 5, 2.5, -Math.PI / 4, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * Draws a clean circular dot marker with crisp white border and ground registration
+ */
+export function drawDotMarker(ctx: CanvasRenderingContext2D, color: string) {
+  // Ground contact shadow
+  ctx.save();
+  const shadowGrad = ctx.createRadialGradient(32, 56, 1, 32, 56, 10);
+  shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.4)');
+  shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = shadowGrad;
+  ctx.beginPath();
+  ctx.ellipse(32, 56, 10, 3.5, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // Outer dot circle
+  const cx = 32;
+  const cy = 40;
+  const r = 13;
+
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetY = 1;
+
+  ctx.fillStyle = color || '#003366';
+  ctx.beginPath();
+  ctx.arc(cx, cy, r, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = '#ffffff';
+  ctx.lineWidth = 2.5;
+  ctx.stroke();
+  ctx.restore();
+
+  // White inner core
+  ctx.save();
+  ctx.fillStyle = '#ffffff';
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
  * Draws a marker icon procedurally on a 64x64 canvas
  */
 export function renderIconCanvas(shape: string, color: string): HTMLCanvasElement {
@@ -264,6 +365,18 @@ export function renderIconCanvas(shape: string, color: string): HTMLCanvasElemen
 
   ctx.clearRect(0, 0, 64, 64);
   const baseColor = color || '#1e40af';
+
+  // Modern Drop-Pin (Open Node signature)
+  if (shape === 'modern-pin') {
+    drawModernPin(ctx, color);
+    return c;
+  }
+
+  // Dots / Minimalist Dot (Open Node signature)
+  if (shape === 'dots') {
+    drawDotMarker(ctx, color);
+    return c;
+  }
 
   // 1. 3D Pinball Drop Variants
   if (shape === 'pinball') {

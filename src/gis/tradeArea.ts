@@ -1,8 +1,16 @@
 import { GISFeature } from '../types/gis';
 import { calcBounds, pointInPolygon } from './polygons';
 
-// Full 7-category taxonomy ported directly from proven Open Node GIS engine
+// Full 8-category taxonomy ported directly from proven Open Node GIS engine
 export const POI_CONFIG: Record<string, [string, string][]> = {
+  "COMMERCIAL & OFFICES": [
+    ['Corporate Office', '"building"~"office|commercial",i'],
+    ['IT/Tech Center', '"office"~"it|telecommunication",i'],
+    ['Business Center', '"building"="commercial"'],
+    ['Bank', '"amenity"="bank"'],
+    ['ATM', '"amenity"="atm"'],
+    ['Office', '"office"="yes"'],
+  ],
   "RETAIL": [
     ['Mall/Department Store', '"shop"~"mall|department_store",i'],
     ['Supermarket', '"shop"~"market|grocery",i'],
@@ -146,17 +154,22 @@ export const POI_CONFIG: Record<string, [string, string][]> = {
     ['Busstop', '"highway"="bus_stop"'],
     ['E-bike charging', '"amenity"="charging_station"'],
     ['Recycling', '"amenity"="recycling"'],
+    ['Fixme', '"fixme"~".",i'],
+    ['Note-Node', '"type"="node"'],
+    ['Note-Way', '"type"="way"'],
+    ['Image', '"image"~".",i'],
   ],
 };
 
 export const CATEGORY_COLORS: Record<string, string> = {
-  "RETAIL": "#18181b", // Deep Obsidian
-  "FOOD, BEVERAGE & HOSPITALITY": "#27272a", // Charcoal Zinc
-  "RESIDENTIAL": "#3f3f46", // Graphite
+  "COMMERCIAL & OFFICES": "#003366", // Midnight Navy (Open Node Brand)
+  "RETAIL": "#C9AB4C", // Rich Gold (Open Node Brand)
+  "FOOD, BEVERAGE & HOSPITALITY": "#AA2E20", // Crimson Accent
+  "RESIDENTIAL": "#1A5A8A", // Deep Slate Blue
   "INDUSTRIAL & LOGISTICS": "#52525b", // Slate Gray
-  "HEALTH & EMERGENCY SERVICES": "#71717a", // Cool Zinc
-  "GOVERNMENT, EDUCATION & INFRASTRUCTURE": "#a1a1aa", // Light Silver
-  "LEISURE, SPORTS & PUBLIC SPACES": "#d4d4d8", // Platinum
+  "HEALTH & EMERGENCY SERVICES": "#dc2626", // Medical Red
+  "GOVERNMENT, EDUCATION & INFRASTRUCTURE": "#475569", // Civic Slate
+  "LEISURE, SPORTS & PUBLIC SPACES": "#059669", // Emerald Green
 };
 
 export interface ScannedPOI {
@@ -172,6 +185,22 @@ export interface ScanResult {
   features: ScannedPOI[];
   counts: Record<string, number>;
   categoryCounts: Record<string, number>;
+}
+
+/**
+ * Compiles a list of POI features into a standard Google Earth KML document string
+ */
+export function compileFeaturesKml(
+  features: Array<{ lat: number; lon: number; name?: string; type?: string; visible?: boolean }>
+): string {
+  let kml = '<?xml version="1.0" encoding="UTF-8"?><kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Scanned POIs</name>';
+  for (const f of features) {
+    if (f.visible === false) continue;
+    const name = (f.name || 'Asset').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const classType = (f.type || 'Node').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    kml += `<Placemark><name>${name}</name><description>${classType}</description><Point><coordinates>${f.lon},${f.lat},0</coordinates></Point></Placemark>`;
+  }
+  return kml + '</Document></kml>';
 }
 
 /**
@@ -199,7 +228,7 @@ export async function robustOverpassFetch(query: string, timeout = 30, signal?: 
 }
 
 /**
- * Scan POIs around a center coordinate and radius in meters with optimized 'nw' (node + way) queries.
+ * Scan POIs around a center coordinate and radius in meters with hybrid FastAPI (OSMnx) & Next.js Overpass fallback.
  */
 export async function scanTradeAreaCoordinates(
   lat: number,
@@ -222,17 +251,49 @@ export async function scanTradeAreaCoordinates(
 
   if (tagsToQuery.length === 0) return null;
 
-  // Build optimized QL statements around coordinates (use 'nw' instead of 'nwr' for 5-10x speedup by skipping relations)
+  // 1. Attempt Python FastAPI endpoint with OSMnx geometry fallback
+  try {
+    const fastApiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 6000); // Quick 6s check for FastAPI
+    if (signal) {
+      signal.addEventListener('abort', () => controller.abort());
+    }
+
+    const res = await fetch(`${fastApiUrl}/api/overpass/fetch-pois`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lat,
+        lon,
+        radius,
+        tags: tagsToQuery,
+      }),
+      signal: controller.signal,
+    });
+    clearTimeout(timer);
+
+    if (res.ok) {
+      const data = await res.json();
+      if (data && data.elements && data.elements.length > 0) {
+        return processOverpassElements(data.elements, tagsToQuery);
+      }
+    }
+  } catch (e) {
+    // FastAPI is offline or timed out; gracefully proceed to Next.js multi-mirror Overpass proxy
+  }
+
+  // 2. Next.js Overpass mirror proxy failover
   const statements = tagsToQuery
-    .map((tag) => `  nw[${tag}](around:${radius},${lat},${lon});`)
+    .map((tag) => `  nwr[${tag}](around:${radius},${lat},${lon});`)
     .join('\n');
 
-  const ql = `[out:json][timeout:30];(\n${statements}\n);\nout center;`;
+  const ql = `[out:json][timeout:45];(\n${statements}\n);\nout center;`;
 
-  const data = await robustOverpassFetch(ql, 30, signal);
+  const data = await robustOverpassFetch(ql, 45, signal);
   if (!data || !data.elements) return null;
 
-  return processOverpassElements(data.elements, selectedTags);
+  return processOverpassElements(data.elements, tagsToQuery);
 }
 
 /**

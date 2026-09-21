@@ -47,7 +47,9 @@ export type MarkerShape =
   | 'flag'
   | 'heart'
   | 'navigation'
-  | 'shield';
+  | 'shield'
+  | 'modern-pin'
+  | 'dots';
 
 export interface FeatureProps {
   color?: string;
@@ -111,6 +113,8 @@ export interface FeatureProps {
   attrRows?: Record<string, string>[];
   
   // OSM / Trade area scan metadata
+  category?: string;
+  poiType?: string;
   osmTags?: Record<string, string>;
 }
 

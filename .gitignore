@@ -13,6 +13,7 @@ build/
 frontend/build/
 dist/
 .vercel/
+*.tsbuildinfo
 
 # Environment variables
 .env*.local
