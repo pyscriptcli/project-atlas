@@ -31,6 +31,7 @@ import {
   Camera,
   Flame,
   Check,
+  Store,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
@@ -426,11 +427,32 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                   setOpenFolder(null);
                 }}
                 className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 transition ${
-                  activeTool === 'marker' ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
+                  activeTool === 'marker' && useMapStore.getState().markerShape !== 'vicinity-logo'
+                    ? 'bg-white text-black font-bold'
+                    : 'text-zinc-200 hover:bg-white/10'
                 }`}
               >
-                <MapPin className="w-3.5 h-3.5 text-red-400" />
+                <MapPin className="w-3.5 h-3.5 text-zinc-300" />
                 <span>Place Marker</span>
+              </button>
+
+              {/* Place Vicinity Brand Logo */}
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveTool('marker');
+                  useMapStore.setState({ markerShape: 'vicinity-logo' });
+                  setOpenFolder(null);
+                  useMapStore.getState().setToast('Click map to place a Vicinity Brand Logo, then choose brand or upload logo in Editor');
+                }}
+                className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 transition ${
+                  activeTool === 'marker' && useMapStore.getState().markerShape === 'vicinity-logo'
+                    ? 'bg-white text-black font-bold'
+                    : 'text-zinc-200 hover:bg-white/10'
+                }`}
+              >
+                <Store className="w-3.5 h-3.5 text-zinc-300" />
+                <span>Place Vicinity Logo</span>
               </button>
 
               {/* Add Text (Renamed from Add Text Box Label) */}

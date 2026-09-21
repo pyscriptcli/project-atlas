@@ -49,7 +49,17 @@ export type MarkerShape =
   | 'navigation'
   | 'shield'
   | 'modern-pin'
-  | 'dots';
+  | 'dots'
+  | 'hexagon'
+  | 'octagon'
+  | 'squircle-badge'
+  | 'pill-badge'
+  | 'crosshair'
+  | 'beacon-ring'
+  | 'teardrop-ring'
+  | 'vicinity-logo';
+
+export type MarkerStylePreset = 'classic' | 'glass' | 'metallic' | 'dark-slate' | 'neon';
 
 export interface FeatureProps {
   color?: string;
@@ -86,6 +96,15 @@ export interface FeatureProps {
   shape?: MarkerShape;
   iconKey?: string;
   customImageDataUrl?: string;
+  markerStylePreset?: MarkerStylePreset;
+
+  // Vicinity Logo specific
+  logoUrl?: string;
+  logoFrame?: 'circle' | 'squircle' | 'hexagon' | 'pin-badge';
+  logoBg?: string;
+  logoBorder?: string;
+  logoText?: string;
+  logoScale?: number;
 
   // Text specific
   text?: string;

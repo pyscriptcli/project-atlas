@@ -7,7 +7,7 @@ import { useMapStore } from '../../store/useMapStore';
 import { ALL_STYLES, VIS_MAP, mapboxSatelliteXRayStyle } from '../../gis/map';
 import { rectCoords, rotateGeometry, translateCoordinates, calcBounds } from '../../gis/polygons';
 import { circleCoords, haversineDist } from '../../gis/circles';
-import { getIconKey } from '../../gis/markers';
+import { getIconKey, registerCustomImageMarker } from '../../gis/markers';
 import { fetchMultiPointRoute } from '../../gis/routes';
 import { generateLabelsGeoJSON } from '../../gis/labels';
 import { generateCompoundBuildingFeatures, ARCHETYPE_CONFIGS } from '../../gis/buildings3d';
@@ -545,9 +545,13 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         if (f.kind === 'marker') {
           const shp = f.props.shape || 'pin';
           const col = f.props.color || '#1e40af';
-          if (!f.props.customImageDataUrl) {
-            iconKey = getIconKey(shp, col, map);
-          } else if (!iconKey || !map.hasImage(iconKey)) {
+          if (f.props.customImageDataUrl) {
+            if (!iconKey || !map.hasImage(iconKey)) {
+              registerCustomImageMarker(f.props.customImageDataUrl, map).then((regKey) => {
+                f.props.iconKey = regKey;
+              }).catch(() => {});
+            }
+          } else {
             iconKey = getIconKey(shp, col, map);
           }
         }
@@ -864,23 +868,30 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       }
 
       if (activeTool === 'marker') {
+        const isVicinity = markerShape === 'vicinity-logo';
         const iconKey = customMarkerKey || getIconKey(markerShape, markerColor, map);
         addFeature({
           id,
-          name: `Marker ${id}`,
+          name: isVicinity ? `Vicinity Logo ${id}` : `Marker ${id}`,
           kind: 'marker',
           geometry: { type: 'Point', coordinates: ll },
           props: {
             shape: markerShape,
             color: markerColor,
-            iconSize: markerSize,
+            iconSize: isVicinity ? 1.0 : markerSize,
             iconKey,
             visible: 1,
-            attributes: { name: `Marker ${id}` },
+            logoFrame: 'circle',
+            logoBg: '#ffffff',
+            logoBorder: '#ffffff',
+            logoScale: 0.72,
+            attributes: { name: isVicinity ? `Vicinity Logo ${id}` : `Marker ${id}` },
           },
         });
+        setSelectedId(id);
+        togglePanel('shapeEditor', true);
         setActiveTool(null);
-        setToast('Marker placed');
+        setToast(isVicinity ? 'Vicinity Logo placed! Select brand or upload custom logo in Editor' : 'Marker placed');
       } else if (activeTool === 'textbox') {
         addFeature({
           id,

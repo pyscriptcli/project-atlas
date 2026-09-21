@@ -1,45 +1,74 @@
-import { MarkerShape } from '../types/gis';
+import { MarkerShape, MarkerStylePreset } from '../types/gis';
 
 export interface ShapeOption {
   id: MarkerShape;
   label: string;
-  category: 'Pins' | 'Pinball Drop' | 'Stars' | 'Circles & Badges';
+  category: 'Pins & Needles' | '3D Pinballs' | 'Geometric Badges' | 'Beacons & Targets' | 'Symbols';
 }
 
 export const SHAPE_OPTIONS: ShapeOption[] = [
-  { id: 'pin', label: 'Classic Pin', category: 'Pins' },
-  { id: 'pin-drop', label: '3D Drop Pin', category: 'Pins' },
-  { id: 'pinball', label: '3D Pinball', category: 'Pinball Drop' },
-  { id: 'center-pinball', label: 'Pulse Pinball', category: 'Pinball Drop' },
-  { id: 'pinball-glow', label: 'Glow Pinball', category: 'Pinball Drop' },
-  { id: 'circle', label: 'Circle', category: 'Circles & Badges' },
-  { id: 'circle-dot', label: 'Bullseye Circle', category: 'Circles & Badges' },
-  { id: 'star', label: '5-Point Star', category: 'Stars' },
-  { id: 'star-four', label: 'Sparkle Star', category: 'Stars' },
-  { id: 'diamond', label: 'Diamond Gem', category: 'Circles & Badges' },
-  { id: 'square', label: 'Square Badge', category: 'Circles & Badges' },
-  { id: 'flag', label: 'Flag', category: 'Circles & Badges' },
-  { id: 'heart', label: 'Heart', category: 'Circles & Badges' },
-  { id: 'navigation', label: 'Nav Beacon', category: 'Circles & Badges' },
-  { id: 'shield', label: 'Shield', category: 'Circles & Badges' },
+  // Pins & Needles
+  { id: 'pin', label: 'Classic Pin', category: 'Pins & Needles' },
+  { id: 'pin-drop', label: '3D Drop Pin', category: 'Pins & Needles' },
+  { id: 'modern-pin', label: 'Modern Drop Pin', category: 'Pins & Needles' },
+  { id: 'teardrop-ring', label: 'Teardrop Ring', category: 'Pins & Needles' },
+
+  // 3D Pinballs
+  { id: 'pinball', label: '3D Pinball Sphere', category: '3D Pinballs' },
+  { id: 'center-pinball', label: 'Pulse Pinball', category: '3D Pinballs' },
+  { id: 'pinball-glow', label: 'Neon Glow Pinball', category: '3D Pinballs' },
+
+  // Geometric Badges
+  { id: 'hexagon', label: 'Hexagon Badge', category: 'Geometric Badges' },
+  { id: 'octagon', label: 'Octagon Gem', category: 'Geometric Badges' },
+  { id: 'squircle-badge', label: 'Squircle Badge', category: 'Geometric Badges' },
+  { id: 'pill-badge', label: 'Pill Badge', category: 'Geometric Badges' },
+  { id: 'square', label: 'Square Badge', category: 'Geometric Badges' },
+  { id: 'diamond', label: 'Diamond Rhombus', category: 'Geometric Badges' },
+  { id: 'shield', label: 'Crest Shield', category: 'Geometric Badges' },
+  { id: 'circle', label: 'Solid Disc', category: 'Geometric Badges' },
+
+  // Beacons & Targets
+  { id: 'crosshair', label: 'Survey Reticle', category: 'Beacons & Targets' },
+  { id: 'beacon-ring', label: 'Radar Beacon', category: 'Beacons & Targets' },
+  { id: 'circle-dot', label: 'Bullseye Ring', category: 'Beacons & Targets' },
+  { id: 'dots', label: 'Minimalist Dot', category: 'Beacons & Targets' },
+  { id: 'navigation', label: 'Compass Nav', category: 'Beacons & Targets' },
+
+  // Symbols
+  { id: 'star-four', label: 'Sparkle Star', category: 'Symbols' },
+  { id: 'star', label: '5-Point Star', category: 'Symbols' },
+  { id: 'flag', label: 'Site Flag', category: 'Symbols' },
+  { id: 'heart', label: 'Amenity Heart', category: 'Symbols' },
+  { id: 'vicinity-logo', label: 'Brand Logo Badge', category: 'Geometric Badges' },
 ];
 
 export const ICON_SVGS: Record<string, string> = {
   pin: '<path d="M12 21s-7-6-7-11a7 7 0 0 1 14 0c0 5-7 11-7 11z"></path><circle cx="12" cy="10" r="2.5"></circle>',
   'pin-drop': '<path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"></path><circle cx="12" cy="9" r="2.5"></circle>',
+  'modern-pin': '<path d="M12 2a6 6 0 0 0-6 6c0 4.5 6 13 6 13s6-8.5 6-13a6 6 0 0 0-6-6z"></path><circle cx="12" cy="8" r="2.5"></circle>',
+  'teardrop-ring': '<path d="M12 2a7 7 0 0 0-7 7c0 5.25 7 13 7 13s7-7.75 7-13a7 7 0 0 0-7-7z"></path><circle cx="12" cy="9" r="4.5" fill="none" stroke-width="1.8"></circle>',
   pinball: '<circle cx="12" cy="9" r="6.5"></circle><line x1="12" y1="15.5" x2="12" y2="22"></line><ellipse cx="12" cy="22" rx="3.5" ry="1"></ellipse>',
   'center-pinball': '<circle cx="12" cy="9" r="6.5"></circle><line x1="12" y1="15.5" x2="12" y2="22"></line><circle cx="12" cy="9" r="2"></circle><ellipse cx="12" cy="22" rx="4.5" ry="1.5"></ellipse>',
   'pinball-glow': '<circle cx="12" cy="9" r="7"></circle><line x1="12" y1="16" x2="12" y2="22"></line><circle cx="12" cy="9" r="3.5"></circle>',
   circle: '<circle cx="12" cy="12" r="8"></circle><circle cx="12" cy="12" r="3.5"></circle>',
   'circle-dot': '<circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="2"></circle>',
+  dots: '<circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2.5" fill="#ffffff"></circle>',
   star: '<path d="M12 2l2.9 6.3 6.9.8-5.1 4.7 1.4 6.8-6.1-3.4-6.1 3.4 1.4-6.8L2.2 9.1l6.9-.8z"></path>',
   'star-four': '<path d="M12 2L14.5 9.5L22 12L14.5 14.5L12 22L9.5 14.5L2 12L9.5 9.5Z"></path>',
   diamond: '<path d="M12 2L21 12L12 22L3 12Z"></path><circle cx="12" cy="12" r="3"></circle>',
   square: '<rect x="4" y="4" width="16" height="16" rx="4"></rect><circle cx="12" cy="12" r="3"></circle>',
+  'squircle-badge': '<rect x="3" y="3" width="18" height="18" rx="6"></rect><circle cx="12" cy="12" r="3.5"></circle>',
+  'pill-badge': '<rect x="2" y="6" width="20" height="12" rx="6"></rect><circle cx="12" cy="12" r="3"></circle>',
+  hexagon: '<polygon points="12 2 21 7 21 17 12 22 3 17 3 7"></polygon><circle cx="12" cy="12" r="3.5"></circle>',
+  octagon: '<polygon points="7.8 2 16.2 2 22 7.8 22 16.2 16.2 22 7.8 22 2 16.2 2 7.8"></polygon><circle cx="12" cy="12" r="3.5"></circle>',
+  crosshair: '<circle cx="12" cy="12" r="7.5"></circle><line x1="12" y1="1" x2="12" y2="5"></line><line x1="12" y1="19" x2="12" y2="23"></line><line x1="1" y1="12" x2="5" y2="12"></line><line x1="19" y1="12" x2="23" y2="12"></line>',
+  'beacon-ring': '<circle cx="12" cy="12" r="9.5"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2.5"></circle>',
   flag: '<path d="M6 22V3"></path><path d="M6 4h11l-2 4 2 4H6"></path>',
   heart: '<path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.4-7 10-7 10z"></path>',
   navigation: '<polygon points="12 2 19 21 12 17 5 21 12 2"></polygon>',
   shield: '<path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>',
+  'vicinity-logo': '<rect x="2" y="2" width="20" height="20" rx="5"></rect><circle cx="12" cy="12" r="6" stroke-dasharray="2 1"></circle><circle cx="12" cy="12" r="2"></circle>',
 };
 
 /**
@@ -596,6 +625,175 @@ export function renderIconCanvas(shape: string, color: string): HTMLCanvasElemen
     return c;
   }
 
+  if (shape === 'teardrop-ring') {
+    ctx.arc(32, 22, 16, Math.PI * 0.8, Math.PI * 0.2, false);
+    ctx.lineTo(32, 56);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(32, 22, 9, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.fillStyle = baseColor;
+    ctx.arc(32, 22, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
+  if (shape === 'hexagon') {
+    const cx = 32, cy = 32, r = 22;
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3 - Math.PI / 6;
+      const px = cx + r * Math.cos(a);
+      const py = cy + r * Math.sin(a);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(32, 32, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
+  if (shape === 'octagon') {
+    const cx = 32, cy = 32, r = 22;
+    for (let i = 0; i < 8; i++) {
+      const a = (i * Math.PI) / 4 - Math.PI / 8;
+      const px = cx + r * Math.cos(a);
+      const py = cy + r * Math.sin(a);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(32, 32, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
+  if (shape === 'squircle-badge') {
+    const x = 11, y = 11, w = 42, h = 42, rad = 14;
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(32, 32, 6, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
+  if (shape === 'pill-badge') {
+    const x = 7, y = 18, w = 50, h = 28, rad = 14;
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(32, 32, 5, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
+  if (shape === 'crosshair') {
+    ctx.arc(32, 32, 19, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    ctx.moveTo(32, 6); ctx.lineTo(32, 14);
+    ctx.moveTo(32, 50); ctx.lineTo(32, 58);
+    ctx.moveTo(6, 32); ctx.lineTo(14, 32);
+    ctx.moveTo(50, 32); ctx.lineTo(58, 32);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(32, 32, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
+  if (shape === 'beacon-ring') {
+    ctx.arc(32, 32, 22, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.arc(32, 32, 14, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(32, 32, 7, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = '#ffffff';
+    ctx.arc(32, 32, 3.5, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
+  if (shape === 'vicinity-logo') {
+    const x = 9, y = 9, w = 46, h = 46, rad = 13;
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+    ctx.strokeStyle = baseColor;
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.fillStyle = baseColor;
+    ctx.arc(32, 32, 7, 0, Math.PI * 2);
+    ctx.fill();
+    return c;
+  }
+
   // Fallback pin
   ctx.arc(32, 24, 16, Math.PI * 0.8, Math.PI * 0.2, false);
   ctx.lineTo(32, 58);
@@ -608,6 +806,419 @@ export function renderIconCanvas(shape: string, color: string): HTMLCanvasElemen
   ctx.arc(32, 24, 5, 0, Math.PI * 2);
   ctx.fill();
   return c;
+}
+
+export interface VicinityPresetLogo {
+  id: string;
+  name: string;
+  category: 'Cafe & Dining' | 'Retail & Malls' | 'Banking' | 'Fuel & Transit' | 'Convenience';
+  color: string;
+  bg: string;
+  border: string;
+  monogram: string;
+  logoUrl?: string;
+}
+
+export const VICINITY_PRESET_LOGOS: VicinityPresetLogo[] = [
+  // Cafes & Dining
+  {
+    id: 'starbucks',
+    name: 'Starbucks',
+    category: 'Cafe & Dining',
+    color: '#006241',
+    bg: '#ffffff',
+    border: '#006241',
+    monogram: 'SBX',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/d/d3/Starbucks_Corporation_Logo_2011.svg/120px-Starbucks_Corporation_Logo_2011.svg.png',
+  },
+  {
+    id: 'mcdonalds',
+    name: "McDonald's",
+    category: 'Cafe & Dining',
+    color: '#da291c',
+    bg: '#ffffff',
+    border: '#ffbc0d',
+    monogram: 'MCD',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/36/McDonald%27s_Golden_Arches.svg/120px-McDonald%27s_Golden_Arches.svg.png',
+  },
+  {
+    id: 'jollibee',
+    name: 'Jollibee',
+    category: 'Cafe & Dining',
+    color: '#e31837',
+    bg: '#ffffff',
+    border: '#e31837',
+    monogram: 'JB',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/8/84/Jollibee_2011_logo.svg/120px-Jollibee_2011_logo.svg.png',
+  },
+  {
+    id: 'kfc',
+    name: 'KFC',
+    category: 'Cafe & Dining',
+    color: '#a3080c',
+    bg: '#ffffff',
+    border: '#a3080c',
+    monogram: 'KFC',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/b/bf/KFC_logo.svg/120px-KFC_logo.svg.png',
+  },
+  {
+    id: 'tim-hortons',
+    name: 'Tim Hortons',
+    category: 'Cafe & Dining',
+    color: '#c8102e',
+    bg: '#ffffff',
+    border: '#c8102e',
+    monogram: 'TIM',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/5/57/Tim_Hortons_logo.svg/120px-Tim_Hortons_logo.svg.png',
+  },
+
+  // Retail & Malls
+  {
+    id: 'sm-supermalls',
+    name: 'SM Supermalls',
+    category: 'Retail & Malls',
+    color: '#002f6c',
+    bg: '#ffffff',
+    border: '#002f6c',
+    monogram: 'SM',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/SM_Supermalls_Logo_2022.svg/120px-SM_Supermalls_Logo_2022.svg.png',
+  },
+  {
+    id: 'ayala-malls',
+    name: 'Ayala Malls',
+    category: 'Retail & Malls',
+    color: '#d91b5b',
+    bg: '#ffffff',
+    border: '#d91b5b',
+    monogram: 'AYL',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/90/Ayala_Malls_logo.svg/120px-Ayala_Malls_logo.svg.png',
+  },
+  {
+    id: 'robinsons',
+    name: 'Robinsons Malls',
+    category: 'Retail & Malls',
+    color: '#008542',
+    bg: '#ffffff',
+    border: '#008542',
+    monogram: 'RLC',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/b/bf/Robinsons_Malls_logo.svg/120px-Robinsons_Malls_logo.svg.png',
+  },
+  {
+    id: 'uniqlo',
+    name: 'UNIQLO',
+    category: 'Retail & Malls',
+    color: '#ff0000',
+    bg: '#ffffff',
+    border: '#ff0000',
+    monogram: 'UQ',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/92/UNIQLO_logo.svg/120px-UNIQLO_logo.svg.png',
+  },
+  {
+    id: 'ikea',
+    name: 'IKEA',
+    category: 'Retail & Malls',
+    color: '#0058a3',
+    bg: '#ffcc00',
+    border: '#0058a3',
+    monogram: 'IKEA',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/c/c5/Ikea_logo.svg/120px-Ikea_logo.svg.png',
+  },
+  {
+    id: 'snr',
+    name: 'S&R Membership',
+    category: 'Retail & Malls',
+    color: '#00205b',
+    bg: '#ffffff',
+    border: '#ba0c2f',
+    monogram: 'S&R',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/0/05/S%26R_Membership_Shopping_logo.svg/120px-S%26R_Membership_Shopping_logo.svg.png',
+  },
+
+  // Banking
+  {
+    id: 'bdo',
+    name: 'BDO Unibank',
+    category: 'Banking',
+    color: '#003366',
+    bg: '#ffffff',
+    border: '#fdb913',
+    monogram: 'BDO',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/BDO_Unibank_%28logo%29.svg/120px-BDO_Unibank_%28logo%29.svg.png',
+  },
+  {
+    id: 'bpi',
+    name: 'BPI Bank',
+    category: 'Banking',
+    color: '#b11116',
+    bg: '#ffffff',
+    border: '#b11116',
+    monogram: 'BPI',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/84/Bank_of_the_Philippine_Islands_logo.svg/120px-Bank_of_the_Philippine_Islands_logo.svg.png',
+  },
+  {
+    id: 'metrobank',
+    name: 'Metrobank',
+    category: 'Banking',
+    color: '#002d72',
+    bg: '#ffffff',
+    border: '#002d72',
+    monogram: 'MB',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/6/69/Metrobank_logo.svg/120px-Metrobank_logo.svg.png',
+  },
+  {
+    id: 'unionbank',
+    name: 'UnionBank',
+    category: 'Banking',
+    color: '#ff6600',
+    bg: '#ffffff',
+    border: '#ff6600',
+    monogram: 'UBP',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/8/87/UnionBank_of_the_Philippines_Logo.svg/120px-UnionBank_of_the_Philippines_Logo.svg.png',
+  },
+
+  // Fuel & Transit
+  {
+    id: 'shell',
+    name: 'Shell',
+    category: 'Fuel & Transit',
+    color: '#dd1d21',
+    bg: '#ffffff',
+    border: '#fecd00',
+    monogram: 'SHL',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/en/thumb/e/e8/Shell_logo.svg/120px-Shell_logo.svg.png',
+  },
+  {
+    id: 'petron',
+    name: 'Petron',
+    category: 'Fuel & Transit',
+    color: '#0033a0',
+    bg: '#ffffff',
+    border: '#da291c',
+    monogram: 'PET',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Petron_Corporation_logo.svg/120px-Petron_Corporation_logo.svg.png',
+  },
+
+  // Convenience & Health
+  {
+    id: 'seven-eleven',
+    name: '7-Eleven',
+    category: 'Convenience',
+    color: '#008060',
+    bg: '#ffffff',
+    border: '#f58220',
+    monogram: '7-11',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/4/40/7-eleven_logo.svg/120px-7-eleven_logo.svg.png',
+  },
+  {
+    id: 'mercury-drug',
+    name: 'Mercury Drug',
+    category: 'Convenience',
+    color: '#da291c',
+    bg: '#ffffff',
+    border: '#da291c',
+    monogram: 'MDC',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/7/77/Mercury_Drug_logo.svg/120px-Mercury_Drug_logo.svg.png',
+  },
+  {
+    id: 'watsons',
+    name: 'Watsons',
+    category: 'Convenience',
+    color: '#00a3ad',
+    bg: '#ffffff',
+    border: '#00a3ad',
+    monogram: 'WAT',
+    logoUrl: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/91/Watsons_logo.svg/120px-Watsons_logo.svg.png',
+  },
+];
+
+export interface UniformLogoOptions {
+  logoUrl?: string;
+  monogramText?: string;
+  frame?: 'circle' | 'squircle' | 'hexagon' | 'pin-badge';
+  bg?: string;
+  border?: string;
+  borderWidth?: number;
+  scale?: number; // 0.45 - 0.85
+  color?: string;
+}
+
+/**
+ * Procedurally draws a perfectly symmetrical, uniform brand logo badge with ground shadow and specular gloss
+ */
+export async function renderUniformLogoMarker(
+  options: UniformLogoOptions,
+  map?: any
+): Promise<{ key: string; dataUrl: string }> {
+  const c = document.createElement('canvas');
+  c.width = 96;
+  c.height = 96;
+  const ctx = c.getContext('2d');
+  if (!ctx) throw new Error('Canvas 2D context unavailable');
+
+  const {
+    logoUrl,
+    monogramText,
+    frame = 'circle',
+    bg = '#ffffff',
+    border = '#ffffff',
+    borderWidth = 3,
+    scale = 0.72,
+    color = '#1e40af',
+  } = options;
+
+  ctx.clearRect(0, 0, 96, 96);
+
+  const isPin = frame === 'pin-badge';
+  const cx = 48;
+  const cy = isPin ? 38 : 46;
+  const radius = isPin ? 30 : 36;
+
+  // 1. Realistic ground contact shadow
+  ctx.save();
+  const shadowGrad = ctx.createRadialGradient(48, 88, 1, 48, 88, isPin ? 18 : 22);
+  shadowGrad.addColorStop(0, 'rgba(0, 0, 0, 0.75)');
+  shadowGrad.addColorStop(0.5, 'rgba(0, 0, 0, 0.35)');
+  shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+  ctx.fillStyle = shadowGrad;
+  ctx.beginPath();
+  ctx.ellipse(48, 88, isPin ? 18 : 22, isPin ? 5 : 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 2. Metallic needle stem if pin badge
+  if (isPin) {
+    ctx.save();
+    const stemGrad = ctx.createLinearGradient(44, 60, 52, 60);
+    stemGrad.addColorStop(0, '#18181b');
+    stemGrad.addColorStop(0.35, '#ffffff');
+    stemGrad.addColorStop(0.7, '#71717a');
+    stemGrad.addColorStop(1, '#09090b');
+    ctx.fillStyle = stemGrad;
+    ctx.beginPath();
+    ctx.moveTo(46, 56);
+    ctx.lineTo(50, 56);
+    ctx.lineTo(49, 87);
+    ctx.lineTo(47, 87);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // 3. Frame Geometry with elevation shadow
+  ctx.save();
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+  ctx.shadowBlur = 8;
+  ctx.shadowOffsetY = 3;
+
+  ctx.fillStyle = bg;
+  ctx.strokeStyle = border;
+  ctx.lineWidth = borderWidth;
+  ctx.beginPath();
+
+  if (frame === 'circle' || frame === 'pin-badge') {
+    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+  } else if (frame === 'squircle') {
+    const x = cx - radius;
+    const y = cy - radius;
+    const w = radius * 2;
+    const h = radius * 2;
+    const rad = 16;
+    ctx.moveTo(x + rad, y);
+    ctx.lineTo(x + w - rad, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + rad);
+    ctx.lineTo(x + w, y + h - rad);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - rad, y + h);
+    ctx.lineTo(x + rad, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - rad);
+    ctx.lineTo(x, y + rad);
+    ctx.quadraticCurveTo(x, y, x + rad, y);
+    ctx.closePath();
+  } else if (frame === 'hexagon') {
+    for (let i = 0; i < 6; i++) {
+      const a = (i * Math.PI) / 3 - Math.PI / 6;
+      const px = cx + radius * Math.cos(a);
+      const py = cy + radius * Math.sin(a);
+      i === 0 ? ctx.moveTo(px, py) : ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  }
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+
+  // 4. Logo Content: Contain image or centered monogram
+  const maxBoxSize = radius * 2 * Math.min(Math.max(scale, 0.45), 0.88);
+
+  const drawMonogram = (text: string) => {
+    ctx.save();
+    ctx.fillStyle = color || '#0c1322';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const cleanText = text.slice(0, 4).toUpperCase();
+    const fontSize = cleanText.length > 2 ? radius * 0.75 : radius * 0.9;
+    ctx.font = `900 ${fontSize}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif`;
+    ctx.fillText(cleanText, cx, cy + 1);
+    ctx.restore();
+  };
+
+  if (logoUrl) {
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      await new Promise<void>((res, rej) => {
+        img.onload = () => res();
+        img.onerror = () => rej(new Error('Failed to load image'));
+        img.src = logoUrl;
+      });
+
+      const aspect = (img.naturalWidth || 1) / (img.naturalHeight || 1);
+      let drawW = maxBoxSize;
+      let drawH = maxBoxSize;
+      if (aspect > 1) {
+        drawH = maxBoxSize / aspect;
+      } else {
+        drawW = maxBoxSize * aspect;
+      }
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(cx, cy, radius - 2, 0, Math.PI * 2);
+      ctx.clip();
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(img, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
+      ctx.restore();
+    } catch (_) {
+      drawMonogram(monogramText || 'POI');
+    }
+  } else if (monogramText) {
+    drawMonogram(monogramText);
+  } else {
+    drawMonogram('HUB');
+  }
+
+  // 5. Specular highlight for 3D glassy finish
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(cx - radius * 0.35, cy - radius * 0.4, radius * 0.4, radius * 0.18, -Math.PI / 4, 0, Math.PI * 2);
+  ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+  ctx.fill();
+  ctx.restore();
+
+  const dataUrl = c.toDataURL('image/png');
+  const key = `vicinity_logo_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+
+  if (map) {
+    const imgData = ctx.getImageData(0, 0, 96, 96);
+    try {
+      if (map.hasImage(key)) map.removeImage(key);
+      map.addImage(key, imgData, { pixelRatio: 2 });
+    } catch (e) {
+      console.warn('Failed to add uniform logo image to map:', e);
+    }
+  }
+
+  return { key, dataUrl };
 }
 
 /**
