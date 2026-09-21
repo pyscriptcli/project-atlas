@@ -31,7 +31,13 @@ import {
   Layers,
   Sliders,
   Palette,
-  Plus,
+  Send,
+  MessageSquare,
+  Bot,
+  User,
+  CheckSquare,
+  Square,
+  MinusSquare,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import {
@@ -51,6 +57,13 @@ interface TradeAreaSidebarProps {
   mapInstance: any;
 }
 
+interface QAMessage {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+}
+
 export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance }) => {
   const {
     activePanels,
@@ -67,10 +80,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setActiveTool,
   } = useMapStore();
 
-  // 3-Tab Workflow: 'setup' (Target & Scan) | 'layers' (Active Layers & Styling) | 'export_ai' (Export & AI)
-  const [activeTab, setActiveTab] = useState<'setup' | 'layers' | 'export_ai'>('setup');
+  // Primary 2-Tab Workflow: 'target_layers' (Setup & Mapped Assets) | 'ai' (Spatial Intelligence & Q&A)
+  const [activeTab, setActiveTab] = useState<'target_layers' | 'ai'>('target_layers');
 
-  // Scan Target Mode: 'coords' (Open Node default) | 'circle' (Draw on map) | 'shape' (Draw polygon)
+  // Target Mode: 'coords' (Open Node default) | 'circle' (Map circle) | 'shape' (Drawn polygon)
   const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape'>('coords');
   const [coordsInput, setCoordsInput] = useState<string>('14.5995, 120.9842');
   const [radiusMeters, setRadiusMeters] = useState<number>(1000);
@@ -97,22 +110,24 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [scannedPois, setScannedPois] = useState<ScannedPOI[]>([]);
   const [categoryBreakdown, setCategoryBreakdown] = useState<Record<string, number>>({});
 
-  // Global & Per-Layer Marker Styling State (Monochrome Defaults)
+  // Global Marker Styling State (Monochrome Defaults)
   const [globalMarkerStyle, setGlobalMarkerStyle] = useState<MarkerShape>('modern-pin');
   const [globalMarkerSize, setGlobalMarkerSize] = useState<number>(20);
   const [globalMarkerColor, setGlobalMarkerColor] = useState<string>('#ffffff');
-
-  // Custom Layer Clusters: { clusterName: [categoryKey1, categoryKey2] }
-  const [clusters, setClusters] = useState<Record<string, string[]>>({});
-  const [showClusterModal, setShowClusterModal] = useState<boolean>(false);
-  const [newClusterName, setNewClusterName] = useState<string>('');
-  const [selectedClusterCategories, setSelectedClusterCategories] = useState<string[]>([]);
+  const [showStyleMenu, setShowStyleMenu] = useState<boolean>(false);
+  const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
 
   // Visual AI Intelligence Dashboard State
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
   const [aiData, setAiData] = useState<AIInsightsPayload | null>(null);
   const [hasCopied, setHasCopied] = useState<boolean>(false);
   const [showRawBrief, setShowRawBrief] = useState<boolean>(false);
+
+  // Interactive Spatial AI Q&A State
+  const [qaMessages, setQaMessages] = useState<QAMessage[]>([]);
+  const [qaInput, setQaInput] = useState<string>('');
+  const [isQaLoading, setIsQaLoading] = useState<boolean>(false);
+  const chatBottomRef = useRef<HTMLDivElement | null>(null);
 
   // Drawn circles and shapes on MapLibre
   const drawnCircles = useMemo(() => features.filter((f) => f.kind === 'circle'), [features]);
@@ -145,7 +160,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       setScanStage(0);
       timer = setInterval(() => {
         setScanStage((prev) => (prev < 3 ? prev + 1 : prev));
-      }, 800);
+      }, 750);
     } else {
       setScanStage(0);
     }
@@ -153,6 +168,13 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       if (timer) clearInterval(timer);
     };
   }, [isScanning]);
+
+  // Auto-scroll chat to bottom
+  useEffect(() => {
+    if (activeTab === 'ai') {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [qaMessages, isQaLoading, activeTab]);
 
   if (!activePanels.tradeArea) return null;
 
@@ -273,7 +295,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   };
 
   // Quick preset selections
-  const handleSelectPreset = (preset: 'commercial' | 'retail' | 'all' | 'clear') => {
+  const handleSelectPreset = (preset: 'commercial' | 'all' | 'clear') => {
     if (preset === 'clear') {
       setSelectedTags([]);
       return;
@@ -286,7 +308,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     if (preset === 'commercial') {
       const commTags = (POI_CONFIG['COMMERCIAL & OFFICES'] || []).map(([_, t]) => t);
       const retTags = (POI_CONFIG['RETAIL'] || []).map(([_, t]) => t);
-      setSelectedTags(Array.from(new Set([...commTags, ...retTags])));
+      const fbTags = (POI_CONFIG['FOOD, BEVERAGE & HOSPITALITY'] || []).map(([_, t]) => t);
+      setSelectedTags(Array.from(new Set([...commTags, ...retTags, ...fbTags])));
     }
   };
 
@@ -316,6 +339,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setScannedPois([]);
     setCategoryBreakdown({});
     setAiData(null);
+    setQaMessages([]);
     setActiveCinematicCluster(null);
 
     if (activeBufferFeatureId) {
@@ -369,7 +393,6 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         return;
       }
     } else {
-      // Circle mode: find selected or latest drawn circle
       const activeCircle =
         features.find((f) => f.id === selectedCircleId && f.kind === 'circle') ||
         drawnCircles[drawnCircles.length - 1];
@@ -424,12 +447,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setScannedPois(result.features);
     setCategoryBreakdown(result.categoryCounts);
 
-    // Smooth camera transition to encompass the scanned area
     if (mapInstance && (areaMode === 'coords' || areaMode === 'circle')) {
       mapInstance.easeTo({ center: [lon, lat], zoom: radius > 5000 ? 12 : 14, duration: 1200 });
     }
 
-    // Add scanned POIs to Zustand store and custom group
     let updatedGroups = { ...customGroups };
     if (!updatedGroups['Trade Area Scan']) {
       updatedGroups['Trade Area Scan'] = { collapsed: false, ids: [] };
@@ -474,29 +495,19 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setCustomGroups(updatedGroups);
 
     setToast(`Found and mapped ${result.features.length} POIs!`);
-    setActiveTab('layers'); // Automatically switch to layers tab to view results
   };
 
   // Apply global styling to all scanned features
-  const handleApplyGlobalMarkerStyle = (
-    style: MarkerShape,
-    size: number,
-    color: string
-  ) => {
+  const handleApplyGlobalStyle = (style: MarkerShape) => {
     setGlobalMarkerStyle(style);
-    setGlobalMarkerSize(size);
-    setGlobalMarkerColor(color);
-
     activeScannedFeatures.forEach((f) => {
-      const fColor = color || f.props?.color || '#ffffff';
-      const iconKey = mapInstance ? getIconKey(style, fColor, mapInstance) : undefined;
+      const color = f.props.color || '#ffffff';
+      const iconKey = mapInstance ? getIconKey(style, color, mapInstance) : undefined;
       updateFeature(f.id, (prev) => ({
         ...prev,
         props: {
           ...prev.props,
           shape: style,
-          iconSize: size / 20,
-          color: fColor,
           iconKey: iconKey || prev.props.iconKey,
         },
       }));
@@ -533,56 +544,6 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
   };
 
-  // Rename a category
-  const handleRenameCategory = (oldCategory: string) => {
-    const newName = prompt('Enter new category designation:', oldCategory);
-    if (newName && newName.trim() && newName !== oldCategory) {
-      const feats = featuresByCategory[oldCategory] || [];
-      feats.forEach((f) => {
-        updateFeature(f.id, (prev) => ({
-          ...prev,
-          props: { ...prev.props, category: newName.trim() },
-        }));
-      });
-      setScannedPois((prev) =>
-        prev.map((p) => (p.category === oldCategory ? { ...p, category: newName.trim() } : p))
-      );
-      setToast(`Renamed ${oldCategory} to ${newName}`);
-    }
-  };
-
-  // Rename individual POI
-  const handleRenamePoi = (fId: number, oldName: string) => {
-    const newName = prompt('Rename POI:', oldName);
-    if (newName && newName.trim()) {
-      updateFeature(fId, (prev) => ({
-        ...prev,
-        name: newName.trim(),
-        props: {
-          ...prev.props,
-          attributes: { ...prev.props.attributes, Name: newName.trim() },
-        },
-      }));
-    }
-  };
-
-  // Delete individual POI
-  const handleDeletePoi = (fId: number) => {
-    removeFeature(fId);
-  };
-
-  // Toggle single POI visibility
-  const handleTogglePoiVisibility = (fId: number) => {
-    const f = features.find((item) => item.id === fId);
-    if (f) {
-      const nextVis = f.props.visible === 0 ? 1 : 0;
-      updateFeature(fId, (prev) => ({
-        ...prev,
-        props: { ...prev.props, visible: nextVis },
-      }));
-    }
-  };
-
   // Fly to single POI
   const handleFlyToPoi = (f: GISFeature) => {
     if (mapInstance && f.geometry.type === 'Point') {
@@ -591,73 +552,17 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
   };
 
-  // Commit Custom Cluster
-  const handleCreateCluster = () => {
-    const name = newClusterName.trim();
-    if (!name) {
-      alert('Please enter a cluster designation name.');
-      return;
+  // Fly to Commercial Cluster
+  const handleFlyToCluster = (cluster: CommercialCluster) => {
+    if (mapInstance && cluster.center) {
+      mapInstance.flyTo({
+        center: [cluster.center[1], cluster.center[0]],
+        zoom: 16.5,
+        duration: 1200,
+      });
+      setActiveCinematicCluster(cluster.name);
+      setToast(`Focused on cluster: ${cluster.name}`);
     }
-    if (selectedClusterCategories.length === 0) {
-      alert('Please select at least one category to include.');
-      return;
-    }
-    setClusters((prev) => ({ ...prev, [name]: selectedClusterCategories }));
-    setNewClusterName('');
-    setSelectedClusterCategories([]);
-    setShowClusterModal(false);
-    setToast(`Created cluster group: "${name}"`);
-  };
-
-  // Batch toggle cluster visibility
-  const handleToggleClusterVisibility = (clusterName: string) => {
-    const catKeys = clusters[clusterName] || [];
-    const targetedFeats = activeScannedFeatures.filter((f) => catKeys.includes(f.props.category || ''));
-    const isAnyVisible = targetedFeats.some((f) => f.props.visible !== 0);
-    const nextVis = isAnyVisible ? 0 : 1;
-
-    targetedFeats.forEach((f) => {
-      updateFeature(f.id, (prev) => ({
-        ...prev,
-        props: { ...prev.props, visible: nextVis },
-      }));
-    });
-  };
-
-  // Batch style cluster
-  const handleBatchStyleCluster = (
-    clusterName: string,
-    style: MarkerShape,
-    color: string,
-    size: number
-  ) => {
-    const catKeys = clusters[clusterName] || [];
-    const targetedFeats = activeScannedFeatures.filter((f) => catKeys.includes(f.props.category || ''));
-
-    targetedFeats.forEach((f) => {
-      const iconKey = mapInstance ? getIconKey(style, color, mapInstance) : undefined;
-      updateFeature(f.id, (prev) => ({
-        ...prev,
-        props: {
-          ...prev.props,
-          shape: style,
-          color,
-          iconSize: size / 20,
-          iconKey: iconKey || prev.props.iconKey,
-        },
-      }));
-    });
-    setToast(`Updated styling for cluster: ${clusterName}`);
-  };
-
-  // Dissolve Cluster
-  const handleDissolveCluster = (clusterName: string) => {
-    setClusters((prev) => {
-      const next = { ...prev };
-      delete next[clusterName];
-      return next;
-    });
-    setToast(`Dissolved cluster: ${clusterName}`);
   };
 
   // Export to GeoJSON
@@ -685,6 +590,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     a.download = `trade_area_pois_${Date.now()}.geojson`;
     a.click();
     URL.revokeObjectURL(url);
+    setShowExportMenu(false);
     setToast(`Exported ${visibleFeats.length} POIs to GeoJSON!`);
   };
 
@@ -707,6 +613,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     a.download = `trade_area_pois_${Date.now()}.kml`;
     a.click();
     URL.revokeObjectURL(url);
+    setShowExportMenu(false);
     setToast(`Exported ${visibleFeats.length} POIs to KML!`);
   };
 
@@ -749,66 +656,175 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       }
 
       setAiData(data);
-      setToast('AI Analysis generated successfully!');
-    } catch (err: any) {
-      console.error('AI error:', err);
-      setToast(`AI Error: ${err.message}`);
+      setToast('Spatial AI commercial analysis complete!');
+    } catch (e: any) {
+      console.error(e);
+      setToast(e.message || 'Error running AI analysis');
     } finally {
       setIsAiLoading(false);
     }
   };
 
-  // Copy AI dossier to clipboard
+  // Copy report
   const handleCopyReport = () => {
     if (!aiData) return;
-    const text = `
-TRADE AREA INTELLIGENCE REPORT
-Vitality: ${aiData.summary.commercialScore}/100 | Saturation: ${aiData.summary.saturationRating}
-
-EXECUTIVE SUMMARY:
-${aiData.summary.brief}
-
-STRATEGIC RECOMMENDATIONS:
-${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
-    `.trim();
-
+    const text = aiData.rawMarkdown || JSON.stringify(aiData, null, 2);
     navigator.clipboard.writeText(text);
     setHasCopied(true);
-    setTimeout(() => setHasCopied(false), 2500);
+    setTimeout(() => setHasCopied(false), 2000);
+    setToast('Commercial dossier copied to clipboard!');
+  };
+
+  // Send interactive Spatial Q&A message
+  const handleSendQaMessage = async (queryText?: string) => {
+    const text = (queryText || qaInput).trim();
+    if (!text || isQaLoading) return;
+
+    if (scannedPois.length === 0) {
+      setToast('Please scan an area first so the AI has real spatial data to answer from.');
+      return;
+    }
+
+    const userMsg: QAMessage = {
+      id: `user-${Date.now()}`,
+      role: 'user',
+      content: text,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setQaMessages((prev) => [...prev, userMsg]);
+    setQaInput('');
+    setIsQaLoading(true);
+
+    try {
+      const parsed = parseCoords();
+      const centerCoords = parsed ? [parsed.lat, parsed.lon] : [14.5995, 120.9842];
+
+      const res = await fetch('/api/ai/insights', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: text,
+          history: qaMessages.slice(-4).map((m) => ({ role: m.role, content: m.content })),
+          pois: scannedPois.slice(0, 150).map((p) => ({
+            name: p.name,
+            type: p.type,
+            category: p.category,
+            street: p.tags?.['addr:street'] || p.tags?.street,
+            city: p.tags?.['addr:city'],
+            suburb: p.tags?.['addr:suburb'] || p.tags?.neighbourhood || p.tags?.place,
+            lat: p.lat,
+            lon: p.lon,
+            tags: p.tags,
+          })),
+          center: centerCoords,
+          summary: categoryBreakdown,
+          radiusMeters,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to formulate response');
+      }
+
+      const assistantMsg: QAMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: data.answer || 'No analysis generated.',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+
+      setQaMessages((prev) => [...prev, assistantMsg]);
+    } catch (err: any) {
+      console.error(err);
+      const errorMsg: QAMessage = {
+        id: `assistant-${Date.now()}`,
+        role: 'assistant',
+        content: `Error: ${err.message || 'Unable to analyze spatial query. Please try again.'}`,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      };
+      setQaMessages((prev) => [...prev, errorMsg]);
+    } finally {
+      setIsQaLoading(false);
+    }
   };
 
   return (
-    <div className="fixed top-16 left-4 bottom-4 w-[430px] max-w-[calc(100vw-2rem)] z-[1000] bg-black/75 border border-white/10 rounded-3xl shadow-[0_24px_80px_rgba(0,0,0,0.85)] backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-zinc-300 animate-in fade-in slide-in-from-left-4">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 pb-3 border-b border-white/10 shrink-0 bg-white/[0.02]">
+    <div className="fixed top-16 left-4 bottom-4 w-[480px] max-w-[calc(100vw-2rem)] z-[1000] bg-zinc-950/85 border border-white/10 rounded-3xl shadow-[0_24px_80px_rgba(0,0,0,0.9)] backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-zinc-300 animate-in fade-in slide-in-from-left-4 select-none">
+      {/* Top Header Bar */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 shrink-0 bg-white/[0.02]">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-2xl bg-white/[0.05] border border-white/15 flex items-center justify-center text-white shadow-inner">
+          <div className="w-9 h-9 rounded-2xl bg-white/[0.06] border border-white/15 flex items-center justify-center text-white shadow-inner">
             <Radar className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-bold text-white text-sm tracking-tight leading-tight flex items-center gap-2">
-              <span>Open Node</span>
+            <div className="flex items-center gap-2">
+              <h3 className="font-bold text-white text-sm tracking-tight leading-none">
+                Open Node
+              </h3>
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-white/10 text-zinc-300 border border-white/20 uppercase font-mono font-bold tracking-wider">
-                GIS Scanner
+                Spatial Engine
               </span>
-            </h3>
-            <span className="text-[10px] text-zinc-400 font-medium">
-              Spatial Overpass Engine & Marker Suite
-            </span>
+            </div>
+            <p className="text-[10px] text-zinc-400 font-medium mt-0.5">
+              Overpass Multi-Mirror & AI Trade Area Suite
+            </p>
           </div>
         </div>
-        <div className="flex items-center gap-1.5">
+
+        {/* Header Action Buttons */}
+        <div className="flex items-center gap-1.5 relative">
+          {/* Export Dropdown Trigger */}
+          {activeScannedFeatures.length > 0 && (
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-300 hover:text-white transition flex items-center gap-1 text-[11px] font-medium"
+                title="Export Data"
+              >
+                <Download className="w-3.5 h-3.5" />
+                <span>Export</span>
+                <ChevronDown className="w-3 h-3 text-zinc-400" />
+              </button>
+
+              {showExportMenu && (
+                <div className="absolute right-0 top-full mt-1.5 w-44 bg-zinc-950 border border-white/15 rounded-2xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in">
+                  <button
+                    type="button"
+                    onClick={handleExportGeoJSON}
+                    className="w-full text-left px-3 py-2 text-[11px] text-zinc-200 hover:bg-white/10 rounded-xl transition flex items-center gap-2 font-medium"
+                  >
+                    <Download className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>GeoJSON FeatureCollection</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleExportKML}
+                    className="w-full text-left px-3 py-2 text-[11px] text-zinc-200 hover:bg-white/10 rounded-xl transition flex items-center gap-2 font-medium"
+                  >
+                    <Download className="w-3.5 h-3.5 text-zinc-400" />
+                    <span>Google Earth (KML)</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Reset Scan */}
           {(activeScannedFeatures.length > 0 || scannedPois.length > 0) && (
             <button
               type="button"
               onClick={handleClearScan}
-              className="px-2.5 py-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-300 hover:text-white transition flex items-center gap-1 text-[11px] font-semibold"
-              title="Reset and clear all scan results and pins"
+              className="p-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-400 hover:text-white transition"
+              title="Clear all scan results and pins"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              <span>Reset</span>
             </button>
           )}
+
+          {/* Close Sidebar */}
           <button
             onClick={() => togglePanel('tradeArea', false)}
             className="p-2 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition"
@@ -819,37 +835,26 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
         </div>
       </div>
 
-      {/* 3-Tab Workflow Navigation Header (Monochrome Glassmorphism) */}
-      <div className="px-4 pt-3 pb-2 shrink-0">
-        <div className="flex gap-1 p-1 bg-black/60 rounded-2xl border border-white/10 backdrop-blur-xl">
+      {/* Primary 2-Tab Navigation (Decluttered, Modern Apple / Linear Aesthetic) */}
+      <div className="px-5 pt-3.5 pb-2 shrink-0">
+        <div className="flex gap-1.5 p-1 bg-black/60 rounded-2xl border border-white/10 backdrop-blur-xl">
           <button
             type="button"
-            onClick={() => setActiveTab('setup')}
-            className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-1.5 ${
-              activeTab === 'setup'
+            onClick={() => setActiveTab('target_layers')}
+            className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-2 ${
+              activeTab === 'target_layers'
                 ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Radar className={`w-3.5 h-3.5 ${activeTab === 'setup' ? 'text-black' : 'text-zinc-400'}`} />
-            <span>Target & Scan</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('layers')}
-            className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-1.5 ${
-              activeTab === 'layers'
-                ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Layers className={`w-3.5 h-3.5 ${activeTab === 'layers' ? 'text-black' : 'text-zinc-400'}`} />
-            <span>Layers & Style</span>
+            <Radar className={`w-3.5 h-3.5 ${activeTab === 'target_layers' ? 'text-black' : 'text-zinc-400'}`} />
+            <span>Target & POIs</span>
             {activeScannedFeatures.length > 0 && (
               <span
                 className={`px-1.5 py-0.2 rounded-full font-mono text-[9px] font-black ${
-                  activeTab === 'layers' ? 'bg-black text-white' : 'bg-white/15 text-zinc-200 border border-white/20'
+                  activeTab === 'target_layers'
+                    ? 'bg-black text-white'
+                    : 'bg-white/15 text-zinc-200 border border-white/20'
                 }`}
               >
                 {activeScannedFeatures.length}
@@ -859,28 +864,35 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
           <button
             type="button"
-            onClick={() => setActiveTab('export_ai')}
-            className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-1.5 ${
-              activeTab === 'export_ai'
+            onClick={() => setActiveTab('ai')}
+            className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-2 ${
+              activeTab === 'ai'
                 ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
                 : 'text-zinc-400 hover:text-white hover:bg-white/5'
             }`}
           >
-            <Download className={`w-3.5 h-3.5 ${activeTab === 'export_ai' ? 'text-black' : 'text-zinc-400'}`} />
-            <span>Export & AI</span>
+            <Sparkles className={`w-3.5 h-3.5 ${activeTab === 'ai' ? 'text-black' : 'text-zinc-400'}`} />
+            <span>Spatial AI & Q&A</span>
+            {aiData && (
+              <span
+                className={`w-2 h-2 rounded-full ${
+                  activeTab === 'ai' ? 'bg-black' : 'bg-emerald-400'
+                }`}
+              />
+            )}
           </button>
         </div>
       </div>
 
       {/* Main Scrollable Body */}
-      <div className="flex-1 overflow-y-auto px-4 py-2 space-y-4">
+      <div className="flex-1 overflow-y-auto px-5 py-2 space-y-4">
         {/* =========================================================================
-            TAB 1: TARGET & CATEGORIES SETUP
+            TAB 1: TARGET DEFINITION, COMPACT POI TAXONOMY, & MAPPED ASSETS
            ========================================================================= */}
-        {activeTab === 'setup' && (
-          <>
-            {/* Target Mode Selector Card */}
-            <div className="bg-white/[0.03] border border-white/10 rounded-2xl p-3.5 space-y-3 shrink-0 backdrop-blur-xl shadow-sm">
+        {activeTab === 'target_layers' && (
+          <div className="space-y-4">
+            {/* Target Area Definition Card */}
+            <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-3.5 space-y-3 shrink-0 backdrop-blur-xl">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                   <Crosshair className="w-3.5 h-3.5 text-white" />
@@ -890,7 +902,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     type="button"
                     onClick={() => setAreaMode('coords')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'coords'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
@@ -901,7 +913,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     type="button"
                     onClick={() => setAreaMode('circle')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'circle'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
@@ -912,7 +924,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   <button
                     type="button"
                     onClick={() => setAreaMode('shape')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'shape'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
@@ -923,12 +935,12 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 </div>
               </div>
 
-              {/* Coordinates Mode (Open Node Classic) */}
+              {/* Coordinates Mode */}
               {areaMode === 'coords' && (
-                <div className="space-y-3">
+                <div className="space-y-3 pt-1">
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-zinc-300 uppercase tracking-wide">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
                         Target Coordinates (Lat, Lon)
                       </label>
                       <div className="flex items-center gap-1.5">
@@ -959,7 +971,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
-                      <label className="text-[10px] font-bold text-zinc-300 uppercase tracking-wide">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
                         Search Radius
                       </label>
                       <span className="text-[11px] font-mono font-bold text-white">
@@ -988,7 +1000,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-1 text-[10px]">
+                  <div className="flex items-center justify-between pt-0.5 text-[10px]">
                     <label className="flex items-center gap-2 text-zinc-400 cursor-pointer select-none">
                       <input
                         type="checkbox"
@@ -996,7 +1008,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         onChange={(e) => setShowRadiusGraphics(e.target.checked)}
                         className="accent-white rounded"
                       />
-                      <span>Display Target Pin & Buffer on Map</span>
+                      <span>Display Target Pin & Buffer Circle on Map</span>
                     </label>
                   </div>
                 </div>
@@ -1004,7 +1016,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
               {/* Map Circle Mode */}
               {areaMode === 'circle' && (
-                <div className="space-y-2">
+                <div className="space-y-2 pt-1">
                   {drawnCircles.length > 0 ? (
                     <div className="space-y-2">
                       <select
@@ -1045,7 +1057,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
 
               {/* Polygon Mode */}
               {areaMode === 'shape' && (
-                <div className="space-y-2">
+                <div className="space-y-2 pt-1">
                   <select
                     value={selectedShapeId}
                     onChange={(e) => setSelectedShapeId(e.target.value ? parseInt(e.target.value, 10) : '')}
@@ -1071,33 +1083,33 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
               )}
             </div>
 
-            {/* Scanning In-Progress Feedback Card */}
+            {/* In-Flight Scanning Progress */}
             {isScanning && (
-              <div className="p-5 bg-zinc-950/90 border border-white/20 rounded-2xl backdrop-blur-2xl flex flex-col items-center text-center space-y-4 shadow-2xl animate-in fade-in zoom-in-95 shrink-0">
-                <div className="relative w-12 h-12 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full border border-white/30 animate-ping opacity-40" />
-                  <div className="w-10 h-10 rounded-full bg-white/10 border border-white/30 flex items-center justify-center text-white">
-                    <Radar className="w-5 h-5 animate-spin text-white" style={{ animationDuration: '3s' }} />
+              <div className="p-4 bg-zinc-950/90 border border-white/20 rounded-2xl backdrop-blur-2xl flex flex-col items-center text-center space-y-3.5 shadow-2xl animate-in fade-in shrink-0">
+                <div className="relative w-10 h-10 flex items-center justify-center">
+                  <div className="absolute inset-0 rounded-full border border-white/30 animate-ping opacity-30" />
+                  <div className="w-9 h-9 rounded-full bg-white/10 border border-white/30 flex items-center justify-center text-white">
+                    <Radar className="w-4 h-4 animate-spin text-white" style={{ animationDuration: '2.5s' }} />
                   </div>
                 </div>
 
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <h4 className="font-bold text-white text-xs tracking-tight">
                     Spatial POI Query Running
                   </h4>
                   <p className="text-[10px] text-zinc-400">
-                    Querying Overpass Multi-Mirror Gateways & OSMnx Engine
+                    Querying Overpass Multi-Mirror Gateways & OSMnx
                   </p>
                 </div>
 
-                <div className="w-full space-y-2 text-left bg-black/60 p-3 rounded-xl border border-white/10">
+                <div className="w-full space-y-1.5 text-left bg-black/60 p-2.5 rounded-xl border border-white/10">
                   {[
                     { label: 'Connecting to OpenStreetMap Gateway', done: scanStage > 0, active: scanStage === 0 },
                     { label: `Querying ${selectedTags.length} active taxonomy layers`, done: scanStage > 1, active: scanStage === 1 },
                     { label: 'Parsing coordinates & building node geometry', done: scanStage > 2, active: scanStage === 2 },
                     { label: 'Rendering modern drop-pins and attributes', done: scanStage > 3, active: scanStage === 3 },
                   ].map((st, i) => (
-                    <div key={i} className="flex items-center gap-2 text-[11px]">
+                    <div key={i} className="flex items-center gap-2 text-[10.5px]">
                       {st.done ? (
                         <CheckCircle2 className="w-3.5 h-3.5 text-white shrink-0" />
                       ) : st.active ? (
@@ -1115,7 +1127,7 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                 <button
                   type="button"
                   onClick={handleCancelScan}
-                  className="w-full py-2 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5"
+                  className="w-full py-1.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5"
                 >
                   <X className="w-3.5 h-3.5" />
                   <span>Cancel Scan</span>
@@ -1123,12 +1135,12 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
               </div>
             )}
 
-            {/* POI Taxonomy Categories Selection (Cleared by Default) */}
+            {/* POI Taxonomy Selector (Decluttered, Compact Hierarchical Checklist) */}
             <div className="space-y-2.5 shrink-0">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
                   <Building2 className="w-3.5 h-3.5 text-white" />
-                  <span>POI Categories ({Object.keys(POI_CONFIG).length})</span>
+                  <span>POI Taxonomy ({Object.keys(POI_CONFIG).length} Sectors)</span>
                 </span>
                 <span className="text-[10px] text-zinc-400 font-mono">
                   {selectedTags.length} tags selected
@@ -1142,12 +1154,12 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   type="text"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter parameters (e.g. office, bank, hospital, restaurant)..."
+                  placeholder="Filter parameters (e.g. office, bank, restaurant, pharmacy)..."
                   className="w-full bg-black/50 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-white placeholder-zinc-500 outline-none focus:border-white/40 text-xs transition backdrop-blur-sm"
                 />
               </div>
 
-              {/* Quick Preset Selector Buttons */}
+              {/* Quick Preset Selector Chips */}
               <div className="flex items-center gap-1.5">
                 <button
                   type="button"
@@ -1168,12 +1180,12 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   onClick={() => handleSelectPreset('clear')}
                   className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-400 hover:text-white transition"
                 >
-                  Clear Selection
+                  Clear
                 </button>
               </div>
 
-              {/* Category Accordion Cards */}
-              <div className="space-y-2">
+              {/* Sleek Vertical Category Tree (No button cloud, clean checkboxes) */}
+              <div className="space-y-1.5">
                 {Object.entries(POI_CONFIG).map(([category, items]) => {
                   const filteredItems = searchQuery.trim()
                     ? items.filter(
@@ -1186,9 +1198,10 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                   if (filteredItems.length === 0) return null;
 
                   const isOpen = openCategories[category] || searchQuery.trim().length > 0;
-                  const catSelectedCount = filteredItems.filter(([_, tag]) =>
-                    selectedTags.includes(tag)
-                  ).length;
+                  const catTags = items.map(([_, tag]) => tag);
+                  const selectedCount = catTags.filter((t) => selectedTags.includes(t)).length;
+                  const isAllSelected = selectedCount === catTags.length;
+                  const isPartiallySelected = selectedCount > 0 && selectedCount < catTags.length;
                   const color = CATEGORY_COLORS[category] || '#ffffff';
 
                   return (
@@ -1196,35 +1209,49 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                       key={category}
                       className="border border-white/10 rounded-2xl bg-white/[0.02] overflow-hidden shrink-0 transition hover:border-white/20 backdrop-blur-sm"
                     >
-                      <div
-                        onClick={() =>
-                          setOpenCategories((prev) => ({ ...prev, [category]: !isOpen }))
-                        }
-                        className="flex items-center justify-between p-3 hover:bg-white/[0.04] cursor-pointer transition select-none"
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
+                      {/* Category Master Row */}
+                      <div className="flex items-center justify-between p-2.5 hover:bg-white/[0.04] transition">
+                        <div
+                          className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer select-none"
+                          onClick={() => handleCategorySelectAll(category)}
+                        >
+                          {/* Tri-state Checkbox */}
+                          <div className="text-white hover:text-zinc-300 shrink-0">
+                            {isAllSelected ? (
+                              <CheckSquare className="w-4 h-4 text-white" />
+                            ) : isPartiallySelected ? (
+                              <MinusSquare className="w-4 h-4 text-zinc-300" />
+                            ) : (
+                              <Square className="w-4 h-4 text-zinc-600" />
+                            )}
+                          </div>
+
                           <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm border border-white/30"
+                            className="w-2 h-2 rounded-full shrink-0 shadow-sm border border-white/30"
                             style={{ backgroundColor: color }}
                           />
+
                           <span className="font-semibold text-white text-[11px] truncate">
                             {category}
                           </span>
-                          <span className="text-[10px] text-zinc-400 font-mono shrink-0">
-                            ({catSelectedCount}/{filteredItems.length})
-                          </span>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleCategorySelectAll(category);
-                            }}
-                            className="text-[10px] text-zinc-300 hover:text-white font-semibold px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 transition"
+
+                        {/* Right: Count Badge & Expand Toggle */}
+                        <div
+                          className="flex items-center gap-2 shrink-0 cursor-pointer pl-2"
+                          onClick={() =>
+                            setOpenCategories((prev) => ({ ...prev, [category]: !isOpen }))
+                          }
+                        >
+                          <span
+                            className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full border transition ${
+                              selectedCount > 0
+                                ? 'bg-white/10 border-white/20 text-white font-bold'
+                                : 'bg-black/30 border-white/5 text-zinc-500'
+                            }`}
                           >
-                            {catSelectedCount === filteredItems.length ? 'Clear' : 'All'}
-                          </button>
+                            {selectedCount}/{items.length}
+                          </span>
                           {isOpen ? (
                             <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
                           ) : (
@@ -1233,25 +1260,36 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                         </div>
                       </div>
 
+                      {/* Expanded Sub-items Checklist */}
                       {isOpen && (
-                        <div className="p-3 pt-1 border-t border-white/5 flex flex-wrap gap-1.5 bg-black/40">
-                          {filteredItems.map(([label, tag]) => {
-                            const isChecked = selectedTags.includes(tag);
-                            return (
-                              <button
-                                key={label}
-                                type="button"
-                                onClick={() => handleTagToggle(tag)}
-                                className={`px-2.5 py-1 rounded-lg border text-[10px] font-medium transition flex items-center gap-1.5 ${
-                                  isChecked
-                                    ? 'bg-white text-black font-bold border-white shadow-sm'
-                                    : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white hover:bg-white/10'
-                                }`}
-                              >
-                                <span>{label}</span>
-                              </button>
-                            );
-                          })}
+                        <div className="px-3 py-2 border-t border-white/5 bg-black/40 max-h-52 overflow-y-auto">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {filteredItems.map(([label, tag]) => {
+                              const isChecked = selectedTags.includes(tag);
+                              return (
+                                <div
+                                  key={label}
+                                  onClick={() => handleTagToggle(tag)}
+                                  className={`flex items-center gap-2 p-1.5 rounded-xl cursor-pointer transition select-none ${
+                                    isChecked
+                                      ? 'bg-white/10 text-white font-semibold'
+                                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
+                                  }`}
+                                >
+                                  <div className="shrink-0">
+                                    {isChecked ? (
+                                      <CheckSquare className="w-3.5 h-3.5 text-white" />
+                                    ) : (
+                                      <Square className="w-3.5 h-3.5 text-zinc-600" />
+                                    )}
+                                  </div>
+                                  <span className="text-[10.5px] truncate" title={label}>
+                                    {label}
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -1260,341 +1298,83 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
               </div>
 
               {/* Custom OSM Tag Filter */}
-              <div className="pt-2 space-y-1">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase">
-                  Custom OSM Filter Query
+              <div className="pt-1 space-y-1">
+                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
+                  Custom OSM Filter Tag
                 </span>
                 <input
                   type="text"
                   value={customTag}
                   onChange={(e) => setCustomTag(e.target.value)}
                   placeholder='e.g. "amenity"="clinic" or "shop"="bakery"'
-                  className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white text-xs outline-none focus:border-white/40 transition"
+                  className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-white/40 transition"
                 />
               </div>
             </div>
-          </>
-        )}
 
-        {/* =========================================================================
-            TAB 2: ACTIVE LAYERS & MARKER STYLING
-           ========================================================================= */}
-        {activeTab === 'layers' && (
-          <div className="space-y-4">
-            {/* Header with Group Layers button & Results count */}
-            <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl flex items-center justify-between backdrop-blur-xl">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-white text-xs">Mapped Assets</span>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-zinc-200 font-mono font-bold text-[10px]">
-                  {activeScannedFeatures.length} PINS
-                </span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => setShowClusterModal(true)}
-                  className="px-2.5 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-[10px] flex items-center gap-1 transition"
-                >
-                  <Plus className="w-3 h-3" />
-                  <span>Group Layers</span>
-                </button>
-                {activeScannedFeatures.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={handleClearScan}
-                    className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition"
-                    title="Clear All Scan Results"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {/* Modal: Create Cluster Group */}
-            {showClusterModal && (
-              <div className="p-3.5 bg-zinc-950/95 border border-white/20 rounded-2xl space-y-3 backdrop-blur-2xl shadow-2xl animate-in fade-in">
-                <div className="flex items-center justify-between border-b border-white/10 pb-2">
-                  <span className="font-bold text-white text-xs uppercase tracking-wide">
-                    Create Layer Cluster Group
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowClusterModal(false)}
-                    className="text-zinc-400 hover:text-white"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                <input
-                  type="text"
-                  value={newClusterName}
-                  onChange={(e) => setNewClusterName(e.target.value)}
-                  placeholder="Enter cluster name (e.g. Commercial Core)..."
-                  className="w-full bg-black/60 border border-white/15 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-white/40"
-                />
-                <div className="max-h-36 overflow-y-auto space-y-1">
-                  {Object.keys(featuresByCategory).map((cat) => (
-                    <label key={cat} className="flex items-center gap-2 p-1 text-[11px] text-zinc-300 hover:bg-white/5 rounded cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={selectedClusterCategories.includes(cat)}
-                        onChange={(e) => {
-                          setSelectedClusterCategories((prev) =>
-                            e.target.checked ? [...prev, cat] : prev.filter((c) => c !== cat)
-                          );
-                        }}
-                        className="accent-white"
-                      />
-                      <span>{cat} ({featuresByCategory[cat].length})</span>
-                    </label>
-                  ))}
-                </div>
-                <div className="flex gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={handleCreateCluster}
-                    className="flex-1 py-1.5 bg-white text-black font-bold rounded-xl text-xs hover:bg-zinc-200 transition"
-                  >
-                    Build Cluster
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowClusterModal(false)}
-                    className="flex-1 py-1.5 bg-white/10 text-zinc-300 font-bold rounded-xl text-xs hover:bg-white/20 transition"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Global Marker Styling Suite Card */}
-            <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3 shrink-0 backdrop-blur-xl shadow-sm">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Sliders className="w-3.5 h-3.5 text-white" />
-                  <span>Global Marker Styling Suite</span>
-                </span>
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-zinc-400 font-medium">Pin Style</label>
-                  <select
-                    value={globalMarkerStyle}
-                    onChange={(e) =>
-                      handleApplyGlobalMarkerStyle(
-                        e.target.value as any,
-                        globalMarkerSize,
-                        globalMarkerColor
-                      )
-                    }
-                    className="w-full bg-black/60 border border-white/15 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-white/40"
-                  >
-                    <option value="modern-pin">Modern Drop-Pin</option>
-                    <option value="pinball">3D Pinball</option>
-                    <option value="dots">Clean Dots</option>
-                    <option value="pin">Classic Pin</option>
-                  </select>
-                </div>
-
-                <div className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <label className="text-[10px] text-zinc-400 font-medium">Size</label>
-                    <span className="text-[10px] font-mono text-white">{globalMarkerSize}px</span>
+            {/* Mapped Assets Section */}
+            {activeScannedFeatures.length > 0 && (
+              <div className="pt-2 border-t border-white/10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-white" />
+                      <span>Mapped Assets ({activeScannedFeatures.length})</span>
+                    </span>
                   </div>
-                  <input
-                    type="range"
-                    min="10"
-                    max="40"
-                    value={globalMarkerSize}
-                    onChange={(e) =>
-                      handleApplyGlobalMarkerStyle(
-                        globalMarkerStyle,
-                        Number(e.target.value),
-                        globalMarkerColor
-                      )
-                    }
-                    className="w-full accent-white h-1.5 bg-white/10 rounded-lg cursor-pointer mt-2"
-                  />
-                </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[10px] text-zinc-400 font-medium">Marker Color & Presets</label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="color"
-                    value={globalMarkerColor}
-                    onChange={(e) =>
-                      handleApplyGlobalMarkerStyle(
-                        globalMarkerStyle,
-                        globalMarkerSize,
-                        e.target.value
-                      )
-                    }
-                    className="w-8 h-8 rounded-lg bg-transparent cursor-pointer border border-white/20"
-                  />
-                  <div className="flex items-center gap-1.5 flex-1">
-                    {[
-                      { label: 'White', color: '#ffffff' },
-                      { label: 'Platinum', color: '#e4e4e7' },
-                      { label: 'Silver', color: '#a1a1aa' },
-                      { label: 'Slate', color: '#71717a' },
-                      { label: 'Graphite', color: '#3f3f46' },
-                      { label: 'Obsidian', color: '#18181b' },
-                    ].map((swatch) => (
-                      <button
-                        key={swatch.label}
-                        type="button"
-                        onClick={() =>
-                          handleApplyGlobalMarkerStyle(
-                            globalMarkerStyle,
-                            globalMarkerSize,
-                            swatch.color
-                          )
-                        }
-                        style={{ backgroundColor: swatch.color }}
-                        className="flex-1 py-1.5 rounded-lg border border-white/20 text-[8px] font-bold text-black shadow-sm hover:scale-105 transition"
-                        title={swatch.label}
+                  {/* Marker Style Switcher */}
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleApplyGlobalStyle('modern-pin')}
+                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition ${
+                        globalMarkerStyle === 'modern-pin'
+                          ? 'bg-white text-black'
+                          : 'bg-white/5 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Pins
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyGlobalStyle('dots')}
+                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition ${
+                        globalMarkerStyle === 'dots'
+                          ? 'bg-white text-black'
+                          : 'bg-white/5 text-zinc-400 hover:text-white'
+                      }`}
+                    >
+                      Dots
+                    </button>
+                  </div>
+                </div>
+
+                {/* Categories Breakdown List */}
+                <div className="space-y-1.5">
+                  {Object.entries(featuresByCategory).map(([category, feats]) => {
+                    const isVisible = feats.some((f) => f.props.visible !== 0);
+                    const color = CATEGORY_COLORS[category] || '#ffffff';
+
+                    return (
+                      <div
+                        key={category}
+                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between"
                       >
-                        •
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Custom Layer Clusters */}
-            {Object.keys(clusters).length > 0 && (
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
-                  Active Cluster Groups
-                </span>
-                {Object.entries(clusters).map(([clusterName, catKeys]) => {
-                  const clusterFeats = activeScannedFeatures.filter((f) =>
-                    catKeys.includes(f.props.category || '')
-                  );
-                  const isVisible = clusterFeats.some((f) => f.props.visible !== 0);
-
-                  return (
-                    <div
-                      key={clusterName}
-                      className="p-3 bg-white/[0.03] border-l-4 border-l-white/60 border border-white/10 rounded-2xl space-y-2 backdrop-blur-xl"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-white font-bold">⚡</span>
-                          <span className="font-bold text-white text-xs">{clusterName}</span>
-                          <span className="text-[10px] text-zinc-400 font-mono">
-                            ({clusterFeats.length} PINS)
-                          </span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleClusterVisibility(clusterName)}
-                            className="p-1 rounded text-zinc-400 hover:text-white"
-                            title="Toggle Cluster Visibility"
-                          >
-                            {isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDissolveCluster(clusterName)}
-                            className="p-1 rounded text-zinc-400 hover:text-red-400"
-                            title="Dissolve Cluster"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Cluster Batch Styling mini-controls */}
-                      <div className="flex items-center gap-2 pt-1 border-t border-white/10 text-[10px]">
-                        <select
-                          onChange={(e) =>
-                            handleBatchStyleCluster(
-                              clusterName,
-                              e.target.value as any,
-                              globalMarkerColor,
-                              globalMarkerSize
-                            )
-                          }
-                          className="bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-white text-[10px]"
-                        >
-                          <option value="modern-pin">Modern Pin</option>
-                          <option value="dots">Dots</option>
-                          <option value="pinball">3D Pinball</option>
-                        </select>
-                        <input
-                          type="color"
-                          defaultValue="#ffffff"
-                          onChange={(e) =>
-                            handleBatchStyleCluster(
-                              clusterName,
-                              'modern-pin',
-                              e.target.value,
-                              globalMarkerSize
-                            )
-                          }
-                          className="w-5 h-5 rounded cursor-pointer bg-transparent border border-white/20"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {/* Mapped Categories & POI Hierarchy List */}
-            {Object.keys(featuresByCategory).length === 0 ? (
-              <div className="p-8 border border-white/10 rounded-2xl bg-white/[0.02] flex flex-col items-center justify-center text-center gap-2 backdrop-blur-sm">
-                <MapPin className="w-8 h-8 text-zinc-500" />
-                <span className="font-bold text-white text-xs">No POIs Mapped Yet</span>
-                <span className="text-[10px] text-zinc-400 max-w-xs">
-                  Go to the <strong>Target & Scan</strong> tab and click "Scan Area" to discover POIs.
-                </span>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
-                  Scanned Categories Breakdown
-                </span>
-                {Object.entries(featuresByCategory).map(([category, feats]) => {
-                  const isVisible = feats.some((f) => f.props.visible !== 0);
-                  const color = CATEGORY_COLORS[category] || '#ffffff';
-
-                  return (
-                    <div
-                      key={category}
-                      className="border border-white/10 rounded-2xl bg-white/[0.02] overflow-hidden backdrop-blur-sm"
-                    >
-                      {/* Category Header */}
-                      <div className="flex items-center justify-between p-3 hover:bg-white/[0.04] transition select-none">
                         <div className="flex items-center gap-2 truncate">
                           <span
-                            className="w-2.5 h-2.5 rounded-full shrink-0 shadow-sm border border-white/30"
+                            className="w-2 h-2 rounded-full shrink-0"
                             style={{ backgroundColor: color }}
                           />
-                          <span className="font-bold text-white text-[11px] truncate">
+                          <span className="font-semibold text-white text-[11px] truncate">
                             {category}
                           </span>
-                          <span className="text-[10px] text-zinc-400 font-mono shrink-0">
+                          <span className="text-[10px] text-zinc-400 font-mono">
                             ({feats.length})
                           </span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => handleRenameCategory(category)}
-                            className="p-1 rounded text-zinc-400 hover:text-white"
-                            title="Rename Category"
-                          >
-                            <Edit3 className="w-3 h-3" />
-                          </button>
+
+                        <div className="flex items-center gap-1">
                           <button
                             type="button"
                             onClick={() => handleToggleCategoryVisibility(category)}
@@ -1607,238 +1387,315 @@ ${aiData.recommendations.map((r, i) => `${i + 1}. ${r}`).join('\n')}
                             type="button"
                             onClick={() => handleDeleteCategory(category)}
                             className="p-1 rounded text-zinc-400 hover:text-red-400"
-                            title="Delete Category"
+                            title="Remove Category"
                           >
                             <Trash2 className="w-3 h-3" />
                           </button>
                         </div>
                       </div>
-
-                      {/* POI Items List */}
-                      <div className="p-2 pt-0 max-h-40 overflow-y-auto space-y-1 bg-black/30">
-                        {feats.map((f) => {
-                          const itemVisible = f.props.visible !== 0;
-                          return (
-                            <div
-                              key={f.id}
-                              className={`p-2 rounded-xl bg-white/[0.03] border border-white/5 flex items-center justify-between text-[10px] transition ${
-                                itemVisible ? '' : 'opacity-40'
-                              }`}
-                            >
-                              <div
-                                onClick={() => handleFlyToPoi(f)}
-                                className="flex-1 truncate pr-2 cursor-pointer hover:text-white font-medium"
-                                title="Click to center map on POI"
-                              >
-                                {f.name || 'Unknown Location'}
-                              </div>
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  onClick={() => handleRenamePoi(f.id, f.name)}
-                                  className="p-1 text-zinc-400 hover:text-white"
-                                  title="Rename"
-                                >
-                                  <Edit3 className="w-2.5 h-2.5" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleTogglePoiVisibility(f.id)}
-                                  className="p-1 text-zinc-400 hover:text-white"
-                                  title="Hide/Show"
-                                >
-                                  {itemVisible ? <Eye className="w-2.5 h-2.5" /> : <EyeOff className="w-2.5 h-2.5" />}
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeletePoi(f.id)}
-                                  className="p-1 text-zinc-400 hover:text-red-400"
-                                  title="Delete"
-                                >
-                                  <Trash2 className="w-2.5 h-2.5" />
-                                </button>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
         )}
 
         {/* =========================================================================
-            TAB 3: EXPORT & AI INSIGHTS
+            TAB 2: SPATIAL AI INTELLIGENCE & INTERACTIVE Q&A
            ========================================================================= */}
-        {activeTab === 'export_ai' && (
+        {activeTab === 'ai' && (
           <div className="space-y-4">
-            {/* Export Card */}
-            <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl shadow-sm">
-              <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                <Download className="w-3.5 h-3.5 text-white" />
-                <span>Export Spatial Data</span>
-              </span>
-              <p className="text-[10px] text-zinc-400">
-                Download your scanned POIs in open GIS formats compatible with Google Earth, QGIS, and Project Atlas.
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={handleExportGeoJSON}
-                  disabled={activeScannedFeatures.length === 0}
-                  className="py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white border border-white/20 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5 text-white" />
-                  <span>GeoJSON</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExportKML}
-                  disabled={activeScannedFeatures.length === 0}
-                  className="py-2.5 bg-white/10 hover:bg-white/20 disabled:opacity-40 text-white border border-white/20 font-bold rounded-xl text-xs transition flex items-center justify-center gap-1.5 shadow-sm"
-                >
-                  <Download className="w-3.5 h-3.5 text-white" />
-                  <span>Google KML</span>
-                </button>
-              </div>
-            </div>
-
-            {/* DeepSeek AI Commercial Intelligence */}
-            <div className="p-4 bg-white/[0.03] border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl shadow-sm">
+            {/* Header / Trigger Card */}
+            <div className="p-4 bg-white/[0.02] border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl">
               <div className="flex items-center justify-between">
                 <div>
                   <span className="font-bold text-white text-xs block flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-white" />
-                    <span>DeepSeek AI Commercial Analyst</span>
+                    <span>Spatial AI Commercial Intelligence</span>
                   </span>
-                  <span className="text-[10px] text-zinc-400">
-                    Trade area vitality & tenant opportunity assessment
-                  </span>
+                  <p className="text-[10px] text-zinc-400 mt-0.5">
+                    Empirical trade area assessment & interactive Q&A analyst
+                  </p>
                 </div>
                 <button
                   onClick={handleTriggerAiAnalysis}
                   disabled={isAiLoading || scannedPois.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-50 text-black font-black rounded-xl text-xs transition shadow-lg shadow-white/5"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black font-black rounded-xl text-xs transition shadow-lg shadow-white/5"
                 >
                   {isAiLoading ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
                   ) : (
                     <RefreshCw className="w-3.5 h-3.5 text-black" />
                   )}
-                  <span>{aiData ? 'Regenerate' : 'Analyze'}</span>
+                  <span>{aiData ? 'Regenerate' : 'Generate Dossier'}</span>
                 </button>
               </div>
 
-              {isAiLoading ? (
-                <div className="p-8 border border-white/10 rounded-2xl bg-black/60 flex flex-col items-center justify-center text-center gap-3 backdrop-blur-md">
-                  <Loader2 className="w-8 h-8 animate-spin text-white" />
-                  <span className="text-white font-semibold text-xs">
-                    Synthesizing Commercial Clusters...
-                  </span>
-                  <span className="text-zinc-400 text-[10px] max-w-xs">
-                    DeepSeek AI is identifying competitor corridors and tenant whitespace gaps.
-                  </span>
+              {/* Notice if no scan */}
+              {scannedPois.length === 0 && (
+                <div className="p-3 bg-black/40 border border-white/10 rounded-xl text-center space-y-1">
+                  <p className="text-zinc-300 text-[11px] font-medium">
+                    No active POI scan detected
+                  </p>
+                  <p className="text-zinc-500 text-[10px]">
+                    Switch to <strong>Target & POIs</strong>, select categories, and run a scan to unlock AI analysis and question answering.
+                  </p>
                 </div>
-              ) : aiData ? (
-                <div className="space-y-4 pt-1">
-                  {/* Gauge Card */}
-                  <div className="p-3 bg-black/50 border border-white/10 rounded-xl flex items-center justify-between backdrop-blur-sm">
-                    <div>
-                      <span className="text-[10px] text-zinc-400 uppercase font-bold block">
-                        Commercial Vitality
+              )}
+            </div>
+
+            {/* AI Dossier Analysis (When Generated) */}
+            {aiData && (
+              <div className="space-y-3 animate-in fade-in">
+                {/* Vitality & Saturation Scorecard */}
+                <div className="p-3.5 bg-black/60 border border-white/10 rounded-2xl flex items-center justify-between backdrop-blur-xl">
+                  <div>
+                    <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider block">
+                      Commercial Score
+                    </span>
+                    <div className="flex items-baseline gap-1 mt-0.5">
+                      <span className="text-2xl font-black text-white font-mono">
+                        {aiData.summary.commercialScore}
                       </span>
-                      <span className="text-xl font-black text-white font-mono">
-                        {aiData.summary.commercialScore}/100
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-[10px] text-zinc-400 uppercase font-bold block">
-                        Saturation Rating
-                      </span>
-                      <span className="text-xs font-bold text-zinc-200">
-                        {aiData.summary.saturationRating}
-                      </span>
+                      <span className="text-zinc-500 font-mono text-xs">/100</span>
                     </div>
                   </div>
-
-                  {/* Executive Summary */}
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase">
-                      Executive Summary
+                  <div className="text-right">
+                    <span className="text-[10px] text-zinc-400 uppercase font-bold tracking-wider block">
+                      Saturation Level
                     </span>
-                    <p className="text-[11px] text-zinc-300 leading-relaxed bg-black/40 p-3 rounded-xl border border-white/10">
-                      {aiData.summary.brief}
-                    </p>
+                    <span className="text-xs font-bold text-white block mt-0.5">
+                      {aiData.summary.saturationRating}
+                    </span>
+                    <span className="text-[10px] text-zinc-400 font-mono">
+                      {aiData.summary.totalPois} POIs • {aiData.summary.dominantCategory}
+                    </span>
                   </div>
+                </div>
 
-                  {/* Strategic Recommendations */}
-                  <div className="space-y-1.5">
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase">
-                      Strategic Recommendations
+                {/* Executive Summary */}
+                <div className="p-3.5 bg-white/[0.02] border border-white/10 rounded-2xl space-y-1.5">
+                  <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                    Executive Brief
+                  </span>
+                  <p className="text-[11px] text-zinc-300 leading-relaxed">
+                    {aiData.summary.brief}
+                  </p>
+                </div>
+
+                {/* Commercial Corridors & Clusters */}
+                {aiData.clusters && aiData.clusters.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                      Commercial Clusters & Corridors
                     </span>
-                    <div className="space-y-1 bg-black/40 p-3 rounded-xl border border-white/10">
-                      {aiData.recommendations.map((rec, i) => (
-                        <div key={i} className="flex items-start gap-2 text-[10px]">
-                          <CheckCircle2 className="w-3 h-3 text-white shrink-0 mt-0.5" />
-                          <span className="text-zinc-300 leading-relaxed">{rec}</span>
+                    <div className="space-y-2">
+                      {aiData.clusters.map((cl, i) => (
+                        <div
+                          key={i}
+                          className="p-3 bg-white/[0.02] border border-white/10 rounded-2xl space-y-2 hover:border-white/20 transition"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="truncate pr-2">
+                              <h5 className="font-bold text-white text-[11px] truncate">
+                                {cl.name}
+                              </h5>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                {cl.corridor} • {cl.poiCount} POIs
+                              </span>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleFlyToCluster(cl)}
+                              className="px-2.5 py-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-white font-bold text-[10px] transition shrink-0 flex items-center gap-1"
+                            >
+                              <span>Focus</span>
+                              <ArrowUpRight className="w-3 h-3" />
+                            </button>
+                          </div>
+                          <p className="text-[10.5px] text-zinc-300 leading-normal">
+                            {cl.insight}
+                          </p>
+                          {cl.keyTenants && cl.keyTenants.length > 0 && (
+                            <div className="text-[9.5px] text-zinc-400 font-mono truncate">
+                              Tenants: {cl.keyTenants.join(', ')}
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
                   </div>
+                )}
 
-                  {/* Copy Report Button */}
-                  <div className="flex items-center justify-between pt-2 border-t border-white/10">
+                {/* Copy Dossier Button */}
+                <div className="flex items-center justify-between pt-1">
+                  <button
+                    type="button"
+                    onClick={handleCopyReport}
+                    className="flex items-center gap-1.5 text-[11px] text-zinc-400 hover:text-white px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition font-medium"
+                  >
+                    {hasCopied ? (
+                      <>
+                        <Check className="w-3.5 h-3.5 text-white" />
+                        <span className="text-white font-bold">Dossier Copied</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        <span>Copy Dossier Text</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowRawBrief(!showRawBrief)}
+                    className="text-[10px] text-zinc-400 hover:text-white font-semibold transition"
+                  >
+                    {showRawBrief ? 'Hide Raw JSON' : 'View Raw JSON'}
+                  </button>
+                </div>
+
+                {showRawBrief && (
+                  <pre className="p-3 bg-black/80 border border-white/10 rounded-2xl text-[9.5px] text-zinc-300 font-mono overflow-x-auto max-h-40">
+                    {JSON.stringify(aiData, null, 2)}
+                  </pre>
+                )}
+              </div>
+            )}
+
+            {/* Interactive Spatial AI Q&A Chat */}
+            <div className="pt-2 border-t border-white/10 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
+                  <MessageSquare className="w-3.5 h-3.5 text-white" />
+                  <span>Interactive Spatial Q&A</span>
+                </span>
+                <span className="text-[9.5px] text-zinc-400 font-mono">
+                  Grounded on {scannedPois.length} POIs
+                </span>
+              </div>
+
+              {/* Quick Inquiry Prompt Chips */}
+              <div className="space-y-1">
+                <span className="text-[9.5px] text-zinc-500 uppercase tracking-wide block">
+                  Suggested inquiries
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    'What retail or dining gaps exist in this radius?',
+                    'Evaluate competitor saturation along main roads',
+                    'Is this trade area viable for a cafe / quick-serve?',
+                    'Summarize anchor tenants and foot-traffic drivers',
+                  ].map((chip) => (
                     <button
+                      key={chip}
                       type="button"
-                      onClick={handleCopyReport}
-                      className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-white px-3 py-1.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 transition"
+                      onClick={() => handleSendQaMessage(chip)}
+                      disabled={isQaLoading || scannedPois.length === 0}
+                      className="px-2.5 py-1 rounded-xl bg-white/5 hover:bg-white/15 disabled:opacity-30 border border-white/10 text-[10px] text-zinc-300 hover:text-white transition text-left"
                     >
-                      {hasCopied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-white" />
-                          <span className="text-white font-bold">Report Copied</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copy Dossier</span>
-                        </>
-                      )}
+                      {chip}
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowRawBrief(!showRawBrief)}
-                      className="text-[10px] text-zinc-400 hover:text-white font-semibold transition"
-                    >
-                      {showRawBrief ? 'Hide Full Text' : 'View Full Text'}
-                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Conversation Feed */}
+              <div className="space-y-2.5 max-h-64 overflow-y-auto pr-1">
+                {qaMessages.length === 0 ? (
+                  <div className="p-5 border border-white/10 rounded-2xl bg-black/40 text-center space-y-1.5">
+                    <Bot className="w-5 h-5 text-zinc-400 mx-auto" />
+                    <p className="text-zinc-300 text-[11px] font-medium">
+                      Ask the Spatial Analyst
+                    </p>
+                    <p className="text-zinc-500 text-[10px]">
+                      Query competitor density, whitespace gaps, tenant viability, or arterial traffic.
+                    </p>
                   </div>
-
-                  {showRawBrief && (
-                    <div className="p-3 bg-black/80 border border-white/10 rounded-xl max-h-40 overflow-y-auto text-[10px] text-zinc-300 font-mono whitespace-pre-wrap leading-relaxed">
-                      {aiData.rawMarkdown || JSON.stringify(aiData, null, 2)}
+                ) : (
+                  qaMessages.map((msg) => (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${
+                        msg.role === 'user' ? 'items-end' : 'items-start'
+                      }`}
+                    >
+                      <div
+                        className={`max-w-[90%] rounded-2xl p-3 text-[11px] leading-relaxed shadow-sm ${
+                          msg.role === 'user'
+                            ? 'bg-white text-black font-medium rounded-tr-sm'
+                            : 'bg-black/60 border border-white/10 text-zinc-200 rounded-tl-sm backdrop-blur-md'
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 mb-1 opacity-60 text-[9px] font-mono uppercase">
+                          {msg.role === 'user' ? (
+                            <>
+                              <User className="w-2.5 h-2.5" />
+                              <span>You</span>
+                            </>
+                          ) : (
+                            <>
+                              <Sparkles className="w-2.5 h-2.5" />
+                              <span>Spatial Analyst</span>
+                            </>
+                          )}
+                          <span>• {msg.timestamp}</span>
+                        </div>
+                        <div className="whitespace-pre-wrap font-sans">
+                          {msg.content}
+                        </div>
+                      </div>
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-6 border border-white/10 rounded-xl bg-black/40 flex flex-col items-center justify-center text-center gap-2">
-                  <Sparkles className="w-6 h-6 text-white" />
-                  <span className="text-white font-bold text-xs">Ready for AI Assessment</span>
-                  <span className="text-zinc-400 text-[10px] max-w-xs">
-                    Click "Analyze" to detect commercial clusters and strategic tenant recommendations.
-                  </span>
-                </div>
-              )}
+                  ))
+                )}
+
+                {/* Loading Indicator */}
+                {isQaLoading && (
+                  <div className="flex items-center gap-2 p-3 bg-black/40 border border-white/10 rounded-2xl text-zinc-300 text-[11px] animate-pulse">
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>Analyzing empirical POI coordinates and density...</span>
+                  </div>
+                )}
+                <div ref={chatBottomRef} />
+              </div>
+
+              {/* Chat Input Bar */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  handleSendQaMessage();
+                }}
+                className="flex items-center gap-2 pt-1"
+              >
+                <input
+                  type="text"
+                  value={qaInput}
+                  onChange={(e) => setQaInput(e.target.value)}
+                  placeholder={
+                    scannedPois.length > 0
+                      ? 'Ask about this trade area (e.g. competitor density, retail gaps)...'
+                      : 'Scan an area first to ask questions...'
+                  }
+                  disabled={scannedPois.length === 0 || isQaLoading}
+                  className="flex-1 bg-black/50 border border-white/15 rounded-2xl px-3.5 py-2.5 text-white placeholder-zinc-500 outline-none focus:border-white/40 text-xs transition disabled:opacity-40"
+                />
+                <button
+                  type="submit"
+                  disabled={!qaInput.trim() || isQaLoading || scannedPois.length === 0}
+                  className="p-2.5 bg-white text-black disabled:opacity-30 rounded-2xl font-bold transition hover:bg-zinc-200 shadow-md shrink-0"
+                  title="Send inquiry"
+                >
+                  <Send className="w-4 h-4" />
+                </button>
+              </form>
             </div>
           </div>
         )}
       </div>
 
-      {/* Sticky Bottom Action Bar for Setup Tab (Monochrome Glassmorphic) */}
-      {activeTab === 'setup' && (
+      {/* Sticky Bottom Action Bar (Setup Tab) */}
+      {activeTab === 'target_layers' && (
         <div className="p-4 pt-3 border-t border-white/10 shrink-0 bg-black/60 backdrop-blur-2xl flex gap-2">
           {isScanning ? (
             <>
