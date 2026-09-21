@@ -15,11 +15,13 @@ import { SearchModal } from '../components/modals/SearchModal';
 import { WorkspaceLauncherModal } from '../components/modals/WorkspaceLauncherModal';
 import { BuildingCatalogModal } from '../components/modals/BuildingCatalogModal';
 import { CinematicClusterOverlay } from '../components/map/CinematicClusterOverlay';
-import { ViewportStudioDock } from '../components/viewport/ViewportStudioDock';
 import { SunDialWidget } from '../components/viewport/SunDialWidget';
 import { DroneOrbitHUD } from '../components/viewport/DroneOrbitHUD';
 import { AtlasAIAssistant } from '../components/ai/AtlasAIAssistant';
 import { CinematicTourHUD } from '../components/viewport/CinematicTourHUD';
+import { TiltShiftOverlay } from '../components/viewport/TiltShiftOverlay';
+import { HeightCaliperHUD } from '../components/viewport/HeightCaliperHUD';
+import { RadiantBeaconsOverlay } from '../components/viewport/RadiantBeaconsOverlay';
 import { useMapStore } from '../store/useMapStore';
 import { useProjectStore } from '../store/useProjectStore';
 import { normalizeGeoJSON } from '../gis/importExport';
@@ -146,10 +148,12 @@ export default function WorkspacePage() {
       <BuildingCatalogModal mapInstance={mapInstance} />
       <CinematicClusterOverlay mapInstance={mapInstance} />
 
-      {/* Visual Excellence Suite: Studio Dock, Sun Dial, and Cinematic Drone Orbit */}
-      <ViewportStudioDock mapInstance={mapInstance} />
+      {/* Visual Excellence Suite: Studio Deck, Drone Orbit, Tilt-Shift & Caliper HUD */}
       <SunDialWidget />
       <DroneOrbitHUD mapInstance={mapInstance} />
+      <TiltShiftOverlay />
+      <HeightCaliperHUD mapInstance={mapInstance} />
+      <RadiantBeaconsOverlay />
 
       {/* Floating atlas.ai Assistant (Right Corner) & Cinematic Street Tour HUD */}
       <AtlasAIAssistant />

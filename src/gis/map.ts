@@ -252,28 +252,29 @@ export function mapboxSatelliteXRayStyle(token?: string) {
           "line-opacity": 0.35
         }
       },
-      // Solid Architectural 3D Extrusions (Realistic Digital Twin)
+      // Architectural 3D Towers & Extrusions (Smart Height Filter: keeps low-rise houses natural to satellite)
       {
         id: "building-3d",
         type: "fill-extrusion",
         source: "omt",
         "source-layer": "building",
         minzoom: 13,
+        filter: [">=", ["coalesce", ["get", "render_height"], ["get", "height"], 0], 15],
         layout: { visibility: "visible" },
         paint: {
           "fill-extrusion-color": [
             "interpolate",
             ["linear"],
-            ["coalesce", ["get", "render_height"], ["get", "height"], 12],
-            0, "#e2e8f0",
-            20, "#cbd5e1",
-            50, "#94a3b8",
-            100, "#64748b",
-            250, "#334155"
+            ["coalesce", ["get", "render_height"], ["get", "height"], 20],
+            15, "#94a3b8",
+            35, "#64748b",
+            75, "#38bdf8",
+            140, "#1e40af",
+            260, "#0f172a"
           ],
-          "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 14],
+          "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 18],
           "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
-          "fill-extrusion-opacity": 0.95
+          "fill-extrusion-opacity": 0.88
         }
       },
       // Major Roads & Highways luminous overlay

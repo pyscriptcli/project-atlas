@@ -56,6 +56,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     solarTime,
     isFogEnabled,
     is3DTerrain,
+    isSmartHeightFilter,
+    isNightGlowEnabled,
   } = useMapStore();
 
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
@@ -238,6 +240,41 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       }
     } catch (_) {}
   }, [is3DTerrain, mapboxToken]);
+
+  // Apply Smart Height Filter & Night Illumination dynamic shader styling
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    try {
+      // 1. Smart Height Filter: preserve natural satellite imagery on residential homes vs towers
+      if (map.getLayer('building-3d')) {
+        if (isSmartHeightFilter) {
+          map.setFilter('building-3d', [
+            '>=',
+            ['coalesce', ['get', 'render_height'], ['get', 'height'], 0],
+            15,
+          ]);
+        } else {
+          map.setFilter('building-3d', null);
+        }
+      }
+
+      // 2. Night Illumination: neon glowing city arteries after sunset
+      const isNightTime = solarTime < 6.25 || solarTime > 18.25;
+      if (map.getLayer('rd_major_xray')) {
+        if (isNightGlowEnabled && isNightTime) {
+          map.setPaintProperty('rd_major_xray', 'line-color', '#38bdf8');
+          map.setPaintProperty('rd_major_xray', 'line-width', 2.2);
+          map.setPaintProperty('rd_major_xray', 'line-opacity', 0.85);
+        } else {
+          map.setPaintProperty('rd_major_xray', 'line-color', '#ffffff');
+          map.setPaintProperty('rd_major_xray', 'line-width', 1.5);
+          map.setPaintProperty('rd_major_xray', 'line-opacity', 0.6);
+        }
+      }
+    } catch (_) {}
+  }, [isSmartHeightFilter, isNightGlowEnabled, solarTime]);
 
   // Update visibilities
   useEffect(() => {

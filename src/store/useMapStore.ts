@@ -81,6 +81,11 @@ interface MapState {
   droneOrbitSpeed: number;
   isFogEnabled: boolean;
   is3DTerrain: boolean;
+  isNightGlowEnabled: boolean;
+  isHeightCaliperEnabled: boolean;
+  isTiltShiftEnabled: boolean;
+  is3DHeatmapBeacons: boolean;
+  isSmartHeightFilter: boolean;
 
   // Autonomous Cinematic Street Tour & Atlas.AI State
   activeTour: {
@@ -107,6 +112,11 @@ interface MapState {
   setDroneOrbitSpeed: (speed: number) => void;
   toggleFog: (enabled?: boolean) => void;
   toggleTerrain: (enabled?: boolean) => void;
+  toggleNightGlow: (enabled?: boolean) => void;
+  toggleHeightCaliper: (enabled?: boolean) => void;
+  toggleTiltShift: (enabled?: boolean) => void;
+  toggle3DHeatmapBeacons: (enabled?: boolean) => void;
+  toggleSmartHeightFilter: (enabled?: boolean) => void;
 
   setActiveTour: (tour: MapState['activeTour']) => void;
   setTourPoiIndex: (index: number) => void;
@@ -244,6 +254,22 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((state) => ({ isFogEnabled: enabled !== undefined ? enabled : !state.isFogEnabled })),
   toggleTerrain: (enabled) =>
     set((state) => ({ is3DTerrain: enabled !== undefined ? enabled : !state.is3DTerrain })),
+  isNightGlowEnabled: true,
+  isHeightCaliperEnabled: true,
+  isTiltShiftEnabled: false,
+  is3DHeatmapBeacons: false,
+  isSmartHeightFilter: true,
+
+  toggleNightGlow: (enabled) =>
+    set((s) => ({ isNightGlowEnabled: enabled !== undefined ? enabled : !s.isNightGlowEnabled })),
+  toggleHeightCaliper: (enabled) =>
+    set((s) => ({ isHeightCaliperEnabled: enabled !== undefined ? enabled : !s.isHeightCaliperEnabled })),
+  toggleTiltShift: (enabled) =>
+    set((s) => ({ isTiltShiftEnabled: enabled !== undefined ? enabled : !s.isTiltShiftEnabled })),
+  toggle3DHeatmapBeacons: (enabled) =>
+    set((s) => ({ is3DHeatmapBeacons: enabled !== undefined ? enabled : !s.is3DHeatmapBeacons })),
+  toggleSmartHeightFilter: (enabled) =>
+    set((s) => ({ isSmartHeightFilter: enabled !== undefined ? enabled : !s.isSmartHeightFilter })),
 
   activeTour: null,
   isAtlasAIOpen: false,

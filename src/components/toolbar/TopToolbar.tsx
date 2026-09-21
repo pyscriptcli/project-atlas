@@ -17,15 +17,20 @@ import {
   Navigation,
   MapPin,
   Type,
-  Palette,
+  Map,
   Download,
   Box,
   Building2,
   Radar,
   Sun,
+  Moon,
   ChevronDown,
   PenTool,
   Sparkles,
+  Ruler,
+  Camera,
+  Flame,
+  Check,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
@@ -52,16 +57,27 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     setToolConfig,
     isSunDialOpen,
     toggleSunDial,
+    isSmartHeightFilter,
+    toggleSmartHeightFilter,
+    isNightGlowEnabled,
+    toggleNightGlow,
+    isHeightCaliperEnabled,
+    toggleHeightCaliper,
+    isTiltShiftEnabled,
+    toggleTiltShift,
+    is3DHeatmapBeacons,
+    toggle3DHeatmapBeacons,
+    setToast,
   } = useMapStore();
 
   const { currentProjectName, updateProjectName, currentProjectId, saveCurrentProject } =
     useProjectStore();
 
-  // Active folder flyout: 'data' | 'draw' | 'studio' | null
-  const [openFolder, setOpenFolder] = useState<'data' | 'draw' | 'studio' | null>(null);
+  // Active flyout: 'draw' | 'studio' | null (Data tools are direct individual buttons now)
+  const [openFolder, setOpenFolder] = useState<'draw' | 'studio' | null>(null);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 
-  // Close folder flyouts on click outside
+  // Close flyouts on click outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
       if (toolbarRef.current && !toolbarRef.current.contains(e.target as Node)) {
@@ -92,7 +108,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     }
   };
 
-  const toggleFolder = (folder: 'data' | 'draw' | 'studio') => {
+  const toggleFlyout = (folder: 'draw' | 'studio') => {
     setOpenFolder((prev) => (prev === folder ? null : folder));
   };
 
@@ -100,12 +116,12 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     <>
       <div
         ref={toolbarRef}
-        className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] bg-black/85 border border-white/15 rounded-full px-3 py-1.5 flex items-center gap-2 shadow-2xl backdrop-blur-xl text-zinc-200 select-none"
+        className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] bg-black/85 border border-white/15 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-2xl backdrop-blur-xl text-zinc-200 select-none max-w-[98vw] overflow-x-auto"
       >
         {/* =========================================================================
-            FOLDER 1: WORKSPACE & HISTORY
+            SECTION 1: WORKSPACE & HISTORY
            ========================================================================= */}
-        <div className="flex items-center gap-1.5 pr-2 border-r border-white/15">
+        <div className="flex items-center gap-1.5 pr-2 border-r border-white/15 shrink-0">
           {/* Workspace Switcher */}
           <button
             onClick={() => togglePanel('launcher', true)}
@@ -120,7 +136,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             <span
               onClick={handleRename}
               title="Click to rename workspace"
-              className="font-bold text-white text-xs max-w-[130px] truncate cursor-pointer hover:text-zinc-300 transition"
+              className="font-bold text-white text-xs max-w-[110px] truncate cursor-pointer hover:text-zinc-300 transition"
             >
               {currentProjectName}
             </span>
@@ -165,105 +181,88 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         </div>
 
         {/* =========================================================================
-            FOLDER 2: DATA & ANALYSIS FOLDER
+            SECTION 2: DATA & LAYERS (DIRECT INDIVIDUAL BUTTONS - NOT GROUPED)
            ========================================================================= */}
-        <div className="relative">
+        <div className="flex items-center gap-1 shrink-0 pr-1.5 border-r border-white/15">
+          {/* Data Browser */}
           <button
             type="button"
-            onClick={() => toggleFolder('data')}
+            onClick={() => togglePanel('browser')}
+            title="Data Catalog Browser"
             className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
-              openFolder === 'data' || activePanels.browser || activePanels.myLayers || activePanels.tradeArea || activePanels.search
-                ? 'bg-white/20 text-white font-bold'
+              activePanels.browser
+                ? 'bg-white text-black font-bold shadow-md'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             <Layers className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="text-[11px]">Data &amp; Layers</span>
-            <ChevronDown className={`w-3 h-3 text-zinc-400 transition-transform ${openFolder === 'data' ? 'rotate-180' : ''}`} />
+            <span className="text-[11px] hidden md:inline">Data Browser</span>
           </button>
 
-          {openFolder === 'data' && (
-            <div className="absolute left-0 top-full mt-2 w-52 bg-zinc-950/95 border border-white/20 rounded-2xl p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in space-y-0.5">
-              <button
-                type="button"
-                onClick={() => {
-                  togglePanel('browser');
-                  setOpenFolder(null);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 transition ${
-                  activePanels.browser ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
-                }`}
-              >
-                <Layers className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Data Catalog Browser</span>
-              </button>
+          {/* My Layers */}
+          <button
+            type="button"
+            onClick={() => togglePanel('myLayers')}
+            title="My Layers"
+            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+              activePanels.myLayers
+                ? 'bg-white text-black font-bold shadow-md'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <FolderTree className="w-3.5 h-3.5 text-sky-400" />
+            <span className="text-[11px] hidden md:inline">My Layers</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  togglePanel('myLayers');
-                  setOpenFolder(null);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 transition ${
-                  activePanels.myLayers ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
-                }`}
-              >
-                <FolderTree className="w-3.5 h-3.5 text-sky-400" />
-                <span>My Layer Tree</span>
-              </button>
+          {/* Trade Area Scan */}
+          <button
+            type="button"
+            onClick={() => togglePanel('tradeArea')}
+            title="Trade Area & POI Scan"
+            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+              activePanels.tradeArea
+                ? 'bg-white text-black font-bold shadow-md'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Radar className="w-3.5 h-3.5 text-amber-400" />
+            <span className="text-[11px] hidden lg:inline">Trade Area</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  togglePanel('tradeArea');
-                  setOpenFolder(null);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 transition ${
-                  activePanels.tradeArea ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
-                }`}
-              >
-                <Radar className="w-3.5 h-3.5 text-amber-400" />
-                <span>Trade Area &amp; POI Scan</span>
-              </button>
+          {/* Search Places */}
+          <button
+            type="button"
+            onClick={() => togglePanel('search')}
+            title="Search Places (Geocoding)"
+            className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
+              activePanels.search
+                ? 'bg-white text-black font-bold shadow-md'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Search className="w-3.5 h-3.5 text-zinc-300" />
+            <span className="text-[11px] hidden lg:inline">Search</span>
+          </button>
 
-              <button
-                type="button"
-                onClick={() => {
-                  togglePanel('search');
-                  setOpenFolder(null);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 transition ${
-                  activePanels.search ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
-                }`}
-              >
-                <Search className="w-3.5 h-3.5 text-zinc-300" />
-                <span>Search Places (Geocode)</span>
-              </button>
-
-              <div className="h-[1px] bg-white/10 my-1" />
-
-              <button
-                type="button"
-                onClick={() => {
-                  onImportClick();
-                  setOpenFolder(null);
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 text-zinc-200 hover:bg-white/10 transition"
-              >
-                <Upload className="w-3.5 h-3.5 text-indigo-400" />
-                <span>Import GeoJSON / KML</span>
-              </button>
-            </div>
-          )}
+          {/* Import */}
+          <button
+            type="button"
+            onClick={onImportClick}
+            title="Import GeoJSON / KML"
+            className="px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold text-zinc-300 hover:text-white hover:bg-white/10 transition"
+          >
+            <Upload className="w-3.5 h-3.5 text-indigo-400" />
+            <span className="text-[11px] hidden xl:inline">Import</span>
+          </button>
         </div>
 
         {/* =========================================================================
-            FOLDER 3: DRAW & 3D TOOLS FOLDER
+            SECTION 3: DRAW & 3D TOOLS (RENAMED TO EXACT SPECS)
            ========================================================================= */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             type="button"
-            onClick={() => toggleFolder('draw')}
+            onClick={() => toggleFlyout('draw')}
             className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
               openFolder === 'draw' || Boolean(activeTool) || activePanels.buildingCatalog
                 ? 'bg-white text-black font-bold shadow-lg shadow-white/10'
@@ -282,11 +281,12 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
           </button>
 
           {openFolder === 'draw' && (
-            <div className="absolute left-0 top-full mt-2 w-60 bg-zinc-950/95 border border-white/20 rounded-2xl p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in space-y-0.5 max-h-[75vh] overflow-y-auto">
+            <div className="absolute left-0 top-full mt-2 w-64 bg-zinc-950/95 border border-white/20 rounded-2xl p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in space-y-0.5 max-h-[75vh] overflow-y-auto">
               <span className="px-3 py-1 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
                 2D Vector Polygons
               </span>
 
+              {/* Draw Polygon (Renamed from Draw Freeform Polygon) */}
               <button
                 type="button"
                 onClick={() => {
@@ -298,7 +298,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <Hexagon className="w-3.5 h-3.5 text-sky-400" />
-                <span>Draw Freeform Polygon</span>
+                <span>Draw Polygon</span>
               </button>
 
               <button
@@ -326,7 +326,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <CircleIcon className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Draw Circle with Radius</span>
+                <span>Draw Circle</span>
               </button>
 
               <button
@@ -349,6 +349,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 3D Digital Twin Architecture
               </span>
 
+              {/* Draw 3D Polygon (Renamed from Draw 3D Building Extrusion) */}
               <button
                 type="button"
                 onClick={() => {
@@ -363,9 +364,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <Box className="w-3.5 h-3.5 text-sky-400" />
-                <span>Draw 3D Building Extrusion</span>
+                <span>Draw 3D Polygon</span>
               </button>
 
+              {/* 3D Polygon Catalog (Renamed from 3D Architectural Catalog) */}
               <button
                 type="button"
                 onClick={() => {
@@ -377,7 +379,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <Building2 className="w-3.5 h-3.5 text-violet-400" />
-                <span>3D Architectural Catalog</span>
+                <span>3D Polygon Catalog</span>
               </button>
 
               <div className="h-[1px] bg-white/10 my-1" />
@@ -397,9 +399,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <Navigation className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Multi-Stop Route (OSRM)</span>
+                <span>Multi-Stop Route</span>
               </button>
 
+              {/* Place Marker (Renamed from Place Marker Pin) */}
               <button
                 type="button"
                 onClick={() => {
@@ -411,9 +414,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <MapPin className="w-3.5 h-3.5 text-red-400" />
-                <span>Place Marker Pin</span>
+                <span>Place Marker</span>
               </button>
 
+              {/* Add Text (Renamed from Add Text Box Label) */}
               <button
                 type="button"
                 onClick={() => {
@@ -425,19 +429,19 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <Type className="w-3.5 h-3.5 text-zinc-300" />
-                <span>Add Text Box Label</span>
+                <span>Add Text</span>
               </button>
             </div>
           )}
         </div>
 
         {/* =========================================================================
-            FOLDER 4: STUDIO & VISUAL STYLING FOLDER
+            SECTION 4: STUDIO & STYLING (STUDIO MODE + BASEMAP WITH MAP ICON + FX)
            ========================================================================= */}
-        <div className="relative">
+        <div className="relative shrink-0">
           <button
             type="button"
-            onClick={() => toggleFolder('studio')}
+            onClick={() => toggleFlyout('studio')}
             className={`px-2.5 py-1.5 rounded-full flex items-center gap-1.5 text-xs font-semibold transition ${
               openFolder === 'studio' || isSunDialOpen || activePanels.customMap
                 ? 'bg-white/20 text-white font-bold'
@@ -450,44 +454,200 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
           </button>
 
           {openFolder === 'studio' && (
-            <div className="absolute right-0 top-full mt-2 w-56 bg-zinc-950/95 border border-white/20 rounded-2xl p-1.5 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in space-y-0.5">
+            <div className="absolute right-0 top-full mt-2 w-72 bg-zinc-950/95 border border-white/20 rounded-2xl p-2 shadow-2xl backdrop-blur-2xl z-50 animate-in fade-in space-y-1 max-h-[80vh] overflow-y-auto">
+              {/* Studio Mode (Renamed from Studio sun dial / Studio Sun Dial & Lighting) */}
               <button
                 type="button"
                 onClick={() => {
                   toggleSunDial(true);
                   setOpenFolder(null);
                 }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 transition ${
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition ${
                   isSunDialOpen ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
                 }`}
               >
-                <Sun className="w-3.5 h-3.5 text-amber-400" />
-                <span>Studio Sun Dial &amp; Lighting</span>
+                <div className="flex items-center gap-2">
+                  <Sun className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <span className="font-bold">Studio Mode</span>
+                    <p className="text-[9.5px] text-zinc-400">Sun path, shadows &amp; lighting</p>
+                  </div>
+                </div>
+                <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Open</span>
               </button>
 
+              {/* Basemap (Renamed from Basemap Vector Styles, using Map icon) */}
               <button
                 type="button"
                 onClick={() => {
                   togglePanel('customMap');
                   setOpenFolder(null);
                 }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 transition ${
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition ${
                   activePanels.customMap ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
                 }`}
               >
-                <Palette className="w-3.5 h-3.5 text-sky-400" />
-                <span>Basemap Vector Styles</span>
+                <div className="flex items-center gap-2">
+                  <Map className="w-4 h-4 text-sky-400" />
+                  <div>
+                    <span className="font-bold">Basemap</span>
+                    <p className="text-[9.5px] text-zinc-400">Vector, Satellite &amp; Dark themes</p>
+                  </div>
+                </div>
+                <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Styles</span>
               </button>
 
-              <div className="h-[1px] bg-white/10 my-1" />
+              <div className="h-[1px] bg-white/10 my-1.5" />
 
+              <span className="px-3 py-0.5 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
+                Visual FX &amp; Realism
+              </span>
+
+              {/* 1. Smart Height Filter */}
+              <button
+                type="button"
+                onClick={() => {
+                  toggleSmartHeightFilter();
+                  setToast(!isSmartHeightFilter ? 'Smart Height Filter: High-res satellite roofs preserved on homes.' : 'Smart Height Filter disabled: extruding all structures.');
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <div>
+                    <div className="font-semibold text-white">Smart Height Filter</div>
+                    <div className="text-[9.5px] text-zinc-400">Natural satellite roofs + glass towers</div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                    isSmartHeightFilter
+                      ? 'bg-emerald-400/20 text-emerald-300 border-emerald-400/40'
+                      : 'bg-white/5 text-zinc-500 border-white/10'
+                  }`}
+                >
+                  {isSmartHeightFilter ? 'ACTIVE' : 'OFF'}
+                </span>
+              </button>
+
+              {/* 2. Night Illumination & Arteries */}
+              <button
+                type="button"
+                onClick={() => {
+                  toggleNightGlow();
+                  setToast(!isNightGlowEnabled ? 'Night illumination & glowing city arteries enabled.' : 'Night illumination disabled.');
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Moon className="w-4 h-4 text-indigo-400" />
+                  <div>
+                    <div className="font-semibold text-white">Night Illumination</div>
+                    <div className="text-[9.5px] text-zinc-400">Glowing city arteries &amp; window light</div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                    isNightGlowEnabled
+                      ? 'bg-indigo-400/20 text-indigo-300 border-indigo-400/40'
+                      : 'bg-white/5 text-zinc-500 border-white/10'
+                  }`}
+                >
+                  {isNightGlowEnabled ? 'ACTIVE' : 'OFF'}
+                </span>
+              </button>
+
+              {/* 3. Holographic Height Caliper */}
+              <button
+                type="button"
+                onClick={() => {
+                  toggleHeightCaliper();
+                  setToast(!isHeightCaliperEnabled ? 'Holographic Height Caliper HUD active.' : 'Height Caliper HUD hidden.');
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Ruler className="w-4 h-4 text-cyan-400" />
+                  <div>
+                    <div className="font-semibold text-white">Height Caliper HUD</div>
+                    <div className="text-[9.5px] text-zinc-400">3D structure altitude &amp; storeys</div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                    isHeightCaliperEnabled
+                      ? 'bg-cyan-400/20 text-cyan-300 border-cyan-400/40'
+                      : 'bg-white/5 text-zinc-500 border-white/10'
+                  }`}
+                >
+                  {isHeightCaliperEnabled ? 'ACTIVE' : 'OFF'}
+                </span>
+              </button>
+
+              {/* 4. Tilt-Shift Scale Model */}
+              <button
+                type="button"
+                onClick={() => {
+                  toggleTiltShift();
+                  setToast(!isTiltShiftEnabled ? 'Tilt-Shift Miniature Diorama blur enabled.' : 'Tilt-Shift Diorama disabled.');
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Camera className="w-4 h-4 text-amber-400" />
+                  <div>
+                    <div className="font-semibold text-white">Tilt-Shift Diorama</div>
+                    <div className="text-[9.5px] text-zinc-400">Miniature scale depth of field</div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                    isTiltShiftEnabled
+                      ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                      : 'bg-white/5 text-zinc-500 border-white/10'
+                  }`}
+                >
+                  {isTiltShiftEnabled ? 'ACTIVE' : 'OFF'}
+                </span>
+              </button>
+
+              {/* 5. 3D Radiant POI Pillars */}
+              <button
+                type="button"
+                onClick={() => {
+                  toggle3DHeatmapBeacons();
+                  setToast(!is3DHeatmapBeacons ? '3D Radiant Sky Beacons active on POIs.' : 'Radiant Sky Beacons disabled.');
+                }}
+                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
+              >
+                <div className="flex items-center gap-2">
+                  <Flame className="w-4 h-4 text-rose-400" />
+                  <div>
+                    <div className="font-semibold text-white">3D Radiant Pillars</div>
+                    <div className="text-[9.5px] text-zinc-400">Vertical radiant beams to the sky</div>
+                  </div>
+                </div>
+                <span
+                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
+                    is3DHeatmapBeacons
+                      ? 'bg-rose-400/20 text-rose-300 border-rose-400/40'
+                      : 'bg-white/5 text-zinc-500 border-white/10'
+                  }`}
+                >
+                  {is3DHeatmapBeacons ? 'ACTIVE' : 'OFF'}
+                </span>
+              </button>
+
+              <div className="h-[1px] bg-white/10 my-1.5" />
+
+              {/* Export Map to PNG */}
               <button
                 type="button"
                 onClick={handleExport}
                 className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2 text-zinc-200 hover:bg-white/10 transition"
               >
-                <Download className="w-3.5 h-3.5 text-zinc-300" />
-                <span>Export Map to PNG</span>
+                <Download className="w-4 h-4 text-zinc-300" />
+                <span className="font-semibold">Export Map to PNG</span>
               </button>
             </div>
           )}

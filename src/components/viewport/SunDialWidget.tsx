@@ -13,6 +13,9 @@ import {
   Video,
   CloudSun,
   Sparkles,
+  Ruler,
+  Camera,
+  Flame,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { calculateSolarLighting, formatSolarTime } from '../../gis/sunCalc';
@@ -33,6 +36,16 @@ export const SunDialWidget: React.FC = () => {
     setDroneOrbiting,
     isFogEnabled,
     toggleFog,
+    isSmartHeightFilter,
+    toggleSmartHeightFilter,
+    isNightGlowEnabled,
+    toggleNightGlow,
+    isHeightCaliperEnabled,
+    toggleHeightCaliper,
+    isTiltShiftEnabled,
+    toggleTiltShift,
+    is3DHeatmapBeacons,
+    toggle3DHeatmapBeacons,
     setToast,
   } = useMapStore();
 
@@ -137,12 +150,12 @@ export const SunDialWidget: React.FC = () => {
           </div>
           <div>
             <h4 className="font-extrabold text-xs tracking-tight text-white flex items-center gap-1.5">
-              <span>Studio Mode &amp; Sun Dial</span>
+              <span>Studio Mode</span>
               <span className="text-[9px] font-mono px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-normal">
                 3D Lighting
               </span>
             </h4>
-            <p className="text-[9.5px] text-zinc-400">Real-time solar pathing, 3D terrain &amp; solid shadows</p>
+            <p className="text-[9.5px] text-zinc-400">Solar pathing, 3D shadows &amp; visual realism</p>
           </div>
         </div>
         <button
@@ -350,6 +363,100 @@ export const SunDialWidget: React.FC = () => {
           <Video className="w-3.5 h-3.5" />
           <span>360° Orbit</span>
         </button>
+      </div>
+
+      {/* Visual FX & Realism Quick Chips */}
+      <div className="pt-2 mt-2 border-t border-white/10">
+        <div className="flex items-center justify-between pb-1 px-0.5">
+          <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 text-amber-400" />
+            Visual FX &amp; Realism
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-1.5">
+          {/* Smart Height Filter */}
+          <button
+            type="button"
+            onClick={() => toggleSmartHeightFilter()}
+            className={`py-1 px-2 rounded-xl text-[9.5px] font-medium border flex items-center justify-between transition ${
+              isSmartHeightFilter
+                ? 'bg-emerald-400/20 text-emerald-300 border-emerald-400/40'
+                : 'bg-white/5 text-zinc-400 border-white/10'
+            }`}
+          >
+            <span className="truncate">Smart Height</span>
+            <span className="text-[8px] font-mono font-bold px-1 rounded bg-white/10">
+              {isSmartHeightFilter ? 'ON' : 'OFF'}
+            </span>
+          </button>
+
+          {/* Night Glow */}
+          <button
+            type="button"
+            onClick={() => toggleNightGlow()}
+            className={`py-1 px-2 rounded-xl text-[9.5px] font-medium border flex items-center justify-between transition ${
+              isNightGlowEnabled
+                ? 'bg-indigo-400/20 text-indigo-300 border-indigo-400/40'
+                : 'bg-white/5 text-zinc-400 border-white/10'
+            }`}
+          >
+            <span className="truncate">Night Glow</span>
+            <span className="text-[8px] font-mono font-bold px-1 rounded bg-white/10">
+              {isNightGlowEnabled ? 'ON' : 'OFF'}
+            </span>
+          </button>
+
+          {/* Height Caliper */}
+          <button
+            type="button"
+            onClick={() => toggleHeightCaliper()}
+            className={`py-1 px-2 rounded-xl text-[9.5px] font-medium border flex items-center justify-between transition ${
+              isHeightCaliperEnabled
+                ? 'bg-cyan-400/20 text-cyan-300 border-cyan-400/40'
+                : 'bg-white/5 text-zinc-400 border-white/10'
+            }`}
+          >
+            <span className="truncate">Height Caliper</span>
+            <span className="text-[8px] font-mono font-bold px-1 rounded bg-white/10">
+              {isHeightCaliperEnabled ? 'ON' : 'OFF'}
+            </span>
+          </button>
+
+          {/* Tilt-Shift */}
+          <button
+            type="button"
+            onClick={() => toggleTiltShift()}
+            className={`py-1 px-2 rounded-xl text-[9.5px] font-medium border flex items-center justify-between transition ${
+              isTiltShiftEnabled
+                ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
+                : 'bg-white/5 text-zinc-400 border-white/10'
+            }`}
+          >
+            <span className="truncate">Tilt-Shift Diorama</span>
+            <span className="text-[8px] font-mono font-bold px-1 rounded bg-white/10">
+              {isTiltShiftEnabled ? 'ON' : 'OFF'}
+            </span>
+          </button>
+
+          {/* Radiant Beacons */}
+          <button
+            type="button"
+            onClick={() => toggle3DHeatmapBeacons()}
+            className={`col-span-2 py-1 px-2 rounded-xl text-[9.5px] font-medium border flex items-center justify-between transition ${
+              is3DHeatmapBeacons
+                ? 'bg-rose-400/20 text-rose-300 border-rose-400/40'
+                : 'bg-white/5 text-zinc-400 border-white/10'
+            }`}
+          >
+            <span className="flex items-center gap-1.5">
+              <Flame className="w-3 h-3 text-rose-400" />
+              <span>3D Radiant POI Sky Beacons</span>
+            </span>
+            <span className="text-[8px] font-mono font-bold px-1 rounded bg-white/10">
+              {is3DHeatmapBeacons ? 'ON' : 'OFF'}
+            </span>
+          </button>
+        </div>
       </div>
     </div>
   );
