@@ -1,16 +1,17 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import maplibregl from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useMapStore } from '../../store/useMapStore';
-import { ALL_STYLES, VIS_MAP } from '../../gis/map';
+import { ALL_STYLES, VIS_MAP, mapboxSatelliteXRayStyle } from '../../gis/map';
 import { rectCoords, rotateGeometry, translateCoordinates, calcBounds } from '../../gis/polygons';
 import { circleCoords, haversineDist } from '../../gis/circles';
 import { getIconKey } from '../../gis/markers';
 import { fetchMultiPointRoute } from '../../gis/routes';
 import { generateLabelsGeoJSON } from '../../gis/labels';
 import { generateCompoundBuildingFeatures, ARCHETYPE_CONFIGS } from '../../gis/buildings3d';
+import { calculateSolarLighting } from '../../gis/sunCalc';
 import { GISFeature } from '../../types/gis';
 
 interface MapCanvasProps {
@@ -52,7 +53,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     routeColor,
     setToast,
     selectedBuildingArchetype,
+    solarTime,
+    isFogEnabled,
   } = useMapStore();
+
+  const [mapboxToken, setMapboxToken] = useState<string | null>(null);
+
+  // Fetch Mapbox token on mount for high-res satellite tiles
+  useEffect(() => {
+    fetch('/api/gis/token')
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.token) {
+          setMapboxToken(data.token);
+          ALL_STYLES['Satellite 3D X-Ray'] = mapboxSatelliteXRayStyle(data.token);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Internal drag state refs
   const dragRef = useRef({
@@ -118,7 +136,10 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     if (!map) return;
     if (prevBasemapRef.current === currentBasemap) return;
     prevBasemapRef.current = currentBasemap;
-    const style = ALL_STYLES[currentBasemap];
+    const style = currentBasemap === 'Satellite 3D X-Ray'
+      ? mapboxSatelliteXRayStyle(mapboxToken || undefined)
+      : ALL_STYLES[currentBasemap];
+
     if (style) {
       map.setStyle(style);
       map.once('styledata', () => {
@@ -126,9 +147,69 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         applyVisibilities(map, visibilities);
         syncData(map, features);
         syncLabels(map, features);
+
+        // Apply solar lighting & fog immediately upon style load
+        try {
+          const center = map.getCenter();
+          const solar = calculateSolarLighting(solarTime, center?.lat || 14.5995, center?.lng || 120.9842);
+          if (typeof map.setLight === 'function') {
+            map.setLight({
+              anchor: 'map',
+              position: solar.lightPosition,
+              color: solar.lightColor,
+              intensity: solar.lightIntensity,
+            });
+          }
+          if (typeof (map as any).setFog === 'function' && isFogEnabled) {
+            (map as any).setFog({
+              range: [0.5, 10],
+              color: solar.fogColor,
+              'high-color': solar.fogHighColor,
+              'horizon-blend': solar.fogHorizonBlend,
+              'space-color': '#030712',
+            });
+          }
+        } catch (_) {}
       });
     }
-  }, [currentBasemap]);
+  }, [currentBasemap, mapboxToken]);
+
+  // Apply Real-Time Dynamic Solar Lighting, Facade Shadows, and Depth Fog
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      const center = map.getCenter();
+      const solar = calculateSolarLighting(solarTime, center?.lat || 14.5995, center?.lng || 120.9842);
+
+      // MapLibre setLight (direction, color, altitude angle, azimuth angle)
+      if (typeof map.setLight === 'function') {
+        map.setLight({
+          anchor: 'map',
+          position: solar.lightPosition,
+          color: solar.lightColor,
+          intensity: solar.lightIntensity,
+        });
+      }
+
+      // MapLibre setFog (Dynamic Celestial Atmospheric Horizon)
+      if (typeof (map as any).setFog === 'function') {
+        if (isFogEnabled) {
+          (map as any).setFog({
+            range: [0.5, 10],
+            color: solar.fogColor,
+            'high-color': solar.fogHighColor,
+            'horizon-blend': solar.fogHorizonBlend,
+            'space-color': '#030712',
+          });
+        } else {
+          (map as any).setFog(null);
+        }
+      }
+    } catch (_) {
+      // Graceful fallback if style is raster-only without 3D extrusion lighting
+    }
+  }, [solarTime, isFogEnabled]);
 
   // Update visibilities
   useEffect(() => {

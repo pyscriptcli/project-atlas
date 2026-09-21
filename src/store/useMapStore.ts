@@ -73,6 +73,21 @@ interface MapState {
   focusDisplayMode: 'popup' | 'rightPanel';
   setFocusDisplayMode: (mode: 'popup' | 'rightPanel') => void;
 
+  // Visual Excellence & Digital Twin Studio State
+  solarTime: number; // 0.0 - 24.0 (decimal hours)
+  isSunDialOpen: boolean;
+  isSatelliteXRayActive: boolean;
+  isDroneOrbiting: boolean;
+  droneOrbitSpeed: number;
+  isFogEnabled: boolean;
+
+  setSolarTime: (solarTime: number) => void;
+  toggleSunDial: (open?: boolean) => void;
+  toggleSatelliteXRay: (active?: boolean) => void;
+  setDroneOrbiting: (isDroneOrbiting: boolean) => void;
+  setDroneOrbitSpeed: (speed: number) => void;
+  toggleFog: (enabled?: boolean) => void;
+
   // Actions
   setActiveTool: (tool: FeatureKind | 'placeBuilding' | null) => void;
   setEditMode: (mode: boolean, selectedId?: number | null) => void;
@@ -181,6 +196,26 @@ export const useMapStore = create<MapState>((set, get) => ({
   setActiveCinematicCluster: (activeCinematicCluster) => set({ activeCinematicCluster }),
   focusDisplayMode: 'popup',
   setFocusDisplayMode: (focusDisplayMode) => set({ focusDisplayMode }),
+
+  // Visual Excellence & Digital Twin Studio State
+  solarTime: 12.0, // Default to High Noon
+  isSunDialOpen: false,
+  isSatelliteXRayActive: false,
+  isDroneOrbiting: false,
+  droneOrbitSpeed: 1,
+  isFogEnabled: true,
+
+  setSolarTime: (solarTime) => set({ solarTime: Math.max(0, Math.min(24, solarTime)) }),
+  toggleSunDial: (open) =>
+    set((state) => ({ isSunDialOpen: open !== undefined ? open : !state.isSunDialOpen })),
+  toggleSatelliteXRay: (active) =>
+    set((state) => ({
+      isSatelliteXRayActive: active !== undefined ? active : !state.isSatelliteXRayActive,
+    })),
+  setDroneOrbiting: (isDroneOrbiting) => set({ isDroneOrbiting }),
+  setDroneOrbitSpeed: (droneOrbitSpeed) => set({ droneOrbitSpeed }),
+  toggleFog: (enabled) =>
+    set((state) => ({ isFogEnabled: enabled !== undefined ? enabled : !state.isFogEnabled })),
 
   setActiveTool: (tool) => {
     set((state) => {

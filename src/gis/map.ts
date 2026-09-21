@@ -203,12 +203,116 @@ export function rasterStyle(tileUrls: string[], bg: string, maxzoom = 20) {
   };
 }
 
+export function mapboxSatelliteXRayStyle(token?: string) {
+  const satTiles = token
+    ? [`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.webp?access_token=${token}`]
+    : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
+
+  return {
+    version: 8,
+    glyphs: "https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf",
+    sources: {
+      sat: {
+        type: "raster",
+        tiles: satTiles,
+        tileSize: token ? 512 : 256,
+        maxzoom: 21
+      },
+      omt: {
+        type: "vector",
+        url: "https://tiles.openfreemap.org/planet"
+      }
+    },
+    layers: [
+      { id: "bg", type: "background", paint: { "background-color": "#000000" } },
+      { id: "sat_layer", type: "raster", source: "sat", paint: { "raster-opacity": 0.95 } },
+      // Glowing vector building footprints (X-Ray Wireframe)
+      {
+        id: "building-footprint-xray",
+        type: "line",
+        source: "omt",
+        "source-layer": "building",
+        minzoom: 14,
+        paint: {
+          "line-color": "#38bdf8",
+          "line-width": 1.0,
+          "line-opacity": 0.75
+        }
+      },
+      // 3D Glass Extrusions (Translucent Smoked Glass on Satellite)
+      {
+        id: "building-3d",
+        type: "fill-extrusion",
+        source: "omt",
+        "source-layer": "building",
+        minzoom: 13,
+        layout: { visibility: "visible" },
+        paint: {
+          "fill-extrusion-color": "#93c5fd",
+          "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 12],
+          "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
+          "fill-extrusion-opacity": 0.45
+        }
+      },
+      // Major Roads & Highways luminous overlay
+      {
+        id: "rd_major_xray",
+        type: "line",
+        source: "omt",
+        "source-layer": "transportation",
+        filter: ["match", ["get", "class"], ["motorway", "trunk", "primary"], true, false],
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": "#ffffff", "line-width": 1.5, "line-opacity": 0.6 }
+      },
+      // Street & City Labels with high-contrast halos
+      {
+        id: "label_street",
+        type: "symbol",
+        source: "omt",
+        "source-layer": "transportation_name",
+        minzoom: 13,
+        layout: {
+          "symbol-placement": "line",
+          "text-field": ["coalesce", ["get", "name_en"], ["get", "name"]],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 11
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2
+        }
+      },
+      {
+        id: "label_city",
+        type: "symbol",
+        source: "omt",
+        "source-layer": "place",
+        filter: ["match", ["get", "class"], ["city", "town", "suburb"], true, false],
+        minzoom: 6,
+        layout: {
+          "text-field": ["coalesce", ["get", "name_en"], ["get", "name"]],
+          "text-font": ["Noto Sans Regular"],
+          "text-size": 14,
+          "text-transform": "uppercase"
+        },
+        paint: {
+          "text-color": "#ffffff",
+          "text-halo-color": "#000000",
+          "text-halo-width": 2.5
+        }
+      }
+    ]
+  };
+}
+
 export const ALL_STYLES: Record<string, any> = {
   "Midnight Blue": vectorStyle(THEMES["Midnight Blue"]),
   "Monochrome": vectorStyle(THEMES["Monochrome"]),
   "White Gold": vectorStyle(THEMES["White Gold"]),
   "OSM": rasterStyle(["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], "#f2efe9", 19),
   "Satellite": rasterStyle(["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], "#000000", 19),
+  "Satellite 3D X-Ray": mapboxSatelliteXRayStyle(),
 };
 
 export const VIS_MAP: Record<string, string[]> = {

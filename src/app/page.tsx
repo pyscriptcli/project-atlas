@@ -15,6 +15,9 @@ import { SearchModal } from '../components/modals/SearchModal';
 import { WorkspaceLauncherModal } from '../components/modals/WorkspaceLauncherModal';
 import { BuildingCatalogModal } from '../components/modals/BuildingCatalogModal';
 import { CinematicClusterOverlay } from '../components/map/CinematicClusterOverlay';
+import { ViewportStudioDock } from '../components/viewport/ViewportStudioDock';
+import { SunDialWidget } from '../components/viewport/SunDialWidget';
+import { DroneOrbitHUD } from '../components/viewport/DroneOrbitHUD';
 import { useMapStore } from '../store/useMapStore';
 import { useProjectStore } from '../store/useProjectStore';
 import { normalizeGeoJSON } from '../gis/importExport';
@@ -66,6 +69,8 @@ export default function WorkspacePage() {
       if (e.key === 'Escape') {
         closeContextMenu();
         setActiveTool(null);
+        useMapStore.getState().setDroneOrbiting(false);
+        useMapStore.getState().toggleSunDial(false);
       }
     };
 
@@ -136,6 +141,11 @@ export default function WorkspacePage() {
       <WorkspaceLauncherModal />
       <BuildingCatalogModal mapInstance={mapInstance} />
       <CinematicClusterOverlay mapInstance={mapInstance} />
+
+      {/* Visual Excellence Suite: Studio Dock, Sun Dial, and Cinematic Drone Orbit */}
+      <ViewportStudioDock mapInstance={mapInstance} />
+      <SunDialWidget />
+      <DroneOrbitHUD mapInstance={mapInstance} />
 
       {/* Toast Notification */}
       {toastMessage && (
