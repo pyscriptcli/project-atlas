@@ -138,7 +138,7 @@ export const SunDialWidget: React.FC = () => {
 
   return (
     <div
-      className="fixed top-16 left-1/2 -translate-x-1/2 z-[1100] w-[360px] max-w-[94vw] bg-zinc-950/95 border border-white/20 rounded-3xl p-4 shadow-2xl backdrop-blur-2xl text-white select-none animate-in fade-in slide-in-from-top-3"
+      className="fixed top-16 left-1/2 -translate-x-1/2 z-[1100] w-[360px] max-w-[94vw] bg-[#0c1322] border border-white/20 rounded-3xl p-4 shadow-[0_20px_50px_rgba(0,0,0,0.95)] backdrop-blur-2xl text-white select-none"
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
     >

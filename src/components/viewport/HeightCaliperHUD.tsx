@@ -49,9 +49,9 @@ export const HeightCaliperHUD: React.FC<HeightCaliperHUDProps> = ({ mapInstance 
   return (
     <aside
       aria-label="3D Height Caliper Telemetry HUD"
-      className="fixed left-6 bottom-8 z-[20] flex flex-col gap-2 pointer-events-none select-none animate-in fade-in slide-in-from-left-4"
+      className="fixed left-6 bottom-10 z-[20] flex flex-col gap-2 pointer-events-none select-none"
     >
-      <div className="pointer-events-auto bg-black/85 border border-cyan-400/30 rounded-2xl p-3 shadow-2xl backdrop-blur-xl text-white w-64">
+      <div className="pointer-events-auto bg-[#0c1322] border border-cyan-400/40 rounded-2xl p-3.5 shadow-2xl backdrop-blur-xl text-white w-64">
         <div className="flex items-center justify-between pb-2 border-b border-white/10">
           <div className="flex items-center gap-1.5 text-cyan-400">
             <Ruler className="w-4 h-4" />

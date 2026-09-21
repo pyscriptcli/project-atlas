@@ -294,7 +294,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
           </button>
 
           {openFolder === 'draw' && (
-            <div className="absolute right-0 sm:left-0 top-full mt-2.5 w-64 bg-zinc-950/98 border border-white/20 rounded-2xl p-2 shadow-2xl backdrop-blur-2xl z-[1200] animate-in fade-in zoom-in-95 space-y-0.5 max-h-[75vh] overflow-y-auto">
+            <div className="absolute right-0 sm:left-0 top-full mt-2.5 w-64 bg-[#0c1322] border border-white/20 rounded-2xl p-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.95)] backdrop-blur-2xl z-[1200] space-y-1 max-h-[75vh] overflow-y-auto">
               <span className="px-3 py-1 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
                 2D Vector Polygons
               </span>
@@ -467,7 +467,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
           </button>
 
           {openFolder === 'studio' && (
-            <div className="absolute right-0 top-full mt-2.5 w-72 bg-zinc-950/98 border border-white/20 rounded-2xl p-2 shadow-2xl backdrop-blur-2xl z-[1200] animate-in fade-in zoom-in-95 space-y-1 max-h-[80vh] overflow-y-auto">
+            <div className="absolute right-0 top-full mt-2.5 w-72 bg-[#0c1322] border border-white/20 rounded-2xl p-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.95)] backdrop-blur-2xl z-[1200] space-y-1.5 max-h-[80vh] overflow-y-auto">
               {/* Studio Mode (Renamed from Studio sun dial / Studio Sun Dial & Lighting) */}
               <button
                 type="button"

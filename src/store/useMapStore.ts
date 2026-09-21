@@ -254,8 +254,8 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((state) => ({ isFogEnabled: enabled !== undefined ? enabled : !state.isFogEnabled })),
   toggleTerrain: (enabled) =>
     set((state) => ({ is3DTerrain: enabled !== undefined ? enabled : !state.is3DTerrain })),
-  isNightGlowEnabled: true,
-  isHeightCaliperEnabled: true,
+  isNightGlowEnabled: false,
+  isHeightCaliperEnabled: false,
   isTiltShiftEnabled: false,
   is3DHeatmapBeacons: false,
   isSmartHeightFilter: true,
