@@ -38,6 +38,44 @@ import {
   CheckSquare,
   Square,
   MinusSquare,
+  ShoppingBag,
+  ShoppingCart,
+  Store,
+  Utensils,
+  Coffee,
+  Pill,
+  HeartPulse,
+  Home,
+  Factory,
+  Package,
+  GraduationCap,
+  Shield,
+  Car,
+  Bike,
+  Bus,
+  Fuel,
+  Dumbbell,
+  Wrench,
+  Smartphone,
+  BookOpen,
+  Camera,
+  Film,
+  Plane,
+  Mail,
+  Hotel,
+  Truck,
+  Scissors,
+  Printer,
+  Gift,
+  Beer,
+  Zap,
+  Tag,
+  Music,
+  Trees,
+  Church,
+  Activity,
+  Landmark,
+  Anchor,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import {
@@ -52,6 +90,79 @@ import { circleCoordsFromRadius } from '../../gis/circles';
 import { getIconKey } from '../../gis/markers';
 import { GISFeature, MarkerShape } from '../../types/gis';
 import { AIInsightsPayload, CommercialCluster } from '../../app/api/ai/insights/route';
+
+// Category icon helper
+const getCategoryIcon = (category: string) => {
+  switch (category) {
+    case 'COMMERCIAL & OFFICES':
+      return <Building2 className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    case 'RETAIL':
+      return <ShoppingBag className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    case 'FOOD, BEVERAGE & HOSPITALITY':
+      return <Utensils className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    case 'RESIDENTIAL':
+      return <Home className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    case 'INDUSTRIAL & LOGISTICS':
+      return <Factory className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    case 'HEALTH & EMERGENCY SERVICES':
+      return <HeartPulse className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    case 'GOVERNMENT, EDUCATION & INFRASTRUCTURE':
+      return <GraduationCap className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    case 'LEISURE, SPORTS & PUBLIC SPACES':
+    case 'LEISURE, SPORTS & CULTURE':
+      return <Dumbbell className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+    default:
+      return <Tag className="w-3.5 h-3.5 text-zinc-300 shrink-0" />;
+  }
+};
+
+// Sub-item icon helper
+const getPoiItemIcon = (label: string, category: string) => {
+  const l = label.toLowerCase();
+  if (l.includes('bank') || l.includes('atm')) return <Landmark className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('office') || l.includes('corporate') || l.includes('business')) return <Building2 className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('tech') || l.includes('phone')) return <Smartphone className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('supermarket') || l.includes('grocery')) return <ShoppingCart className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('mall') || l.includes('department store') || l.includes('shopping')) return <ShoppingBag className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('convenience') || l.includes('kiosk') || l.includes('general')) return <Store className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('pharmacy') || l.includes('chemist')) return <Pill className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('hardware') || l.includes('diy')) return <Wrench className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('beauty') || l.includes('hairdresser') || l.includes('cosmetics')) return <Scissors className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('bicycle') || l.includes('cycling')) return <Bike className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('car')) return <Car className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('book') || l.includes('library')) return <BookOpen className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('photo')) return <Camera className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('copy')) return <Printer className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('gift') || l.includes('toy') || l.includes('jewelry')) return <Gift className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('cafe') || l.includes('coffee') || l.includes('bakery')) return <Coffee className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('restaurant') || l.includes('food court')) return <Utensils className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('fast food') || l.includes('bbq') || l.includes('ice cream')) return <Flame className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('bar') || l.includes('pub') || l.includes('biergarten') || l.includes('nightclub') || l.includes('casino')) return <Beer className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('hotel') || l.includes('motel') || l.includes('hostel') || l.includes('guest house') || l.includes('chalet')) return <Hotel className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('house') || l.includes('apartment') || l.includes('residential') || l.includes('condominium') || l.includes('village') || l.includes('town') || l.includes('city') || l.includes('hamlet') || l.includes('suburb')) return <Home className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('expressway') || l.includes('truck') || l.includes('hgv')) return <Truck className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('port') || l.includes('terminal')) return <Anchor className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('factory') || l.includes('manufacturing') || l.includes('industrial')) return <Factory className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('warehouse') || l.includes('storage')) return <Package className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('hospital') || l.includes('clinic')) return <HeartPulse className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('police')) return <Shield className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('fire')) return <Flame className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('defibrillator')) return <Zap className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('airport')) return <Plane className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('school') || l.includes('college') || l.includes('university') || l.includes('kindergarten')) return <GraduationCap className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('post') || l.includes('letter')) return <Mail className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('camera')) return <Camera className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('church') || l.includes('mosque') || l.includes('temple') || l.includes('synagogue')) return <Church className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('cinema') || l.includes('theatre')) return <Film className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('fuel')) return <Fuel className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('parking')) return <Car className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('bus')) return <Bus className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('sport') || l.includes('soccer') || l.includes('tennis') || l.includes('basketball') || l.includes('baseball') || l.includes('football') || l.includes('gym')) return <Activity className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('music')) return <Music className="w-3.5 h-3.5 shrink-0" />;
+  if (l.includes('park') || l.includes('garden')) return <Trees className="w-3.5 h-3.5 shrink-0" />;
+  
+  return <Tag className="w-3.5 h-3.5 shrink-0" />;
+};
 
 interface TradeAreaSidebarProps {
   mapInstance: any;
@@ -1135,12 +1246,12 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               </div>
             )}
 
-            {/* POI Taxonomy Selector (Decluttered, Compact Hierarchical Checklist) */}
+            {/* SEARCH TRADE AREA (Compact Hierarchical Checklist with Icons) */}
             <div className="space-y-2.5 shrink-0">
               <div className="flex items-center justify-between">
                 <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Building2 className="w-3.5 h-3.5 text-white" />
-                  <span>POI Taxonomy ({Object.keys(POI_CONFIG).length} Sectors)</span>
+                  <Search className="w-3.5 h-3.5 text-white" />
+                  <span>SEARCH TRADE AREA ({Object.keys(POI_CONFIG).length} Sectors)</span>
                 </span>
                 <span className="text-[10px] text-zinc-400 font-mono">
                   {selectedTags.length} tags selected
@@ -1184,7 +1295,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 </button>
               </div>
 
-              {/* Sleek Vertical Category Tree (No button cloud, clean checkboxes) */}
+              {/* Sleek Vertical Category Tree (With SVG Icons) */}
               <div className="space-y-1.5">
                 {Object.entries(POI_CONFIG).map(([category, items]) => {
                   const filteredItems = searchQuery.trim()
@@ -1231,6 +1342,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                             style={{ backgroundColor: color }}
                           />
 
+                          <span className="text-zinc-400 shrink-0">
+                            {getCategoryIcon(category)}
+                          </span>
+
                           <span className="font-semibold text-white text-[11px] truncate">
                             {category}
                           </span>
@@ -1262,7 +1377,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
                       {/* Expanded Sub-items Checklist */}
                       {isOpen && (
-                        <div className="px-3 py-2 border-t border-white/5 bg-black/40 max-h-52 overflow-y-auto">
+                        <div className="px-3 py-2 border-t border-white/5 bg-black/40 max-h-56 overflow-y-auto">
                           <div className="grid grid-cols-2 gap-1.5">
                             {filteredItems.map(([label, tag]) => {
                               const isChecked = selectedTags.includes(tag);
@@ -1283,6 +1398,9 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                                       <Square className="w-3.5 h-3.5 text-zinc-600" />
                                     )}
                                   </div>
+                                  <span className={`shrink-0 ${isChecked ? 'text-white' : 'text-zinc-400'}`}>
+                                    {getPoiItemIcon(label, category)}
+                                  </span>
                                   <span className="text-[10.5px] truncate" title={label}>
                                     {label}
                                   </span>
