@@ -32,6 +32,23 @@ export type RoofType =
   | 'spire'
   | 'gable';
 
+export type MarkerShape =
+  | 'pin'
+  | 'pin-drop'
+  | 'pinball'
+  | 'center-pinball'
+  | 'pinball-glow'
+  | 'circle'
+  | 'circle-dot'
+  | 'star'
+  | 'star-four'
+  | 'diamond'
+  | 'square'
+  | 'flag'
+  | 'heart'
+  | 'navigation'
+  | 'shield';
+
 export interface FeatureProps {
   color?: string;
   borderColor?: string;
@@ -64,7 +81,7 @@ export interface FeatureProps {
   parentBuildingId?: number;
 
   // Marker specific
-  shape?: 'pin' | 'star' | 'circle' | 'square' | 'flag' | 'heart' | 'pinball';
+  shape?: MarkerShape;
   iconKey?: string;
   customImageDataUrl?: string;
 

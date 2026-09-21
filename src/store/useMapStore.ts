@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { GISFeature, CustomGroups, LayerVisibilities, FeatureKind, BuildingArchetype } from '../types/gis';
+import { GISFeature, CustomGroups, LayerVisibilities, FeatureKind, BuildingArchetype, MarkerShape } from '../types/gis';
 import { DEFAULT_VISIBILITIES } from '../gis/map';
 
 interface MapState {
@@ -38,7 +38,7 @@ interface MapState {
   setSelectedBuildingArchetype: (archetype: BuildingArchetype) => void;
 
   // Tool configs
-  markerShape: 'pin' | 'star' | 'circle' | 'square' | 'flag' | 'heart' | 'pinball';
+  markerShape: MarkerShape;
   markerColor: string;
   markerSize: number;
   customMarkerKey: string | null;

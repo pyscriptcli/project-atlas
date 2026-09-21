@@ -6,7 +6,8 @@ import { useMapStore } from '../../store/useMapStore';
 import { ColorPicker } from '../toolbar/ColorPicker';
 import { fetchMultiPointRoute } from '../../gis/routes';
 import { ARCHETYPE_CONFIGS, FACADE_PALETTES } from '../../gis/buildings3d';
-import { BuildingArchetype, FacadeTheme, RoofType } from '../../types/gis';
+import { BuildingArchetype, FacadeTheme, RoofType, MarkerShape } from '../../types/gis';
+import { SHAPE_OPTIONS, ICON_SVGS } from '../../gis/markers';
 
 export const ShapeEditorModal: React.FC = () => {
   const {
@@ -103,55 +104,82 @@ export const ShapeEditorModal: React.FC = () => {
         />
       </div>
 
-      {/* Border Color */}
-      <div className="flex flex-col gap-1 border-t border-white/5 pt-2">
-        <ColorPicker
-          label="Border / Stroke Color"
-          color={f.props.borderColor || f.props.color || '#e8b84a'}
-          onChange={(col) =>
-            updateFeature(f.id, (feat) => ({
-              ...feat,
-              props: { ...feat.props, borderColor: col, color: col },
-            }))
-          }
-        />
-      </div>
+      {/* Marker Color (if marker) or Border Color (for polygons/lines) */}
+      {isMarker ? (
+        <div className="flex flex-col gap-1 border-t border-white/5 pt-2">
+          <ColorPicker
+            label="Marker Color"
+            color={f.props.color || f.props.borderColor || '#1e40af'}
+            onChange={(col) =>
+              updateFeature(f.id, (feat) => {
+                const shp = feat.props.shape || 'pin';
+                const clean = (col || '#1e40af').replace('#', '');
+                return {
+                  ...feat,
+                  props: {
+                    ...feat.props,
+                    color: col,
+                    borderColor: col,
+                    iconKey: `ico_${shp}_${clean}`,
+                  },
+                };
+              })
+            }
+          />
+        </div>
+      ) : (
+        <>
+          {/* Border Color */}
+          <div className="flex flex-col gap-1 border-t border-white/5 pt-2">
+            <ColorPicker
+              label="Border / Stroke Color"
+              color={f.props.borderColor || f.props.color || '#e8b84a'}
+              onChange={(col) =>
+                updateFeature(f.id, (feat) => ({
+                  ...feat,
+                  props: { ...feat.props, borderColor: col, color: col },
+                }))
+              }
+            />
+          </div>
 
-      {/* Border Opacity & Width */}
-      <div className="flex items-center justify-between">
-        <span>Border Opacity</span>
-        <input
-          type="range"
-          min="0"
-          max="1"
-          step="0.05"
-          value={f.props.borderOpacity ?? 0.9}
-          onChange={(e) =>
-            updateFeature(f.id, (feat) => ({
-              ...feat,
-              props: { ...feat.props, borderOpacity: parseFloat(e.target.value) },
-            }))
-          }
-          className="accent-blue-600 w-28 cursor-pointer"
-        />
-      </div>
-      <div className="flex items-center justify-between">
-        <span>Border Width</span>
-        <input
-          type="range"
-          min="1"
-          max="16"
-          step="1"
-          value={f.props.width || 3}
-          onChange={(e) =>
-            updateFeature(f.id, (feat) => ({
-              ...feat,
-              props: { ...feat.props, width: parseFloat(e.target.value) },
-            }))
-          }
-          className="accent-blue-600 w-28 cursor-pointer"
-        />
-      </div>
+          {/* Border Opacity & Width */}
+          <div className="flex items-center justify-between">
+            <span>Border Opacity</span>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.05"
+              value={f.props.borderOpacity ?? 0.9}
+              onChange={(e) =>
+                updateFeature(f.id, (feat) => ({
+                  ...feat,
+                  props: { ...feat.props, borderOpacity: parseFloat(e.target.value) },
+                }))
+              }
+              className="accent-blue-600 w-28 cursor-pointer"
+            />
+          </div>
+          <div className="flex items-center justify-between">
+            <span>Border Width</span>
+            <input
+              type="range"
+              min="1"
+              max="16"
+              step="1"
+              value={f.props.width || 3}
+              onChange={(e) =>
+                updateFeature(f.id, (feat) => ({
+                  ...feat,
+                  props: { ...feat.props, width: parseFloat(e.target.value) },
+                }))
+              }
+              className="accent-blue-600 w-28 cursor-pointer"
+            />
+          </div>
+        </>
+      )}
 
       {/* Fill Color for Polygons */}
       {isPolygon && (
@@ -421,22 +449,81 @@ export const ShapeEditorModal: React.FC = () => {
 
       {/* Marker specifics */}
       {isMarker && (
-        <div className="flex items-center justify-between border-t border-white/5 pt-2">
-          <span>Icon Size</span>
-          <input
-            type="range"
-            min="0.4"
-            max="2.0"
-            step="0.1"
-            value={f.props.iconSize || 0.9}
-            onChange={(e) =>
-              updateFeature(f.id, (feat) => ({
-                ...feat,
-                props: { ...feat.props, iconSize: parseFloat(e.target.value) },
-              }))
-            }
-            className="accent-blue-600 w-28 cursor-pointer"
-          />
+        <div className="border-t border-white/10 pt-2.5 flex flex-col gap-2.5">
+          <div className="flex items-center justify-between">
+            <span className="font-semibold text-white">Icon Shape</span>
+            <span className="text-[10px] text-sky-400 capitalize font-medium">
+              {SHAPE_OPTIONS.find((s) => s.id === (f.props.shape || 'pin'))?.label || f.props.shape || 'Classic Pin'}
+            </span>
+          </div>
+
+          {/* Shape Grid */}
+          <div className="grid grid-cols-3 gap-1.5 max-h-48 overflow-y-auto pr-1">
+            {SHAPE_OPTIONS.map((shp) => {
+              const isSel = (f.props.shape || 'pin') === shp.id;
+              const svgHtml = ICON_SVGS[shp.id] || ICON_SVGS.pin;
+              return (
+                <button
+                  key={shp.id}
+                  type="button"
+                  onClick={() =>
+                    updateFeature(f.id, (feat) => {
+                      const clean = (feat.props.color || '#1e40af').replace('#', '');
+                      return {
+                        ...feat,
+                        props: {
+                          ...feat.props,
+                          shape: shp.id,
+                          iconKey: `ico_${shp.id}_${clean}`,
+                        },
+                      };
+                    })
+                  }
+                  className={`flex flex-col items-center justify-center p-2 rounded-xl border transition ${
+                    isSel
+                      ? 'bg-blue-600/30 border-sky-400 text-white shadow'
+                      : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                  title={shp.label}
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill={isSel ? (f.props.color || '#38bdf8') : 'currentColor'}
+                    stroke={isSel ? '#ffffff' : 'currentColor'}
+                    strokeWidth="1.5"
+                    className="w-5 h-5 mb-1"
+                    dangerouslySetInnerHTML={{ __html: svgHtml }}
+                  />
+                  <span className="text-[9px] font-medium truncate w-full text-center">
+                    {shp.label}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between pt-1">
+            <span>Icon Size</span>
+            <div className="flex items-center gap-2">
+              <input
+                type="range"
+                min="0.4"
+                max="2.5"
+                step="0.1"
+                value={f.props.iconSize || 0.9}
+                onChange={(e) =>
+                  updateFeature(f.id, (feat) => ({
+                    ...feat,
+                    props: { ...feat.props, iconSize: parseFloat(e.target.value) },
+                  }))
+                }
+                className="accent-blue-600 w-24 cursor-pointer"
+              />
+              <span className="font-mono text-xs w-10 text-right text-sky-400 font-bold">
+                {(f.props.iconSize || 0.9).toFixed(1)}x
+              </span>
+            </div>
+          </div>
         </div>
       )}
 

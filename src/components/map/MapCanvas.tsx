@@ -396,8 +396,14 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       type: 'FeatureCollection',
       features: featList.map((f) => {
         let iconKey = f.props.iconKey;
-        if (f.kind === 'marker' && (!iconKey || !map.hasImage(iconKey))) {
-          iconKey = getIconKey(f.props.shape || 'pin', f.props.color || '#1e40af', map);
+        if (f.kind === 'marker') {
+          const shp = f.props.shape || 'pin';
+          const col = f.props.color || '#1e40af';
+          if (!f.props.customImageDataUrl) {
+            iconKey = getIconKey(shp, col, map);
+          } else if (!iconKey || !map.hasImage(iconKey)) {
+            iconKey = getIconKey(shp, col, map);
+          }
         }
         return {
           type: 'Feature',

@@ -26,6 +26,7 @@ import {
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
 import { exportMapToPNG } from '../../gis/importExport';
+import { SHAPE_OPTIONS, ICON_SVGS } from '../../gis/markers';
 
 interface TopToolbarProps {
   mapInstance: any;
@@ -41,6 +42,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     saveStatus,
     undo,
     redo,
+    markerShape,
+    markerColor,
+    markerSize,
+    setToolConfig,
   } = useMapStore();
 
   const { currentProjectName, updateProjectName, currentProjectId, saveCurrentProject } =
@@ -66,7 +71,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
   };
 
   return (
-    <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] bg-black/85 border border-white/15 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-2xl backdrop-blur-xl text-zinc-200">
+    <>
+      <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[1000] bg-black/85 border border-white/15 rounded-full px-3 py-1.5 flex items-center gap-1.5 shadow-2xl backdrop-blur-xl text-zinc-200">
       {/* Workspace Switcher */}
       <button
         onClick={() => togglePanel('launcher', true)}
@@ -317,5 +323,96 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         <Download className="w-4 h-4" />
       </button>
     </div>
+
+    {/* Floating Marker Options Bar when placing a marker */}
+    {activeTool === 'marker' && (
+      <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[1000] bg-black/90 border border-white/20 rounded-2xl px-3 py-2 flex items-center gap-2.5 shadow-2xl backdrop-blur-xl text-zinc-200 animate-in fade-in slide-in-from-top-2">
+        <div className="flex items-center gap-1.5 text-sky-400 font-bold text-xs pr-2 border-r border-white/10">
+          <MapPin className="w-3.5 h-3.5 animate-bounce" />
+          <span className="hidden sm:inline">Place Pin</span>
+        </div>
+
+        {/* Color Palette Swatches */}
+        <div className="flex items-center gap-1">
+          {['#1e40af', '#38bdf8', '#e8b84a', '#dc2626', '#16a34a', '#8b5cf6', '#ffffff', '#18181b'].map((c) => (
+            <button
+              key={c}
+              type="button"
+              onClick={() => setToolConfig({ markerColor: c })}
+              className={`w-5 h-5 rounded-full border transition ${
+                markerColor.toLowerCase() === c.toLowerCase()
+                  ? 'scale-125 border-white ring-2 ring-sky-400'
+                  : 'border-white/30 hover:scale-110'
+              }`}
+              style={{ backgroundColor: c }}
+              title={c}
+            />
+          ))}
+          <input
+            type="color"
+            value={markerColor}
+            onChange={(e) => setToolConfig({ markerColor: e.target.value })}
+            className="w-5 h-5 rounded-full bg-transparent cursor-pointer border border-white/30 ml-0.5"
+            title="Custom Color"
+          />
+        </div>
+
+        <div className="w-[1px] h-4 bg-white/15" />
+
+        {/* Shape Selector Quick Buttons */}
+        <div className="flex items-center gap-1">
+          {SHAPE_OPTIONS.slice(0, 6).map((shp) => {
+            const isSel = markerShape === shp.id;
+            const svgHtml = ICON_SVGS[shp.id] || ICON_SVGS.pin;
+            return (
+              <button
+                key={shp.id}
+                type="button"
+                onClick={() => setToolConfig({ markerShape: shp.id })}
+                className={`p-1.5 rounded-lg border transition ${
+                  isSel
+                    ? 'bg-blue-600/40 border-sky-400 text-white shadow'
+                    : 'bg-white/5 border-white/10 text-zinc-400 hover:bg-white/10 hover:text-white'
+                }`}
+                title={shp.label}
+              >
+                <svg
+                  viewBox="0 0 24 24"
+                  fill={isSel ? markerColor : 'currentColor'}
+                  stroke={isSel ? '#ffffff' : 'currentColor'}
+                  strokeWidth="1.5"
+                  className="w-4 h-4"
+                  dangerouslySetInnerHTML={{ __html: svgHtml }}
+                />
+              </button>
+            );
+          })}
+
+          {/* More Shapes dropdown */}
+          <select
+            value={markerShape}
+            onChange={(e) => setToolConfig({ markerShape: e.target.value as any })}
+            className="bg-black/60 border border-white/15 rounded-lg px-2 py-1 text-[11px] text-zinc-200 outline-none hover:border-white/30 cursor-pointer"
+          >
+            {SHAPE_OPTIONS.map((shp) => (
+              <option key={shp.id} value={shp.id}>
+                {shp.label}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="w-[1px] h-4 bg-white/15" />
+
+        {/* Cancel button */}
+        <button
+          onClick={() => setActiveTool(null)}
+          className="text-[11px] px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white transition font-semibold"
+        >
+          Cancel
+        </button>
+      </div>
+    )}
+    </>
   );
 };

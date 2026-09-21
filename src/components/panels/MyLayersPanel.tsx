@@ -417,13 +417,21 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
                       className="bg-black/60 border border-white/15 rounded px-2 py-1 text-xs text-white"
                     >
                       <option value="">-- Keep Current --</option>
-                      <option value="pin">Pin</option>
-                      <option value="star">Star</option>
+                      <option value="pin">Classic Pin</option>
+                      <option value="pin-drop">3D Drop Pin</option>
+                      <option value="pinball">3D Pinball Drop</option>
+                      <option value="center-pinball">Pulse Pinball</option>
+                      <option value="pinball-glow">Glow Pinball</option>
                       <option value="circle">Circle</option>
-                      <option value="square">Square</option>
+                      <option value="circle-dot">Bullseye Circle</option>
+                      <option value="star">5-Point Star</option>
+                      <option value="star-four">Sparkle Star</option>
+                      <option value="diamond">Diamond Gem</option>
+                      <option value="square">Square Badge</option>
                       <option value="flag">Flag</option>
                       <option value="heart">Heart</option>
-                      <option value="pinball">Pinball</option>
+                      <option value="navigation">Nav Beacon</option>
+                      <option value="shield">Shield</option>
                     </select>
                   </div>
                   <div className="flex items-center justify-between">
