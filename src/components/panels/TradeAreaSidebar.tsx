@@ -76,6 +76,10 @@ import {
   Activity,
   Landmark,
   Anchor,
+  HelpCircle,
+  Clock,
+  Footprints,
+  Cpu,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import {
@@ -194,11 +198,17 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   // Primary 2-Tab Workflow: 'target_layers' (Setup & Mapped Assets) | 'ai' (Spatial Intelligence & Q&A)
   const [activeTab, setActiveTab] = useState<'target_layers' | 'ai'>('target_layers');
 
-  // Target Mode: 'coords' (Open Node default) | 'circle' (Map circle) | 'shape' (Drawn polygon)
-  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape'>('coords');
+  // Target Mode: 'coords' (Open Node default) | 'circle' (Map circle) | 'shape' (Drawn polygon) | 'isochrone' (Mapbox Catchment)
+  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'isochrone'>('coords');
   const [coordsInput, setCoordsInput] = useState<string>('14.5995, 120.9842');
   const [radiusMeters, setRadiusMeters] = useState<number>(1000);
   const [showRadiusGraphics, setShowRadiusGraphics] = useState<boolean>(true);
+
+  // Mapbox Isochrone Travel-Time Catchment State
+  const [isochroneProfile, setIsochroneProfile] = useState<'driving' | 'walking' | 'cycling'>('driving');
+  const [isochroneMinutes, setIsochroneMinutes] = useState<number>(10);
+  const [isGeneratingIsochrone, setIsGeneratingIsochrone] = useState<boolean>(false);
+  const [activeIsochroneFeatureId, setActiveIsochroneFeatureId] = useState<number | null>(null);
 
   // Center Marker & Radius Feature IDs
   const [centerMarkerId, setCenterMarkerId] = useState<number | null>(null);
@@ -233,6 +243,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [aiData, setAiData] = useState<AIInsightsPayload | null>(null);
   const [hasCopied, setHasCopied] = useState<boolean>(false);
   const [showRawBrief, setShowRawBrief] = useState<boolean>(false);
+  const [showCapabilitiesModal, setShowCapabilitiesModal] = useState<boolean>(false);
 
   // Interactive Spatial AI Q&A State
   const [qaMessages, setQaMessages] = useState<QAMessage[]>([]);
@@ -454,6 +465,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setQaMessages([]);
     setActiveCinematicCluster(null);
 
+    if (activeIsochroneFeatureId) {
+      removeFeature(activeIsochroneFeatureId);
+      setActiveIsochroneFeatureId(null);
+    }
     if (activeBufferFeatureId) {
       removeFeature(activeBufferFeatureId);
       setActiveBufferFeatureId(null);
@@ -471,6 +486,111 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
 
     setToast('Trade area scan results and markers cleared.');
+  };
+
+  // Generate Mapbox Isochrone Catchment Polygon
+  const handleGenerateIsochrone = async () => {
+    const parsed = parseCoords();
+    if (!parsed) {
+      setToast('Invalid coordinates. Set target center coordinates first.');
+      return;
+    }
+
+    setIsGeneratingIsochrone(true);
+    setToast(`Generating ${isochroneMinutes}-min ${isochroneProfile} catchment via Mapbox...`);
+
+    try {
+      const res = await fetch('/api/gis/isochrone', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          lon: parsed.lon,
+          lat: parsed.lat,
+          minutes: isochroneMinutes,
+          profile: isochroneProfile,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok || !data.feature) {
+        throw new Error(data.error || 'Failed to compute travel catchment');
+      }
+
+      // Sync Center Target Marker
+      const cId = centerMarkerId || Date.now() + 9999;
+      const centerIconKey = mapInstance
+        ? getIconKey('center-pinball', '#ffffff', mapInstance)
+        : 'ico_center-pinball_ffffff';
+
+      addFeature({
+        id: cId,
+        name: `Catchment Origin (${parsed.lat.toFixed(4)}, ${parsed.lon.toFixed(4)})`,
+        kind: 'marker',
+        geometry: { type: 'Point', coordinates: [parsed.lon, parsed.lat] },
+        props: {
+          shape: 'center-pinball',
+          color: '#ffffff',
+          iconSize: 1.1,
+          iconKey: centerIconKey,
+          visible: 1,
+          attributes: {
+            Type: 'Travel Catchment Origin',
+            Latitude: parsed.lat.toFixed(5),
+            Longitude: parsed.lon.toFixed(5),
+            Mode: isochroneProfile,
+          },
+        },
+      });
+      setCenterMarkerId(cId);
+
+      // Add Catchment Polygon Feature
+      const isoId = activeIsochroneFeatureId || Date.now() + 7777;
+      const catchmentFeature: GISFeature = {
+        id: isoId,
+        name: `${isochroneMinutes}-Min ${isochroneProfile.toUpperCase()} Catchment`,
+        kind: 'polygon',
+        geometry: data.feature.geometry,
+        props: {
+          color: '#ffffff',
+          fillColor: '#ffffff',
+          fillOpacity: 0.04,
+          borderColor: '#ffffff',
+          borderOpacity: 0.85,
+          width: 1.75,
+          visible: 1,
+          attributes: {
+            Type: 'Mapbox Travel Catchment',
+            Mode: isochroneProfile,
+            Duration: `${isochroneMinutes} minutes`,
+            Center: `${parsed.lat.toFixed(5)}, ${parsed.lon.toFixed(5)}`,
+            Engine: data.source === 'mapbox' ? 'Mapbox API (Dual Token)' : 'Road-Adaptive Geometry',
+          },
+        },
+      };
+
+      addFeature(catchmentFeature);
+      setActiveIsochroneFeatureId(isoId);
+
+      // Fit camera to catchment polygon bounds
+      if (mapInstance && data.feature.geometry.coordinates?.[0]) {
+        const ring = data.feature.geometry.coordinates[0];
+        let minLon = 180, maxLon = -180, minLat = 90, maxLat = -90;
+        ring.forEach(([pLon, pLat]: [number, number]) => {
+          if (pLon < minLon) minLon = pLon;
+          if (pLon > maxLon) maxLon = pLon;
+          if (pLat < minLat) minLat = pLat;
+          if (pLat > maxLat) maxLat = pLat;
+        });
+        mapInstance.fitBounds([[minLon, minLat], [maxLon, maxLat]], { padding: 80, duration: 1200 });
+      }
+
+      setToast(`Generated ${isochroneMinutes}-min ${isochroneProfile} catchment! Click "SCAN AREA" to discover POIs inside.`);
+    } catch (err: any) {
+      console.error(err);
+      setToast(`Catchment error: ${err.message}`);
+    } finally {
+      setIsGeneratingIsochrone(false);
+    }
   };
 
   // Execute Trade Area Scan
@@ -494,6 +614,13 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       lat = parsed.lat;
       lon = parsed.lon;
       syncTargetRadiusGraphics(lat, lon, radius);
+    } else if (areaMode === 'isochrone') {
+      const activeIso = features.find((f) => f.id === activeIsochroneFeatureId);
+      if (!activeIso) {
+        setToast('Generate a travel catchment first before scanning.');
+        return;
+      }
+      targetShapeFeature = activeIso;
     } else if (areaMode === 'shape') {
       if (!selectedShapeId) {
         setToast('Please choose a target drawn polygon.');
@@ -532,7 +659,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
     let result = null;
     try {
-      if (areaMode === 'shape' && targetShapeFeature) {
+      if ((areaMode === 'shape' || areaMode === 'isochrone') && targetShapeFeature) {
         result = await scanTradeAreaPolygon(targetShapeFeature, selectedTags, customTag, signal);
       } else {
         result = await scanTradeAreaCoordinates(lat, lon, radius, selectedTags, customTag, signal);
@@ -1014,35 +1141,47 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   <button
                     type="button"
                     onClick={() => setAreaMode('coords')}
-                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'coords'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    Coordinates
+                    Coords
                   </button>
                   <button
                     type="button"
                     onClick={() => setAreaMode('circle')}
-                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'circle'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    Map Circle
+                    Circle
                   </button>
                   <button
                     type="button"
                     onClick={() => setAreaMode('shape')}
-                    className={`px-2.5 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'shape'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
                     Polygon
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAreaMode('isochrone')}
+                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                      areaMode === 'isochrone'
+                        ? 'bg-white text-black shadow-sm'
+                        : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Clock className="w-3 h-3" />
+                    <span>Catchment</span>
                   </button>
                 </div>
               </div>
@@ -1190,6 +1329,149 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                     >
                       Draw Polygon on Map
                     </button>
+                  )}
+                </div>
+              )}
+
+              {/* Mapbox Isochrone Travel-Time Catchment Mode */}
+              {areaMode === 'isochrone' && (
+                <div className="space-y-3 pt-1 animate-in fade-in">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide flex items-center gap-1">
+                        <span>Catchment Origin (Lat, Lon)</span>
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={handleSetFromMapCenter}
+                          className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] text-zinc-300 hover:text-white font-semibold transition"
+                        >
+                          Map Center
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSetFromCurrentLocation}
+                          className="px-2 py-0.5 rounded-md bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] text-zinc-300 hover:text-white font-semibold transition"
+                        >
+                          GPS
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="text"
+                      value={coordsInput}
+                      onChange={(e) => setCoordsInput(e.target.value)}
+                      placeholder="14.5995, 120.9842"
+                      className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white font-mono text-xs outline-none focus:border-white/40 transition backdrop-blur-sm"
+                    />
+                  </div>
+
+                  {/* Commute Mode */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
+                      Travel Profile
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5 p-1 bg-black/60 rounded-xl border border-white/10">
+                      <button
+                        type="button"
+                        onClick={() => setIsochroneProfile('driving')}
+                        className={`py-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1.5 ${
+                          isochroneProfile === 'driving'
+                            ? 'bg-white text-black shadow-sm'
+                            : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <Car className="w-3.5 h-3.5" />
+                        <span>Driving</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsochroneProfile('walking')}
+                        className={`py-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1.5 ${
+                          isochroneProfile === 'walking'
+                            ? 'bg-white text-black shadow-sm'
+                            : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <Footprints className="w-3.5 h-3.5" />
+                        <span>Walking</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setIsochroneProfile('cycling')}
+                        className={`py-1.5 rounded-lg text-[10px] font-bold transition flex items-center justify-center gap-1.5 ${
+                          isochroneProfile === 'cycling'
+                            ? 'bg-white text-black shadow-sm'
+                            : 'text-zinc-400 hover:text-white hover:bg-white/5'
+                        }`}
+                      >
+                        <Bike className="w-3.5 h-3.5" />
+                        <span>Cycling</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Travel Duration */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
+                        Catchment Reach
+                      </label>
+                      <span className="text-[11px] font-mono font-bold text-white">
+                        {isochroneMinutes} minutes
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1">
+                      {[5, 10, 15, 20, 30].map((mins) => (
+                        <button
+                          key={mins}
+                          type="button"
+                          onClick={() => setIsochroneMinutes(mins)}
+                          className={`py-1.5 rounded-lg text-[10px] font-mono font-bold transition border ${
+                            isochroneMinutes === mins
+                              ? 'bg-white text-black border-white shadow-sm'
+                              : 'bg-black/40 text-zinc-400 border-white/10 hover:text-white hover:border-white/20'
+                          }`}
+                        >
+                          {mins}m
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Generate Catchment Action Button */}
+                  <button
+                    type="button"
+                    onClick={handleGenerateIsochrone}
+                    disabled={isGeneratingIsochrone}
+                    className="w-full py-2.5 bg-white text-black hover:bg-zinc-200 active:scale-[0.99] font-black rounded-xl text-xs transition shadow-lg flex items-center justify-center gap-2"
+                  >
+                    {isGeneratingIsochrone ? (
+                      <>
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                        <span>Generating Mapbox Catchment...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="w-3.5 h-3.5 text-black" />
+                        <span>
+                          {activeIsochroneFeatureId ? 'Recalculate Catchment' : 'Compute Travel Catchment'}
+                        </span>
+                      </>
+                    )}
+                  </button>
+
+                  {activeIsochroneFeatureId && (
+                    <div className="p-2.5 rounded-xl bg-white/[0.04] border border-white/15 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                        <span className="text-[10px] text-zinc-200 font-medium">
+                          {isochroneMinutes}-min {isochroneProfile} polygon active on map
+                        </span>
+                      </div>
+                      <span className="text-[9px] font-mono text-zinc-400">Ready to Scan</span>
+                    </div>
                   )}
                 </div>
               )}
@@ -1537,18 +1819,28 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                     Empirical trade area assessment & interactive Q&A analyst
                   </p>
                 </div>
-                <button
-                  onClick={handleTriggerAiAnalysis}
-                  disabled={isAiLoading || scannedPois.length === 0}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black font-black rounded-xl text-xs transition shadow-lg shadow-white/5"
-                >
-                  {isAiLoading ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
-                  ) : (
-                    <RefreshCw className="w-3.5 h-3.5 text-black" />
-                  )}
-                  <span>{aiData ? 'Regenerate' : 'Generate Dossier'}</span>
-                </button>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => setShowCapabilitiesModal(true)}
+                    className="p-2 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 text-zinc-300 hover:text-white transition flex items-center justify-center"
+                    title="Geospatial Intelligence Architecture & Engine Guide"
+                  >
+                    <HelpCircle className="w-3.5 h-3.5 text-zinc-300" />
+                  </button>
+                  <button
+                    onClick={handleTriggerAiAnalysis}
+                    disabled={isAiLoading || scannedPois.length === 0}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-zinc-200 disabled:opacity-40 text-black font-black rounded-xl text-xs transition shadow-lg shadow-white/5"
+                  >
+                    {isAiLoading ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5 text-black" />
+                    )}
+                    <span>{aiData ? 'Regenerate' : 'Generate Dossier'}</span>
+                  </button>
+                </div>
               </div>
 
               {/* Notice if no scan */}
@@ -1949,6 +2241,126 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               <span className="tracking-wider uppercase font-black">SCAN AREA</span>
             </button>
           )}
+        </div>
+      )}
+
+      {/* Geospatial Intelligence Engine & Architecture Capabilities Modal */}
+      {showCapabilitiesModal && (
+        <div className="fixed inset-0 z-[100] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-zinc-950 border border-white/20 rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 text-white max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="flex items-start justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <span className="p-1.5 rounded-xl bg-white/10 border border-white/20 text-white">
+                    <Cpu className="w-4 h-4 text-white" />
+                  </span>
+                  <h3 className="font-extrabold text-sm tracking-tight text-white">
+                    Geospatial Intelligence Engine
+                  </h3>
+                </div>
+                <p className="text-[11px] text-zinc-400">
+                  How Project Atlas maximizes Mapbox Isochrones, Overpass Turbo / OSMnx, and DeepSeek V3
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowCapabilitiesModal(false)}
+                className="p-1.5 rounded-xl text-zinc-400 hover:text-white hover:bg-white/10 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Core Pillars */}
+            <div className="space-y-3">
+              {/* 1. Mapbox Isochrone & Catchments */}
+              <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-white">
+                    <Clock className="w-3.5 h-3.5 text-white" />
+                    <span>Mapbox Isochrones &amp; Catchments</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-white/10 border border-white/20 text-zinc-200">
+                    Dual-Token Pool (200k/mo)
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Computes real-world reachable travel boundaries across road networks rather than naive Euclidean circles. Supports driving, walking, and cycling catchment contours with automatic round-robin rotation across <code className="text-zinc-200">MAPBOX_ACCESS_TOKEN_1</code> and <code className="text-zinc-200">MAPBOX_ACCESS_TOKEN_2</code> with instant failover.
+                </p>
+              </div>
+
+              {/* 2. OSMnx & Overpass Multi-Mirror */}
+              <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-white">
+                    <Radar className="w-3.5 h-3.5 text-white" />
+                    <span>Overpass Turbo &amp; OSMnx Multi-Mirror</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-white/10 border border-white/20 text-zinc-200">
+                    3 Gateway Rotation
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Queries 40+ granular retail, commercial, amenity, and logistics taxonomies directly inside your computed catchment polygon (<code className="text-zinc-200">poly:&quot;...&quot;</code>). Automatically load-balances across Kumi Systems, Overpass Turbo API, and Private OSM Mirrors with intelligent retry logic.
+                </p>
+              </div>
+
+              {/* 3. DeepSeek V3 Spatial Commercial Intelligence */}
+              <div className="p-3.5 bg-white/[0.03] border border-white/10 rounded-2xl space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-xs flex items-center gap-1.5 text-white">
+                    <Sparkles className="w-3.5 h-3.5 text-white" />
+                    <span>DeepSeek V3 Spatial Commercial Analyst</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[9px] font-mono font-bold bg-white/10 border border-white/20 text-zinc-200">
+                    Empirical Vitality Index
+                  </span>
+                </div>
+                <p className="text-[11px] text-zinc-400 leading-relaxed">
+                  Synthesizes mapped assets into empirical site selection intelligence. Evaluates commercial vitality (0-100), competitive anchor density, and retail voids, with full multi-turn conversational Q&amp;A referencing active map pins and polygons.
+                </p>
+              </div>
+            </div>
+
+            {/* Quick-Prompt Suggestions */}
+            <div className="space-y-2 pt-1">
+              <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wider block">
+                Suggested Analyst Queries (Click to Ask)
+              </label>
+              <div className="space-y-1.5">
+                {[
+                  'Evaluate 10-minute drive-time convenience store and pharmacy saturation.',
+                  'Identify prime tenant gaps and underserved commercial categories in this trade area.',
+                  'Which anchor POIs drive the highest footfall in this catchment and what is the competitive threat?',
+                ].map((promptText, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => {
+                      setQaInput(promptText);
+                      setShowCapabilitiesModal(false);
+                    }}
+                    className="w-full text-left p-2.5 rounded-xl bg-black/50 hover:bg-white/10 border border-white/10 hover:border-white/25 transition text-[11px] text-zinc-300 hover:text-white flex items-center justify-between group"
+                  >
+                    <span className="line-clamp-1">{promptText}</span>
+                    <Send className="w-3 h-3 text-zinc-500 group-hover:text-white shrink-0 ml-2" />
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Close Button */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => setShowCapabilitiesModal(false)}
+                className="w-full py-2.5 bg-white text-black font-extrabold rounded-xl text-xs hover:bg-zinc-200 transition"
+              >
+                Got It
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
