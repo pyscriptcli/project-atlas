@@ -264,6 +264,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           ['!=', ['coalesce', ['get', 'visible'], 1], 0],
         ],
         layout: {
+          visibility: 'visible',
           'icon-image': ['get', 'iconKey'],
           'icon-size': ['coalesce', ['get', 'iconSize'], 0.9],
           'icon-allow-overlap': true,
@@ -284,6 +285,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           ['!=', ['coalesce', ['get', 'visible'], 1], 0],
         ],
         layout: {
+          visibility: 'visible',
           'text-field': ['get', 'text'],
           'text-font': ['Noto Sans Regular'],
           'text-size': ['coalesce', ['get', 'fontSize'], 16],
@@ -310,6 +312,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         type: 'symbol',
         source: 'label-src',
         layout: {
+          visibility: 'visible',
           'text-field': ['get', 'labelText'],
           'text-font': ['Noto Sans Regular'],
           'text-size': 13,
