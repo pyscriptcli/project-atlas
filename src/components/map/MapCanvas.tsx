@@ -264,7 +264,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           'icon-allow-overlap': true,
           'icon-anchor': 'bottom',
         },
-        paint: { 'icon-opacity': ['get', 'visible'] },
+        paint: { 'icon-opacity': ['coalesce', ['get', 'visible'], 1] },
       });
 
       map.addLayer({
@@ -379,16 +379,24 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
 
     src.setData({
       type: 'FeatureCollection',
-      features: featList.map((f) => ({
-        type: 'Feature',
-        geometry: f.geometry as any,
-        properties: {
-          id: f.id,
-          name: f.name,
-          kind: f.kind,
-          ...f.props,
-        },
-      })),
+      features: featList.map((f) => {
+        let iconKey = f.props.iconKey;
+        if (f.kind === 'marker' && (!iconKey || !map.hasImage(iconKey))) {
+          iconKey = getIconKey(f.props.shape || 'pin', f.props.color || '#1e40af', map);
+        }
+        return {
+          type: 'Feature',
+          geometry: f.geometry as any,
+          properties: {
+            id: f.id,
+            name: f.name,
+            kind: f.kind,
+            visible: f.props.visible ?? 1,
+            ...f.props,
+            iconKey: iconKey || f.props.iconKey,
+          },
+        };
+      }),
     });
   };
 
