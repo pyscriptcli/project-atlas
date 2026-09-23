@@ -24,9 +24,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ mapInstance }) => {
       setIsLoading(true);
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(
-            query.trim()
-          )}`
+          `/api/geocode?q=${encodeURIComponent(query.trim())}`
         );
         const data = await res.json();
         setResults(data || []);
