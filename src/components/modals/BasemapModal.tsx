@@ -10,10 +10,26 @@ interface BasemapModalProps {
   mapInstance: any;
 }
 
+const STYLE_CONTROLS = [
+  { id: 'expressways', label: 'Expressways', layers: [{ id: 'case_express_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_express', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'mainRoads', label: 'Main roads', layers: [{ id: 'case_major_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_major', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'secondaryRoads', label: 'Secondary roads', layers: [{ id: 'case_secondary_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_secondary', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'railways', label: 'Railways', layers: [{ id: 'rd_rail', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'boundaries', label: 'Boundaries', layers: [{ id: 'bound_prov', width: 'line-width', opacity: 'line-opacity' }, { id: 'bound_city', width: 'line-width', opacity: 'line-opacity' }, { id: 'bound_brgy', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'background', label: 'Background', layers: [{ id: 'bg', opacity: 'background-opacity' }], thickness: false, opacity: true },
+  { id: 'buildings', label: 'Buildings', layers: [{ id: 'building-2d', opacity: 'fill-opacity' }, { id: 'building-3d', opacity: 'fill-extrusion-opacity' }], thickness: false, opacity: true },
+] as const;
+
+const INITIAL_VALUES = Object.fromEntries(
+  STYLE_CONTROLS.flatMap(({ id, thickness, opacity }) => [
+    ...(thickness ? [[`${id}Thickness`, 100]] : []),
+    ...(opacity ? [[`${id}Opacity`, 100]] : []),
+  ])
+) as Record<string, number>;
+
 export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
   const { activePanels, togglePanel, currentBasemap, setBasemap } = useMapStore();
-  const [lineThickness, setLineThickness] = useState(100);
-  const [basemapOpacity, setBasemapOpacity] = useState(100);
+  const [values, setValues] = useState(INITIAL_VALUES);
   const [styleVersion, setStyleVersion] = useState(0);
   const basePaintRef = useRef<Map<string, Record<string, any>>>(new Map());
 
@@ -26,17 +42,14 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
   const captureStyle = useCallback(() => {
     if (!mapInstance?.isStyleLoaded?.()) return;
     const basePaint = new Map<string, Record<string, any>>();
-    for (const layer of mapInstance.getStyle().layers ?? []) {
-      const paint: Record<string, any> = {};
-      if (layer.type === 'line') paint['line-width'] = mapInstance.getPaintProperty(layer.id, 'line-width');
-      const opacityProp: Record<string, [string, number]> = {
-        background: ['background-opacity', 1], fill: ['fill-opacity', 1], line: ['line-opacity', 1],
-        'fill-extrusion': ['fill-extrusion-opacity', 1], raster: ['raster-opacity', 1], symbol: ['text-opacity', 1],
-      };
-      const opacity = opacityProp[layer.type];
-      if (opacity) paint[opacity[0]] = mapInstance.getPaintProperty(layer.id, opacity[0]) ?? opacity[1];
-      if (layer.type === 'symbol') paint['icon-opacity'] = mapInstance.getPaintProperty(layer.id, 'icon-opacity') ?? 1;
-      basePaint.set(layer.id, paint);
+    for (const group of STYLE_CONTROLS) {
+      for (const layer of group.layers) {
+        if (!mapInstance.getLayer(layer.id)) continue;
+        const paint: Record<string, any> = {};
+        if ('width' in layer) paint[layer.width] = mapInstance.getPaintProperty(layer.id, layer.width);
+        if ('opacity' in layer) paint[layer.opacity] = mapInstance.getPaintProperty(layer.id, layer.opacity) ?? 1;
+        basePaint.set(layer.id, paint);
+      }
     }
     basePaintRef.current = basePaint;
     setStyleVersion((version) => version + 1);
@@ -44,16 +57,19 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
 
   useEffect(() => {
     if (!mapInstance?.isStyleLoaded?.()) return;
-    for (const layer of mapInstance.getStyle().layers ?? []) {
-      const base = basePaintRef.current.get(layer.id);
-      if (!base) continue;
-      const width = base['line-width'];
-      if (width != null) mapInstance.setPaintProperty(layer.id, 'line-width', ['*', width, lineThickness / 100]);
-      for (const prop of ['background-opacity', 'fill-opacity', 'line-opacity', 'fill-extrusion-opacity', 'raster-opacity', 'text-opacity', 'icon-opacity']) {
-        if (base[prop] != null) mapInstance.setPaintProperty(layer.id, prop, ['*', base[prop], basemapOpacity / 100]);
+    for (const group of STYLE_CONTROLS) {
+      for (const layer of group.layers) {
+        const base = basePaintRef.current.get(layer.id);
+        if (!base || !mapInstance.getLayer(layer.id)) continue;
+        if ('width' in layer && base[layer.width] != null) {
+          mapInstance.setPaintProperty(layer.id, layer.width, ['*', base[layer.width], values[`${group.id}Thickness`] / 100]);
+        }
+        if ('opacity' in layer && base[layer.opacity] != null) {
+          mapInstance.setPaintProperty(layer.id, layer.opacity, ['*', base[layer.opacity], values[`${group.id}Opacity`] / 100]);
+        }
       }
     }
-  }, [mapInstance, lineThickness, basemapOpacity, styleVersion]);
+  }, [mapInstance, values, styleVersion]);
 
   useEffect(() => {
     if (!mapInstance) return;
@@ -102,23 +118,27 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
         </div>
       </div>
 
-      {/* Fine-grain vector controls */}
-      <div className="border-t border-white/10 pt-3 flex flex-col gap-3">
-        <label className="flex flex-col gap-1.5">
-          <span className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            <span>Vector line thickness</span><span className="text-sky-300">{(lineThickness / 100).toFixed(2)}×</span>
-          </span>
-          <input aria-label="Vector line thickness" type="range" min="50" max="250" step="10" value={lineThickness} onChange={(e) => setLineThickness(Number(e.target.value))} className="w-full accent-sky-400" />
-          <span className="flex justify-between text-[9px] text-gray-500"><span>Smallest</span><span>Biggest</span></span>
-        </label>
-
-        <label className="flex flex-col gap-1.5">
-          <span className="flex items-center justify-between text-[10px] font-bold uppercase tracking-wider text-gray-400">
-            <span>Basemap opacity</span><span className="text-sky-300">{basemapOpacity}%</span>
-          </span>
-          <input aria-label="Basemap opacity" type="range" min="0" max="100" step="1" value={basemapOpacity} onChange={(e) => setBasemapOpacity(Number(e.target.value))} className="w-full accent-sky-400" />
-          <span className="flex justify-between text-[9px] text-gray-500"><span>Transparent</span><span>Opaque</span></span>
-        </label>
+      {/* Per-feature style controls */}
+      <div className="border-t border-white/10 pt-3 flex flex-col gap-2.5">
+        {STYLE_CONTROLS.map((group) => (
+          <div key={group.id} className="rounded-xl border border-white/10 bg-white/[0.03] px-2.5 py-2 flex flex-col gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-gray-300">{group.label}</span>
+            {group.thickness && (
+              <label className="grid grid-cols-[68px_1fr_38px] items-center gap-2 text-[10px] text-gray-400">
+                <span>Thickness</span>
+                <input aria-label={`${group.label} thickness`} type="range" min="50" max="250" step="10" value={values[`${group.id}Thickness`]} onChange={(e) => setValues((current) => ({ ...current, [`${group.id}Thickness`]: Number(e.target.value) }))} className="w-full accent-sky-400" />
+                <span className="text-right text-sky-300">{(values[`${group.id}Thickness`] / 100).toFixed(1)}×</span>
+              </label>
+            )}
+            {group.opacity && (
+              <label className="grid grid-cols-[68px_1fr_38px] items-center gap-2 text-[10px] text-gray-400">
+                <span>Opacity</span>
+                <input aria-label={`${group.label} opacity`} type="range" min="0" max="100" step="1" value={values[`${group.id}Opacity`]} onChange={(e) => setValues((current) => ({ ...current, [`${group.id}Opacity`]: Number(e.target.value) }))} className="w-full accent-sky-400" />
+                <span className="text-right text-sky-300">{values[`${group.id}Opacity`]}%</span>
+              </label>
+            )}
+          </div>
+        ))}
 
         <ColorPicker
           label="Background"
