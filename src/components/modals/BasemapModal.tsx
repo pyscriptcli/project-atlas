@@ -235,7 +235,7 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
                   />
                   <label className="grid grid-cols-[60px_1fr_38px] items-center gap-2 text-[10px] text-gray-400">
                     <span>Thickness</span>
-                    <input aria-label={`${group.label} thickness`} type="range" min="50" max="250" step="10" value={values[`${group.id}Thickness`]} onChange={(e) => setValues((current) => ({ ...current, [`${group.id}Thickness`]: Number(e.target.value) }))} className="w-full accent-sky-400" />
+                    <input aria-label={`${group.label} thickness`} type="range" min="50" max="1000" step="10" value={values[`${group.id}Thickness`]} onChange={(e) => setValues((current) => ({ ...current, [`${group.id}Thickness`]: Number(e.target.value) }))} className="w-full accent-sky-400" />
                     <span className="text-right text-sky-300">{(values[`${group.id}Thickness`] / 100).toFixed(1)}×</span>
                   </label>
                   <label className="grid grid-cols-[60px_1fr_38px] items-center gap-2 text-[10px] text-gray-400">
