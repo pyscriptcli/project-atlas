@@ -11,13 +11,13 @@ interface BasemapModalProps {
 }
 
 const STYLE_CONTROLS = [
-  { id: 'expressways', label: 'Expressways', color: '#ffaa00', colorLayers: ['rd_express'], layers: [{ id: 'case_express_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_express', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
-  { id: 'mainRoads', label: 'Main roads', color: '#e8b84a', colorLayers: ['rd_major'], layers: [{ id: 'case_major_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_major', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
-  { id: 'secondaryRoads', label: 'Secondary roads', color: '#c99c37', colorLayers: ['rd_secondary'], layers: [{ id: 'case_secondary_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_secondary', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
-  { id: 'railways', label: 'Railways', color: '#d9b451', colorLayers: ['rd_rail'], layers: [{ id: 'rd_rail', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
-  { id: 'boundaries', label: 'Boundaries', color: '#ff1e1e', colorLayers: ['bound_prov', 'bound_city', 'bound_brgy'], layers: [{ id: 'bound_prov', width: 'line-width', opacity: 'line-opacity' }, { id: 'bound_city', width: 'line-width', opacity: 'line-opacity' }, { id: 'bound_brgy', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'expressways', label: 'Expressways', color: '#ffaa00', colorLayers: ['rd_express'], visibilityKeys: ['road_exp'], layers: [{ id: 'case_express_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_express', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'mainRoads', label: 'Main roads', color: '#e8b84a', colorLayers: ['rd_major'], visibilityKeys: ['road_main'], layers: [{ id: 'case_major_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_major', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'secondaryRoads', label: 'Secondary roads', color: '#c99c37', colorLayers: ['rd_secondary'], visibilityKeys: ['road_sec'], layers: [{ id: 'case_secondary_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_secondary', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'railways', label: 'Railways', color: '#d9b451', colorLayers: ['rd_rail'], visibilityKeys: ['rd_rail'], layers: [{ id: 'rd_rail', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
+  { id: 'boundaries', label: 'Boundaries', color: '#ff1e1e', colorLayers: ['bound_prov', 'bound_city', 'bound_brgy'], visibilityKeys: ['bound_prov', 'bound_city', 'bound_brgy'], layers: [{ id: 'bound_prov', width: 'line-width', opacity: 'line-opacity' }, { id: 'bound_city', width: 'line-width', opacity: 'line-opacity' }, { id: 'bound_brgy', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
   { id: 'background', label: 'Background', layers: [{ id: 'bg', opacity: 'background-opacity' }], thickness: false, opacity: true },
-  { id: 'buildings', label: 'Buildings', layers: [{ id: 'building-2d', opacity: 'fill-opacity' }, { id: 'building-3d', opacity: 'fill-extrusion-opacity' }], thickness: false, opacity: true },
+  { id: 'buildings', label: 'Buildings', visibilityKeys: ['building2d', 'building3d'], layers: [{ id: 'building-2d', opacity: 'fill-opacity' }, { id: 'building-3d', opacity: 'fill-extrusion-opacity' }], thickness: false, opacity: true },
 ] as const;
 
 const INITIAL_VALUES = Object.fromEntries(
@@ -46,14 +46,17 @@ function scaleLineWidth(width: any, scale: number) {
 }
 
 export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
-  const { activePanels, togglePanel, currentBasemap, setBasemap } = useMapStore();
+  const { activePanels, togglePanel, currentBasemap, setBasemap, visibilities, setVisibility } = useMapStore();
   const [values, setValues] = useState(INITIAL_VALUES);
   const [colors, setColors] = useState<Record<string, string>>(
     Object.fromEntries(STYLE_CONTROLS.filter((group) => 'color' in group).map((group) => [group.id, group.color!]))
   );
   const [openRoadGroup, setOpenRoadGroup] = useState<string | null>(null);
   const [styleVersion, setStyleVersion] = useState(0);
+  const [failedGroups, setFailedGroups] = useState<Record<string, boolean>>({});
   const basePaintRef = useRef<Map<string, Record<string, any>>>(new Map());
+  const touchedOpacityRef = useRef(new Set<string>());
+  const mixedOpacityRef = useRef(new Set<string>());
 
   const setMapPaint = (layerId: string, prop: string, val: any) => {
     if (mapInstance && mapInstance.getLayer(layerId)) {
@@ -61,14 +64,13 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
     }
   };
 
-  const hasRoadLayers = STYLE_CONTROLS
-    .filter((group) => 'colorLayers' in group)
-    .some((group) => group.layers.some((layer) => mapInstance?.getLayer(layer.id)));
-
   const captureStyle = useCallback(() => {
-    if (!mapInstance?.isStyleLoaded?.()) return;
+    const styleLayers = mapInstance?.getStyle?.()?.layers;
+    if (!Array.isArray(styleLayers)) return;
     const basePaint = new Map<string, Record<string, any>>();
     const styleColors: Record<string, string> = {};
+    const opacityDefaults: Record<string, number> = {};
+    const mixedOpacityGroups = new Set<string>();
     for (const group of STYLE_CONTROLS) {
       if ('colorLayers' in group) {
         const colorLayer = group.colorLayers.find((id) => mapInstance.getLayer(id));
@@ -82,21 +84,37 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
         if ('opacity' in layer) paint[layer.opacity] = mapInstance.getPaintProperty(layer.id, layer.opacity) ?? 1;
         basePaint.set(layer.id, paint);
       }
+      if (group.opacity && !touchedOpacityRef.current.has(group.id)) {
+        const opacities = group.layers
+          .map((layer) => basePaint.get(layer.id)?.[layer.opacity])
+          .filter((opacity): opacity is number => typeof opacity === 'number');
+        if (opacities.length) {
+          opacityDefaults[`${group.id}Opacity`] = Math.round(opacities.reduce((sum, opacity) => sum + opacity, 0) / opacities.length * 100);
+          if (opacities.some((opacity) => Math.abs(opacity - opacities[0]) > 0.001)) mixedOpacityGroups.add(group.id);
+        }
+      }
     }
     basePaintRef.current = basePaint;
+    mixedOpacityRef.current = mixedOpacityGroups;
     if (Object.keys(styleColors).length) setColors((current) => ({ ...current, ...styleColors }));
+    if (Object.keys(opacityDefaults).length) setValues((current) => ({ ...current, ...opacityDefaults }));
     setStyleVersion((version) => version + 1);
   }, [mapInstance]);
 
   useEffect(() => {
-    if (!mapInstance?.isStyleLoaded?.()) return;
-    // Apply opacity first so a malformed width on one layer cannot block opacity controls.
+    if (!Array.isArray(mapInstance?.getStyle?.()?.layers)) return;
+    const failures: Record<string, boolean> = {};
+    // Keep each control independent if one layer rejects its paint update.
     for (const group of STYLE_CONTROLS) {
+      if (!touchedOpacityRef.current.has(group.id)) continue;
       for (const layer of group.layers) {
         const base = basePaintRef.current.get(layer.id);
-        if (!base || !mapInstance.getLayer(layer.id)) continue;
-        if ('opacity' in layer && base[layer.opacity] != null) {
-          mapInstance.setPaintProperty(layer.id, layer.opacity, ['*', base[layer.opacity], values[`${group.id}Opacity`] / 100]);
+        if (!base || !('opacity' in layer) || base[layer.opacity] == null || !mapInstance.getLayer(layer.id)) continue;
+        try {
+          mapInstance.setPaintProperty(layer.id, layer.opacity, values[`${group.id}Opacity`] / 100);
+        } catch (error) {
+          failures[group.id] = true;
+          console.warn(`Could not apply ${group.label} opacity`, error);
         }
       }
     }
@@ -104,17 +122,44 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
       for (const layer of group.layers) {
         const base = basePaintRef.current.get(layer.id);
         if (!base || !mapInstance.getLayer(layer.id) || !('width' in layer) || base[layer.width] == null) continue;
-        mapInstance.setPaintProperty(layer.id, layer.width, scaleLineWidth(base[layer.width], values[`${group.id}Thickness`] / 100));
+        try {
+          mapInstance.setPaintProperty(layer.id, layer.width, scaleLineWidth(base[layer.width], values[`${group.id}Thickness`] / 100));
+        } catch (error) {
+          failures[group.id] = true;
+          console.warn(`Could not apply ${group.label} thickness`, error);
+        }
       }
     }
+    setFailedGroups(failures);
   }, [mapInstance, values, styleVersion]);
 
   useEffect(() => {
     if (!mapInstance) return;
-    if (mapInstance.isStyleLoaded?.()) captureStyle();
     mapInstance.on('style.load', captureStyle);
+    // onMapReady fires after the initial map load; style.load handles later basemap changes.
+    captureStyle();
     return () => mapInstance.off('style.load', captureStyle);
-  }, [mapInstance, currentBasemap, captureStyle]);
+  }, [mapInstance, captureStyle]);
+
+  const getGroupStatus = (group: (typeof STYLE_CONTROLS)[number]) => {
+    if (failedGroups[group.id]) return 'Update failed';
+    const styleLayers = mapInstance?.getStyle?.()?.layers;
+    if (!Array.isArray(styleLayers)) return 'Loading style';
+    const existing = group.layers
+      .map((layer) => styleLayers.find((styleLayer: any) => styleLayer.id === layer.id))
+      .filter(Boolean);
+    if (!existing.length) return 'Unavailable';
+    if ('visibilityKeys' in group && !group.visibilityKeys.some((key) => visibilities[key])) return 'Hidden';
+    const zoom = mapInstance?.getZoom?.() ?? 0;
+    const visible = existing.some((layer: any) => {
+      return zoom >= (layer.minzoom ?? 0) && zoom < (layer.maxzoom ?? Infinity);
+    });
+    if (!visible) {
+      const nextMinZoom = Math.min(...existing.map((layer: any) => layer.minzoom ?? 0));
+      return zoom < nextMinZoom ? `Zoom ${nextMinZoom}+` : 'Hidden';
+    }
+    return 'Ready';
+  };
 
   if (!activePanels.customMap) return null;
 
@@ -159,19 +204,23 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
       {/* Per-road controls stay compact until the user opens a group. */}
       <section className="border-t border-white/10 pt-3 flex flex-col gap-2">
         <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Road & boundary styles</h2>
-        {hasRoadLayers ? STYLE_CONTROLS.filter((group) => 'color' in group).map((group) => {
+        {STYLE_CONTROLS.filter((group) => 'color' in group).map((group) => {
           const isOpen = openRoadGroup === group.id;
+          const status = getGroupStatus(group);
+          const unavailable = status === 'Unavailable' || status === 'Loading style';
           return (
             <div key={group.id} className="rounded-xl border border-white/10 bg-white/[0.03] overflow-hidden">
               <button
                 type="button"
                 aria-expanded={isOpen}
                 aria-controls={isOpen ? `style-controls-${group.id}` : undefined}
+                disabled={unavailable}
                 onClick={() => setOpenRoadGroup(isOpen ? null : group.id)}
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400"
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="w-3 h-3 shrink-0 rounded-sm border border-white/30" style={{ backgroundColor: colors[group.id] }} />
+                <span className="w-6 shrink-0 rounded-full" style={{ height: `${Math.max(2, values[`${group.id}Thickness`] / 50)}px`, backgroundColor: colors[group.id], opacity: values[`${group.id}Opacity`] / 100 }} />
                 <span className="flex-1 text-[11px] font-bold uppercase tracking-wide text-gray-200">{group.label}</span>
+                <span className="text-[9px] text-gray-500">{status}</span>
                 <ChevronDown className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
               </button>
               {isOpen && (
@@ -191,24 +240,39 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
                   </label>
                   <label className="grid grid-cols-[60px_1fr_38px] items-center gap-2 text-[10px] text-gray-400">
                     <span>Opacity</span>
-                    <input aria-label={`${group.label} opacity`} type="range" min="0" max="100" step="1" value={values[`${group.id}Opacity`]} onChange={(e) => setValues((current) => ({ ...current, [`${group.id}Opacity`]: Number(e.target.value) }))} className="w-full accent-sky-400" />
-                    <span className="text-right text-sky-300">{values[`${group.id}Opacity`]}%</span>
+                    <input aria-label={`${group.label} opacity`} type="range" min="0" max="100" step="1" value={values[`${group.id}Opacity`]} onChange={(e) => {
+                      touchedOpacityRef.current.add(group.id);
+                      setValues((current) => ({ ...current, [`${group.id}Opacity`]: Number(e.target.value) }));
+                    }} className="w-full accent-sky-400" />
+                    <span className="text-right text-sky-300">{mixedOpacityRef.current.has(group.id) && !touchedOpacityRef.current.has(group.id) ? 'Mixed' : `${values[`${group.id}Opacity`]}%`}</span>
                   </label>
+                  {status === 'Hidden' && 'visibilityKeys' in group && (
+                    <button type="button" onClick={() => group.visibilityKeys!.forEach((key) => setVisibility(key, true))} className="self-start rounded-md border border-sky-400/30 px-2 py-1 text-[10px] font-semibold text-sky-300 hover:bg-sky-400/10">
+                      Show on map
+                    </button>
+                  )}
+                  {status.startsWith('Zoom ') && <p className="text-[10px] text-amber-300">Zoom in to see this layer.</p>}
                 </div>
               )}
             </div>
           );
-        }) : <p className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[11px] text-gray-400">Road styling is available on vector basemaps.</p>}
+        })}
       </section>
 
       <section className="flex flex-col gap-2">
         <h2 className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Layer opacity</h2>
         {STYLE_CONTROLS.filter((group) => group.id === 'background' || group.id === 'buildings').map((group) => (
-          <label key={group.id} className="grid grid-cols-[70px_1fr_38px] items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-[10px] text-gray-400">
-            <span className="font-bold uppercase tracking-wide">{group.label}</span>
-            <input aria-label={`${group.label} opacity`} type="range" min="0" max="100" step="1" value={values[`${group.id}Opacity`]} onChange={(e) => setValues((current) => ({ ...current, [`${group.id}Opacity`]: Number(e.target.value) }))} className="w-full accent-sky-400" />
-            <span className="text-right text-sky-300">{values[`${group.id}Opacity`]}%</span>
-          </label>
+          <div key={group.id} className="flex flex-col gap-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+            <label className="grid grid-cols-[70px_1fr_38px] items-center gap-2 text-[10px] text-gray-400">
+              <span className="font-bold uppercase tracking-wide">{group.label}</span>
+              <input aria-label={`${group.label} opacity`} type="range" min="0" max="100" step="1" value={values[`${group.id}Opacity`]} disabled={getGroupStatus(group) === 'Unavailable'} onChange={(e) => {
+                touchedOpacityRef.current.add(group.id);
+                setValues((current) => ({ ...current, [`${group.id}Opacity`]: Number(e.target.value) }));
+              }} className="w-full accent-sky-400 disabled:opacity-40" />
+              <span className="text-right text-sky-300">{mixedOpacityRef.current.has(group.id) && !touchedOpacityRef.current.has(group.id) ? 'Mixed' : `${values[`${group.id}Opacity`]}%`}</span>
+            </label>
+            {getGroupStatus(group) !== 'Ready' && <span className="pl-[78px] text-[9px] text-gray-500">{getGroupStatus(group)}</span>}
+          </div>
         ))}
       </section>
 
