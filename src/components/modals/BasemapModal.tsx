@@ -27,6 +27,24 @@ const INITIAL_VALUES = Object.fromEntries(
   ])
 ) as Record<string, number>;
 
+function scaleLineWidth(width: any, scale: number) {
+  if (typeof width === 'number') return width * scale;
+  if (!Array.isArray(width)) return width;
+
+  // Keep zoom as the top-level camera expression; MapLibre rejects wrapping it in `*`.
+  if (width[0] === 'interpolate' || width[0] === 'step') {
+    const scaled = [...width];
+    const firstOutput = width[0] === 'step' ? 2 : 4;
+    for (let index = firstOutput; index < scaled.length; index += 2) {
+      if (typeof scaled[index] === 'number') scaled[index] *= scale;
+      else scaled[index] = ['*', scaled[index], scale];
+    }
+    return scaled;
+  }
+
+  return ['*', width, scale];
+}
+
 export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
   const { activePanels, togglePanel, currentBasemap, setBasemap } = useMapStore();
   const [values, setValues] = useState(INITIAL_VALUES);
@@ -72,16 +90,21 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
 
   useEffect(() => {
     if (!mapInstance?.isStyleLoaded?.()) return;
+    // Apply opacity first so a malformed width on one layer cannot block opacity controls.
     for (const group of STYLE_CONTROLS) {
       for (const layer of group.layers) {
         const base = basePaintRef.current.get(layer.id);
         if (!base || !mapInstance.getLayer(layer.id)) continue;
-        if ('width' in layer && base[layer.width] != null) {
-          mapInstance.setPaintProperty(layer.id, layer.width, ['*', base[layer.width], values[`${group.id}Thickness`] / 100]);
-        }
         if ('opacity' in layer && base[layer.opacity] != null) {
           mapInstance.setPaintProperty(layer.id, layer.opacity, ['*', base[layer.opacity], values[`${group.id}Opacity`] / 100]);
         }
+      }
+    }
+    for (const group of STYLE_CONTROLS) {
+      for (const layer of group.layers) {
+        const base = basePaintRef.current.get(layer.id);
+        if (!base || !mapInstance.getLayer(layer.id) || !('width' in layer) || base[layer.width] == null) continue;
+        mapInstance.setPaintProperty(layer.id, layer.width, scaleLineWidth(base[layer.width], values[`${group.id}Thickness`] / 100));
       }
     }
   }, [mapInstance, values, styleVersion]);
