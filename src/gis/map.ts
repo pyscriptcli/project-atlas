@@ -80,7 +80,8 @@ function road_layer(p: ThemeColors, lid: string, classes: string[], color: strin
   if (minzoom) lyr.minzoom = minzoom;
   if (casing) {
     lyr.paint["line-color"] = p.rd_case;
-    lyr.paint["line-width"] = w(...widths.map(([z, val]) => [z, val + 1.8] as [number, number]));
+    // Keep the casing directly beneath the road stroke so thickened roads have no outline.
+    lyr.paint["line-width"] = w(...widths);
     lyr.id = lid + "_casing";
   }
   return lyr;
