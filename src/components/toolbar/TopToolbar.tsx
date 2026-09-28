@@ -23,13 +23,8 @@ import {
   Building2,
   Radar,
   Sun,
-  Moon,
   ChevronDown,
   PenTool,
-  Sparkles,
-  Ruler,
-  Camera,
-  Flame,
   Check,
   Store,
 } from 'lucide-react';
@@ -58,17 +53,6 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     setToolConfig,
     isSunDialOpen,
     toggleSunDial,
-    isSmartHeightFilter,
-    toggleSmartHeightFilter,
-    isNightGlowEnabled,
-    toggleNightGlow,
-    isHeightCaliperEnabled,
-    toggleHeightCaliper,
-    isTiltShiftEnabled,
-    toggleTiltShift,
-    is3DHeatmapBeacons,
-    toggle3DHeatmapBeacons,
-    setToast,
   } = useMapStore();
 
   const { currentProjectName, updateProjectName, currentProjectId, saveCurrentProject } =
@@ -496,28 +480,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
               {/* Upward pointer caret */}
               <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#0c1322] border-t border-l border-white/20 rotate-45 pointer-events-none" />
 
-              {/* Studio Mode (Renamed from Studio sun dial / Studio Sun Dial & Lighting) */}
-              <button
-                type="button"
-                onClick={() => {
-                  toggleSunDial(true);
-                  setOpenFolder(null);
-                }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition ${
-                  isSunDialOpen ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
-                }`}
-              >
-                <div className="flex items-center gap-2">
-                  <Sun className="w-4 h-4 text-amber-400" />
-                  <div>
-                    <span className="font-bold">Studio Mode</span>
-                    <p className="text-[9.5px] text-zinc-400">Sun path, shadows &amp; lighting</p>
-                  </div>
-                </div>
-                <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Open</span>
-              </button>
-
-              {/* Basemap (Renamed from Basemap Vector Styles, using Map icon) */}
+              {/* Basemap */}
               <button
                 type="button"
                 onClick={() => {
@@ -538,145 +501,25 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Styles</span>
               </button>
 
-              <div className="h-[1px] bg-white/10 my-1.5" />
-
-              <span className="px-3 py-0.5 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
-                Visual FX &amp; Realism
-              </span>
-
-              {/* 1. Smart Height Filter */}
+              {/* Studio Mode */}
               <button
                 type="button"
                 onClick={() => {
-                  toggleSmartHeightFilter();
-                  setToast(!isSmartHeightFilter ? 'Smart Height Filter: High-res satellite roofs preserved on homes.' : 'Smart Height Filter disabled: extruding all structures.');
+                  toggleSunDial(true);
+                  setOpenFolder(null);
                 }}
-                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
+                className={`w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition ${
+                  isSunDialOpen ? 'bg-white text-black font-bold' : 'text-zinc-200 hover:bg-white/10'
+                }`}
               >
                 <div className="flex items-center gap-2">
-                  <Sparkles className="w-4 h-4 text-emerald-400" />
+                  <Sun className="w-4 h-4 text-amber-400" />
                   <div>
-                    <div className="font-semibold text-white">Smart Height Filter</div>
-                    <div className="text-[9.5px] text-zinc-400">Natural satellite roofs + glass towers</div>
+                    <span className="font-bold">Studio Mode</span>
+                    <p className="text-[9.5px] text-zinc-400">Sun path, shadows &amp; lighting</p>
                   </div>
                 </div>
-                <span
-                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
-                    isSmartHeightFilter
-                      ? 'bg-emerald-400/20 text-emerald-300 border-emerald-400/40'
-                      : 'bg-white/5 text-zinc-500 border-white/10'
-                  }`}
-                >
-                  {isSmartHeightFilter ? 'ACTIVE' : 'OFF'}
-                </span>
-              </button>
-
-              {/* 2. Night Illumination & Arteries */}
-              <button
-                type="button"
-                onClick={() => {
-                  toggleNightGlow();
-                  setToast(!isNightGlowEnabled ? 'Night illumination & glowing city arteries enabled.' : 'Night illumination disabled.');
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
-              >
-                <div className="flex items-center gap-2">
-                  <Moon className="w-4 h-4 text-indigo-400" />
-                  <div>
-                    <div className="font-semibold text-white">Night Illumination</div>
-                    <div className="text-[9.5px] text-zinc-400">Glowing city arteries &amp; window light</div>
-                  </div>
-                </div>
-                <span
-                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
-                    isNightGlowEnabled
-                      ? 'bg-indigo-400/20 text-indigo-300 border-indigo-400/40'
-                      : 'bg-white/5 text-zinc-500 border-white/10'
-                  }`}
-                >
-                  {isNightGlowEnabled ? 'ACTIVE' : 'OFF'}
-                </span>
-              </button>
-
-              {/* 3. Holographic Height Caliper */}
-              <button
-                type="button"
-                onClick={() => {
-                  toggleHeightCaliper();
-                  setToast(!isHeightCaliperEnabled ? 'Holographic Height Caliper HUD active.' : 'Height Caliper HUD hidden.');
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
-              >
-                <div className="flex items-center gap-2">
-                  <Ruler className="w-4 h-4 text-cyan-400" />
-                  <div>
-                    <div className="font-semibold text-white">Height Caliper HUD</div>
-                    <div className="text-[9.5px] text-zinc-400">3D structure altitude &amp; storeys</div>
-                  </div>
-                </div>
-                <span
-                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
-                    isHeightCaliperEnabled
-                      ? 'bg-cyan-400/20 text-cyan-300 border-cyan-400/40'
-                      : 'bg-white/5 text-zinc-500 border-white/10'
-                  }`}
-                >
-                  {isHeightCaliperEnabled ? 'ACTIVE' : 'OFF'}
-                </span>
-              </button>
-
-              {/* 4. Tilt-Shift Scale Model */}
-              <button
-                type="button"
-                onClick={() => {
-                  toggleTiltShift();
-                  setToast(!isTiltShiftEnabled ? 'Tilt-Shift Miniature Diorama blur enabled.' : 'Tilt-Shift Diorama disabled.');
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
-              >
-                <div className="flex items-center gap-2">
-                  <Camera className="w-4 h-4 text-amber-400" />
-                  <div>
-                    <div className="font-semibold text-white">Tilt-Shift Diorama</div>
-                    <div className="text-[9.5px] text-zinc-400">Miniature scale depth of field</div>
-                  </div>
-                </div>
-                <span
-                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
-                    isTiltShiftEnabled
-                      ? 'bg-amber-400/20 text-amber-300 border-amber-400/40'
-                      : 'bg-white/5 text-zinc-500 border-white/10'
-                  }`}
-                >
-                  {isTiltShiftEnabled ? 'ACTIVE' : 'OFF'}
-                </span>
-              </button>
-
-              {/* 5. 3D Radiant POI Pillars */}
-              <button
-                type="button"
-                onClick={() => {
-                  toggle3DHeatmapBeacons();
-                  setToast(!is3DHeatmapBeacons ? '3D Radiant Sky Beacons active on POIs.' : 'Radiant Sky Beacons disabled.');
-                }}
-                className="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between text-zinc-200 hover:bg-white/10 transition"
-              >
-                <div className="flex items-center gap-2">
-                  <Flame className="w-4 h-4 text-rose-400" />
-                  <div>
-                    <div className="font-semibold text-white">3D Radiant Pillars</div>
-                    <div className="text-[9.5px] text-zinc-400">Vertical radiant beams to the sky</div>
-                  </div>
-                </div>
-                <span
-                  className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full font-bold border ${
-                    is3DHeatmapBeacons
-                      ? 'bg-rose-400/20 text-rose-300 border-rose-400/40'
-                      : 'bg-white/5 text-zinc-500 border-white/10'
-                  }`}
-                >
-                  {is3DHeatmapBeacons ? 'ACTIVE' : 'OFF'}
-                </span>
+                <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Open</span>
               </button>
 
               <div className="h-[1px] bg-white/10 my-1.5" />
