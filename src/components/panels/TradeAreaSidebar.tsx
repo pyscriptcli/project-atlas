@@ -88,6 +88,7 @@ import {
   scanTradeAreaCoordinates,
   scanTradeAreaPolygon,
   ScannedPOI,
+  ScanResult,
   compileFeaturesKml,
 } from '../../gis/tradeArea';
 import { circleCoordsFromRadius } from '../../gis/circles';
@@ -168,6 +169,8 @@ const getPoiItemIcon = (label: string, category: string) => {
   return <Tag className="w-3.5 h-3.5 shrink-0" />;
 };
 
+const MAX_SEARCH_AREAS = 5;
+
 interface TradeAreaSidebarProps {
   mapInstance: any;
 }
@@ -207,6 +210,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   } = useMapStore();
 
   const activeTab = 'target_layers';
+  const [activeWorkflowStep, setActiveWorkflowStep] = useState<1 | 2 | 3>(1);
 
   // Start with a map boundary; coordinates remain available for precise targeting.
   const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'isochrone'>('shape');
@@ -226,8 +230,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [activeBufferFeatureId, setActiveBufferFeatureId] = useState<number | null>(null);
 
   // Selected Drawn shapes
-  const [selectedCircleId, setSelectedCircleId] = useState<number | ''>('');
-  const [selectedShapeId, setSelectedShapeId] = useState<number | ''>('');
+  const [selectedCircleIds, setSelectedCircleIds] = useState<number[]>([]);
+  const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
 
   // Taxonomy & Search State - CLEARED BY DEFAULT
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -283,13 +287,29 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const drawnCircles = useMemo(() => features.filter((f) => f.kind === 'circle'), [features]);
   const drawnShapes = useMemo(() => features.filter((f) => ['polygon', 'rectangle'].includes(f.kind)), [features]);
   const drawnShapeCountRef = useRef<number | null>(null);
+  const drawnCircleCountRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (drawnShapeCountRef.current !== null && drawnShapes.length > drawnShapeCountRef.current) {
-      setSelectedShapeId(drawnShapes[drawnShapes.length - 1].id);
+      setSelectedShapeIds((current) => Array.from(new Set([...current, drawnShapes[drawnShapes.length - 1].id])));
     }
+    setSelectedShapeIds((current) => {
+      const valid = current.filter((id) => drawnShapes.some((feature) => feature.id === id));
+      return valid.length === current.length ? current : valid;
+    });
     drawnShapeCountRef.current = drawnShapes.length;
   }, [drawnShapes]);
+
+  useEffect(() => {
+    if (drawnCircleCountRef.current !== null && drawnCircles.length > drawnCircleCountRef.current) {
+      setSelectedCircleIds((current) => Array.from(new Set([...current, drawnCircles[drawnCircles.length - 1].id])));
+    }
+    setSelectedCircleIds((current) => {
+      const valid = current.filter((id) => drawnCircles.some((feature) => feature.id === id));
+      return valid.length === current.length ? current : valid;
+    });
+    drawnCircleCountRef.current = drawnCircles.length;
+  }, [drawnCircles]);
 
   // Scanned POI features currently in the store
   const scannedFeatureIds = useMemo(() => {
@@ -337,17 +357,22 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   if (!activePanels.tradeArea) return null;
 
   // Coordinate parser
-  const parseCoords = (): { lat: number; lon: number } | null => {
-    const match = coordsInput.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
-    if (match) {
-      const lat = parseFloat(match[1]);
-      const lon = parseFloat(match[2]);
-      if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
-        return { lat, lon };
-      }
-    }
-    return null;
+  const parseCoordsList = (): Array<{ lat: number; lon: number }> | null => {
+    const lines = coordsInput.split(/\r?\n|;/).map((line) => line.trim()).filter(Boolean);
+    if (!lines.length) return null;
+    const parsed = lines.map((line) => {
+      const match = line.match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+      if (!match) return null;
+      const lat = Number(match[1]);
+      const lon = Number(match[2]);
+      return Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180
+        ? { lat, lon }
+        : null;
+    });
+    return parsed.every((point) => point !== null) ? parsed as Array<{ lat: number; lon: number }> : null;
   };
+
+  const parseCoords = (): { lat: number; lon: number } | null => parseCoordsList()?.[0] || null;
 
   // Sync center target and buffer circle on map (Monochrome glass styling)
   const syncTargetRadiusGraphics = (targetLat: number, targetLon: number, targetRadius: number) => {
@@ -480,34 +505,36 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   };
 
   const getSearchAreaSummary = () => {
-    if (areaMode === 'coords') return `within ${(radiusMeters / 1000).toFixed(1)} km of ${coordsInput || 'the selected coordinates'}`;
+    if (areaMode === 'coords') {
+      const targets = parseCoordsList();
+      return `within ${(radiusMeters / 1000).toFixed(1)} km of ${targets?.length || 0} selected location${targets?.length === 1 ? '' : 's'}`;
+    }
     if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} area`;
-    if (areaMode === 'shape') return 'within the selected map boundary';
-    return 'within the selected map circle';
+    if (areaMode === 'shape') return `within ${selectedShapeIds.length} selected map ${selectedShapeIds.length === 1 ? 'boundary' : 'boundaries'}`;
+    return `within ${selectedCircleIds.length} selected map circle${selectedCircleIds.length === 1 ? '' : 's'}`;
   };
 
   const getAreaLabel = () => {
-    if (areaMode === 'coords') return `${coordsInput || 'Choose a location'} · ${(radiusMeters / 1000).toFixed(1)} km radius`;
+    if (areaMode === 'coords') return `${parseCoordsList()?.length || 0} location${parseCoordsList()?.length === 1 ? '' : 's'} · ${(radiusMeters / 1000).toFixed(1)} km radius`;
     if (areaMode === 'isochrone') return `${isochroneMinutes}-minute ${isochroneProfile} reach`;
-    if (areaMode === 'shape') return selectedShapeId ? (features.find((f) => f.id === Number(selectedShapeId))?.name || 'Selected boundary') : 'Draw or choose a boundary';
-    const circle = features.find((f) => f.id === selectedCircleId) || drawnCircles[drawnCircles.length - 1];
-    return circle ? `${circle.name} · ${((circle.props?.radiusMeters || 0) / 1000).toFixed(1)} km radius` : 'Draw or choose a circle';
+    if (areaMode === 'shape') return `${selectedShapeIds.length} ${selectedShapeIds.length === 1 ? 'boundary' : 'boundaries'} selected`;
+    return `${selectedCircleIds.length} circle${selectedCircleIds.length === 1 ? '' : 's'} selected`;
   };
 
   const isSearchAreaReady = areaMode === 'coords'
-    ? parseCoords() !== null
+    ? Boolean(parseCoordsList()?.length && (parseCoordsList()?.length || 0) <= MAX_SEARCH_AREAS)
     : areaMode === 'shape'
-      ? Boolean(features.some((feature) => feature.id === Number(selectedShapeId)))
+      ? selectedShapeIds.length > 0 && selectedShapeIds.length <= MAX_SEARCH_AREAS && selectedShapeIds.every((id) => drawnShapes.some((feature) => feature.id === id))
       : areaMode === 'isochrone'
         ? Boolean(features.some((feature) => feature.id === activeIsochroneFeatureId))
-        : Boolean(features.some((feature) => feature.id === selectedCircleId && feature.kind === 'circle') || drawnCircles.length);
+        : selectedCircleIds.length > 0 && selectedCircleIds.length <= MAX_SEARCH_AREAS && selectedCircleIds.every((id) => drawnCircles.some((feature) => feature.id === id));
 
   // The AI needs the selected area mode, not the user's precise coordinates.
   const getSearchAreaContextForAI = () => {
-    if (areaMode === 'coords') return `within ${(radiusMeters / 1000).toFixed(1)} km of the selected map point`;
+    if (areaMode === 'coords') return `within ${(radiusMeters / 1000).toFixed(1)} km of ${parseCoordsList()?.length || 0} selected map location(s)`;
     if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} travel area`;
-    if (areaMode === 'shape') return 'within the selected map boundary';
-    return 'within the selected map circle';
+    if (areaMode === 'shape') return `within ${selectedShapeIds.length} selected map boundary/boundaries`;
+    return `within ${selectedCircleIds.length} selected map circle(s)`;
   };
 
   const getPresetCatalog = () => Object.entries(POI_CONFIG).flatMap(([category, items]) =>
@@ -781,71 +808,71 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       return;
     }
 
-    let lat: number = 14.5995;
-    let lon: number = 120.9842;
-    let radius = radiusMeters;
-    let targetShapeFeature: GISFeature | undefined;
+    type SearchArea = { kind: 'coordinates'; lat: number; lon: number; radius: number } | { kind: 'polygon'; feature: GISFeature };
+    const searchAreas: SearchArea[] = [];
 
     if (areaMode === 'coords') {
-      const parsed = parseCoords();
-      if (!parsed) {
-        setToast('Invalid coordinates format. Use "lat, lon" (e.g., 14.5995, 120.9842)');
+      const points = parseCoordsList();
+      if (!points) {
+        setToast('Enter valid coordinates, one “latitude, longitude” pair per line.');
         return;
       }
-      lat = parsed.lat;
-      lon = parsed.lon;
-      syncTargetRadiusGraphics(lat, lon, radius);
+      points.forEach(({ lat, lon }) => searchAreas.push({ kind: 'coordinates', lat, lon, radius: radiusMeters }));
+      if (points.length === 1) syncTargetRadiusGraphics(points[0].lat, points[0].lon, radiusMeters);
     } else if (areaMode === 'isochrone') {
       const activeIso = features.find((f) => f.id === activeIsochroneFeatureId);
       if (!activeIso) {
         setToast('Generate a travel catchment first before scanning.');
         return;
       }
-      targetShapeFeature = activeIso;
+      searchAreas.push({ kind: 'polygon', feature: activeIso });
     } else if (areaMode === 'shape') {
-      if (!selectedShapeId) {
-        setToast('Please choose a target drawn polygon.');
+      const targets = selectedShapeIds.map((id) => drawnShapes.find((feature) => feature.id === id)).filter((feature): feature is GISFeature => Boolean(feature));
+      if (!targets.length || targets.length !== selectedShapeIds.length) {
+        setToast('Select one or more drawn boundaries before searching.');
         return;
       }
-      targetShapeFeature = features.find((f) => f.id === selectedShapeId);
-      if (!targetShapeFeature) {
-        setToast('Target polygon not found.');
-        return;
-      }
+      targets.forEach((feature) => searchAreas.push({ kind: 'polygon', feature }));
     } else {
-      const activeCircle =
-        features.find((f) => f.id === selectedCircleId && f.kind === 'circle') ||
-        drawnCircles[drawnCircles.length - 1];
-
-      if (!activeCircle) {
-        handleStartDrawingCircle();
+      const targets = selectedCircleIds.map((id) => drawnCircles.find((feature) => feature.id === id)).filter((feature): feature is GISFeature => Boolean(feature));
+      if (!targets.length || targets.length !== selectedCircleIds.length) {
+        setToast('Select one or more drawn circles before searching.');
         return;
       }
+      targets.forEach((circle) => {
+        const center = circle.props?.centerCoord || (circle.geometry.type === 'Polygon' && circle.geometry.coordinates?.[0]?.[0]
+          ? [circle.geometry.coordinates[0][0][0], circle.geometry.coordinates[0][0][1]] as [number, number]
+          : null);
+        if (center) searchAreas.push({ kind: 'coordinates', lon: center[0], lat: center[1], radius: circle.props?.radiusMeters || 1000 });
+      });
+    }
 
-      if (activeCircle.props?.centerCoord) {
-        lon = activeCircle.props.centerCoord[0];
-        lat = activeCircle.props.centerCoord[1];
-      } else if (activeCircle.geometry.type === 'Polygon' && activeCircle.geometry.coordinates?.[0]?.[0]) {
-        lon = activeCircle.geometry.coordinates[0][0][0];
-        lat = activeCircle.geometry.coordinates[0][0][1];
-      }
-      radius = activeCircle.props?.radiusMeters || 1000;
+    if (!searchAreas.length) {
+      setToast('Choose at least one search area.');
+      return;
+    }
+    if (searchAreas.length > MAX_SEARCH_AREAS) {
+      setToast(`Choose up to ${MAX_SEARCH_AREAS} areas per scan to keep searches responsive.`);
+      return;
     }
 
     abortControllerRef.current = new AbortController();
     const signal = abortControllerRef.current.signal;
 
     setIsScanning(true);
+    setActiveWorkflowStep(3);
     setAreaDetailsOpen(false);
     setResultsExpanded(true);
-    setToast(`Searching OpenStreetMap for ${selectedTags.length + customFilterGroups.length} place types...`);
+    setToast(`Searching ${searchAreas.length} area${searchAreas.length === 1 ? '' : 's'} for ${selectedTags.length + customFilterGroups.length} place types...`);
 
-    let result = null;
+    let areaResults: ScanResult[] = [];
     try {
-      if ((areaMode === 'shape' || areaMode === 'isochrone') && targetShapeFeature) {
-        result = await scanTradeAreaPolygon(targetShapeFeature, selectedTags, signal, customFilterGroups);
-      } else {
-        result = await scanTradeAreaCoordinates(lat, lon, radius, selectedTags, signal, customFilterGroups);
+      for (const area of searchAreas) {
+        if (signal.aborted) break;
+        const areaResult = area.kind === 'polygon'
+          ? await scanTradeAreaPolygon(area.feature, selectedTags, signal, customFilterGroups)
+          : await scanTradeAreaCoordinates(area.lat, area.lon, area.radius, selectedTags, signal, customFilterGroups);
+        if (areaResult) areaResults.push(areaResult);
       }
     } catch (e: any) {
       if (e.name === 'AbortError' || signal.aborted) {
@@ -859,7 +886,27 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       abortControllerRef.current = null;
     }
 
-    if (!result || !result.features.length) {
+    if (signal.aborted) {
+      setToast('Scan cancelled.');
+      return;
+    }
+
+    const uniquePois = new Map<string, ScannedPOI>();
+    areaResults.forEach((areaResult) => areaResult.features.forEach((poi) => {
+      const key = `${poi.type.toLowerCase()}|${poi.name.toLowerCase()}|${poi.lat.toFixed(6)}|${poi.lon.toFixed(6)}`;
+      if (!uniquePois.has(key)) uniquePois.set(key, poi);
+    }));
+    const result: ScanResult = {
+      features: Array.from(uniquePois.values()),
+      counts: {},
+      categoryCounts: {},
+    };
+    result.features.forEach((poi) => {
+      result.counts[poi.type] = (result.counts[poi.type] || 0) + 1;
+      result.categoryCounts[poi.category] = (result.categoryCounts[poi.category] || 0) + 1;
+    });
+
+    if (!result.features.length) {
       setToast('No matching POIs found within this area. Try expanding your radius or selecting tags.');
       setScannedPois([]);
       setCategoryBreakdown({});
@@ -869,8 +916,9 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setScannedPois(result.features);
     setCategoryBreakdown(result.categoryCounts);
 
-    if (mapInstance && (areaMode === 'coords' || areaMode === 'circle')) {
-      mapInstance.easeTo({ center: [lon, lat], zoom: radius > 5000 ? 12 : 14, duration: 1200 });
+    const pointArea = searchAreas.find((area): area is Extract<SearchArea, { kind: 'coordinates' }> => area.kind === 'coordinates');
+    if (mapInstance && pointArea) {
+      mapInstance.easeTo({ center: [pointArea.lon, pointArea.lat], zoom: pointArea.radius > 5000 ? 12 : 14, duration: 1200 });
     }
 
     let updatedGroups = { ...customGroups };
@@ -1301,8 +1349,12 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
       {/* Guided workflow */}
       <div className="px-5 pt-3.5 pb-2 shrink-0">
-        <div className="flex items-center justify-between gap-2 px-1 text-[9px] font-semibold uppercase tracking-wide text-zinc-500">
-          <span className="text-cyan-200">1 · Area</span><span>›</span><span>2 · Places</span><span>›</span><span>3 · Results{activeScannedFeatures.length ? ` (${activeScannedFeatures.length})` : ''}</span>
+        <div role="tablist" aria-label="Open Node workflow" className="flex gap-1 rounded-2xl border border-white/10 bg-black/60 p-1">
+          {([
+            { id: 1 as const, label: '1 · Area' },
+            { id: 2 as const, label: '2 · Places' },
+            { id: 3 as const, label: `3 · Results${activeScannedFeatures.length ? ` (${activeScannedFeatures.length})` : ''}` },
+          ]).map((step) => <button key={step.id} type="button" role="tab" aria-selected={activeWorkflowStep === step.id} onClick={() => { setActiveWorkflowStep(step.id); setShowPresetPicker(false); }} className={`min-w-0 flex-1 truncate rounded-xl px-2 py-2 text-[10px] font-bold transition ${activeWorkflowStep === step.id ? 'bg-white text-zinc-950' : 'text-zinc-400 hover:bg-white/5 hover:text-white'}`}>{step.label}</button>)}
         </div>
       </div>
 
@@ -1313,8 +1365,9 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
            ========================================================================= */}
         {activeTab === 'target_layers' && (
           <div className="space-y-4">
+            {activeWorkflowStep === 1 && <>
             {/* Target Area Definition Card */}
-            <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-3.5 space-y-3 shrink-0 backdrop-blur-xl">
+            <div className={`bg-white/[0.02] border border-white/10 rounded-2xl p-3.5 space-y-3 shrink-0 backdrop-blur-xl ${activeWorkflowStep === 1 ? '' : 'hidden'}`}>
               <div className="flex items-center justify-between">
                 <button type="button" onClick={() => setAreaDetailsOpen((open) => !open)} aria-expanded={areaDetailsOpen} className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5 text-left">
                   {areaDetailsOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -1398,13 +1451,15 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                         </button>
                       </div>
                     </div>
-                    <input
-                      type="text"
+                    <textarea
+                      rows={3}
                       value={coordsInput}
                       onChange={(e) => setCoordsInput(e.target.value)}
-                      placeholder="14.5995, 120.9842"
-                      className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white font-mono text-xs outline-none focus:border-white/40 transition backdrop-blur-sm"
+                      placeholder={'14.5995, 120.9842\n14.6100, 120.9900'}
+                      aria-label="Search coordinates, one latitude and longitude pair per line"
+                      className="w-full resize-y bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white font-mono text-xs outline-none focus:border-white/40 transition backdrop-blur-sm"
                     />
+                    <p className={`text-[9px] ${((parseCoordsList()?.length || 0) > MAX_SEARCH_AREAS) ? 'text-amber-300' : 'text-zinc-500'}`}>{((parseCoordsList()?.length || 0) > MAX_SEARCH_AREAS) ? `Limit each search to ${MAX_SEARCH_AREAS} locations.` : `Add one location per line, up to ${MAX_SEARCH_AREAS}. Every location uses the radius below.`}</p>
                   </div>
 
                   <div className="space-y-1.5">
@@ -1455,59 +1510,21 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               {/* Map Circle Mode */}
               {areaMode === 'circle' && (
                 <div className="space-y-2 pt-1">
-                  {drawnCircles.length > 0 ? (
-                    <div className="space-y-2">
-                      <select
-                        value={selectedCircleId}
-                        onChange={(e) => setSelectedCircleId(Number(e.target.value))}
-                        className="w-full bg-black/50 border border-white/15 rounded-xl px-2.5 py-1.5 text-white text-xs outline-none focus:border-white/40"
-                      >
-                        {drawnCircles.map((c) => {
-                          const cR = c.props?.radiusMeters || 0;
-                          return (
-                            <option key={c.id} value={c.id}>
-                              {c.name} ({cR >= 1000 ? `${(cR / 1000).toFixed(1)}km` : `${Math.round(cR)}m`})
-                            </option>
-                          );
-                        })}
-                      </select>
-                      <button
-                        type="button"
-                        onClick={handleStartDrawingCircle}
-                        className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] border border-white/15 transition flex items-center justify-center gap-1.5"
-                      >
-                        <CircleIcon className="w-3.5 h-3.5 text-white" />
-                        <span>Draw New Circle on Map</span>
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={handleStartDrawingCircle}
-                      className="w-full py-2.5 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2 transition text-xs shadow-md hover:bg-zinc-200"
-                    >
-                      <CircleIcon className="w-4 h-4 text-black" />
-                      <span>Draw Circle Area on Map</span>
-                    </button>
-                  )}
+                  <p className={`text-[9px] ${selectedCircleIds.length > MAX_SEARCH_AREAS ? 'text-amber-300' : 'text-zinc-500'}`}>{selectedCircleIds.length > MAX_SEARCH_AREAS ? `Limit each search to ${MAX_SEARCH_AREAS} circles.` : `Select up to ${MAX_SEARCH_AREAS} circles to search together.`}</p>
+                  <div className="max-h-36 space-y-1 overflow-y-auto">
+                    {drawnCircles.length ? drawnCircles.map((circle) => <label key={circle.id} className="flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200"><input type="checkbox" checked={selectedCircleIds.includes(circle.id)} onChange={(event) => setSelectedCircleIds((current) => event.target.checked ? [...current, circle.id] : current.filter((id) => id !== circle.id))} className="accent-cyan-300" /><span className="min-w-0 flex-1 truncate">{circle.name}</span><span className="text-zinc-500">{((circle.props?.radiusMeters || 0) / 1000).toFixed(1)} km</span></label>) : <p className="px-1 py-2 text-[10px] text-zinc-500">Draw circles on the map, then select one or more here.</p>}
+                  </div>
+                  <button type="button" onClick={handleStartDrawingCircle} className="w-full py-2 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-[11px] border border-white/15 transition flex items-center justify-center gap-1.5"><CircleIcon className="w-3.5 h-3.5 text-white" /><span>Draw another circle on map</span></button>
                 </div>
               )}
 
               {/* Polygon Mode */}
               {areaMode === 'shape' && (
                 <div className="space-y-2 pt-1">
-                  <select
-                    value={selectedShapeId}
-                    onChange={(e) => setSelectedShapeId(e.target.value ? parseInt(e.target.value, 10) : '')}
-                    className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-2 text-white outline-none focus:border-white/40 text-xs"
-                  >
-                    <option value="">-- Choose Drawn Polygon or Rectangle --</option>
-                    {drawnShapes.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.name} ({s.kind})
-                      </option>
-                    ))}
-                  </select>
+                  <p className={`text-[9px] ${selectedShapeIds.length > MAX_SEARCH_AREAS ? 'text-amber-300' : 'text-zinc-500'}`}>{selectedShapeIds.length > MAX_SEARCH_AREAS ? `Limit each search to ${MAX_SEARCH_AREAS} boundaries.` : `Select up to ${MAX_SEARCH_AREAS} boundaries to search together.`}</p>
+                  <div className="max-h-36 space-y-1 overflow-y-auto">
+                    {drawnShapes.length ? drawnShapes.map((shape) => <label key={shape.id} className="flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200"><input type="checkbox" checked={selectedShapeIds.includes(shape.id)} onChange={(event) => setSelectedShapeIds((current) => event.target.checked ? [...current, shape.id] : current.filter((id) => id !== shape.id))} className="accent-cyan-300" /><span className="min-w-0 flex-1 truncate">{shape.name}</span><span className="text-zinc-500">{shape.kind}</span></label>) : <p className="px-1 py-2 text-[10px] text-zinc-500">Draw boundaries on the map, then select the areas to include.</p>}
+                  </div>
                   <button
                     type="button"
                     onClick={() => { setActiveTool('polygon'); setToast('Draw a boundary on the map. Atlas will use it as the search area.'); }}
@@ -1662,6 +1679,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               )}
               </div>}
             </div>
+            </>}
 
             {/* In-Flight Scanning Progress */}
             {isScanning && (
@@ -1716,7 +1734,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
             )}
 
             {/* Conversational OpenStreetMap place search */}
-            <section className="space-y-3 shrink-0">
+            <section className={`space-y-3 shrink-0 ${activeWorkflowStep === 2 ? '' : 'hidden'}`}>
               <div className="flex items-center justify-between gap-2">
                 <div>
                   <h3 className="font-bold text-white text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-cyan-300" />02 · Find places</h3>
@@ -1776,7 +1794,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               )}
             </section>
 
-            {showPresetPicker && (
+            {showPresetPicker && activeWorkflowStep === 2 && (
               <div className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Choose place presets" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowPresetPicker(false); }}>
                 <div className="w-full max-w-xl max-h-[88vh] flex flex-col rounded-2xl bg-zinc-950 border border-white/15 shadow-2xl overflow-hidden">
                   <div className="p-4 border-b border-white/10 flex items-start justify-between gap-3">
@@ -1823,7 +1841,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
             )}
 
             {/* Mapped Assets Section */}
-            {activeScannedFeatures.length > 0 && (
+            {activeWorkflowStep === 3 && activeScannedFeatures.length > 0 && (
               <div className="pt-2 border-t border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
                   <button type="button" onClick={() => setResultsExpanded((expanded) => !expanded)} aria-expanded={resultsExpanded} className="flex items-center gap-2 text-left">
@@ -1890,13 +1908,21 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 </button>
               </div>
             )}
+            {activeWorkflowStep === 3 && activeScannedFeatures.length === 0 && (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-4 text-center">
+                <Layers className="mx-auto mb-2 h-5 w-5 text-zinc-500" />
+                <p className="text-[11px] font-semibold text-zinc-200">No results yet</p>
+                <p className="mt-1 text-[10px] text-zinc-500">Choose an area and describe the places you want to find.</p>
+                <button type="button" onClick={() => setActiveWorkflowStep(2)} className="mt-3 rounded-lg border border-white/15 px-3 py-1.5 text-[10px] font-semibold text-white hover:bg-white/10">Go to places</button>
+              </div>
+            )}
           </div>
         )}
 
         {/* =========================================================================
             TAB 2: SPATIAL AI INTELLIGENCE & INTERACTIVE Q&A
            ========================================================================= */}
-        {analysisExpanded && activeScannedFeatures.length > 0 && (
+        {activeWorkflowStep === 3 && analysisExpanded && activeScannedFeatures.length > 0 && (
           <div className="space-y-4">
             {/* Header / Trigger Card */}
             <div className="p-4 bg-white/[0.02] border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl">
@@ -2268,7 +2294,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       </div>
 
       {/* Sticky Bottom Action Bar for AI Tab (Pinned Persistent Inquiry Input) */}
-      {analysisExpanded && activeScannedFeatures.length > 0 && (
+      {activeWorkflowStep === 3 && analysisExpanded && activeScannedFeatures.length > 0 && (
         <div className="p-3.5 border-t border-white/10 shrink-0 bg-black/80 backdrop-blur-2xl">
           <form
             onSubmit={(e) => {
@@ -2302,7 +2328,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       )}
 
       {/* Sticky Bottom Action Bar (Setup Tab) */}
-      {activeTab === 'target_layers' && (builderReady || isScanning) && (
+      {activeTab === 'target_layers' && (isScanning || (builderReady && activeWorkflowStep === 2)) && (
         <div className="p-4 pt-3 border-t border-white/10 shrink-0 bg-black/60 backdrop-blur-2xl flex gap-2">
           {isScanning ? (
             <>
