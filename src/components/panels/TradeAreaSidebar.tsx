@@ -276,6 +276,8 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
         <tbody className="divide-y divide-white/5">
           {rows.map((row) => <React.Fragment key={row.feature.id}>
             <tr onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
+              <td className="max-w-56 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}</span></td>
+              <td className="px-3 py-2">{row.type}</td>
               <td className="max-w-56 px-3 py-2 text-zinc-400">{row.address ? <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} className="block truncate text-cyan-200 hover:underline" title="Open this address in Google Maps">{row.address}</a> : <span className="text-zinc-500">Not listed</span>}</td>
               <td className="px-3 py-2"><div className="flex items-center justify-center gap-1">
                 <button type="button" onClick={(event) => { event.stopPropagation(); onLocate(row.feature); }} aria-label={`View ${row.name} on map`} title="View in map" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Crosshair className="h-3.5 w-3.5" /></button>
