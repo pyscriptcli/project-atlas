@@ -31,6 +31,7 @@ import {
   EyeOff,
   Layers,
   Table2,
+  MapPin as MapPinIcon,
   Maximize2,
   Minimize2,
   ArrowUpDown,
@@ -218,11 +219,26 @@ const getReadablePoiName = (feature: GISFeature) => {
   return name;
 };
 
+const getPoiCoordinates = (feature: GISFeature) => feature.geometry.type === 'Point'
+  ? `${feature.geometry.coordinates[1]},${feature.geometry.coordinates[0]}`
+  : '';
+
+const getGoogleMapsUrl = (feature: GISFeature, name: string, address: string) => {
+  const location = getPoiCoordinates(feature) || `${name} ${address}`.trim();
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(location)}`;
+};
+
+const getStreetViewUrl = (feature: GISFeature, name: string, address: string) => {
+  const coordinates = getPoiCoordinates(feature);
+  return coordinates
+    ? `https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=${encodeURIComponent(coordinates)}`
+    : getGoogleMapsUrl(feature, name, address);
+};
+
 interface ResultsTableRow {
   feature: GISFeature;
   name: string;
   type: string;
-  category: string;
   address: string;
   details: Array<[string, string]>;
 }
@@ -233,8 +249,8 @@ interface ResultsTableProps {
   maximized: boolean;
   search: string;
   setSearch: (value: string) => void;
-  sortBy: 'name' | 'type' | 'category';
-  setSortBy: (value: 'name' | 'type' | 'category') => void;
+  sortBy: 'name' | 'type';
+  setSortBy: (value: 'name' | 'type') => void;
   ascending: boolean;
   setAscending: React.Dispatch<React.SetStateAction<boolean>>;
   expandedDetails: Record<number, boolean>;
@@ -249,18 +265,24 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
       <div><h4 className="flex items-center gap-1.5 text-[11px] font-bold text-white"><Table2 className="h-3.5 w-3.5 text-cyan-300" />Places table</h4><p className="mt-0.5 text-[9px] text-zinc-500">{rows.length} of {total} places · Select a row to locate it on the map.</p></div>
       <div className="flex items-center gap-1.5">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a place…" aria-label="Search places table" className="w-32 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] text-white placeholder-zinc-500 outline-none focus:border-cyan-300/40" />
-        <select aria-label="Sort places by" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'name' | 'type' | 'category')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="name">Name</option><option value="type">Place type</option><option value="category">Category</option></select>
+        <select aria-label="Sort places by" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'name' | 'type')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="name">Name</option><option value="type">Place type</option></select>
         <button type="button" onClick={() => setAscending((value) => !value)} aria-label={ascending ? 'Sort descending' : 'Sort ascending'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10"><ArrowUpDown className="h-3.5 w-3.5" /></button>
         <button type="button" onClick={onToggleMaximize} aria-label={maximized ? 'Restore table size' : 'Enlarge table'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10">{maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
       </div>
     </div>
     <div className={`overflow-auto rounded-lg border border-white/10 ${maximized ? 'min-h-0 flex-1' : 'max-h-72'}`}>
       <table className="w-full min-w-[620px] border-collapse text-left text-[10px]">
-        <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Category</th><th className="px-3 py-2">Address</th><th className="px-3 py-2 text-right">Details</th></tr></thead>
+        <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Address</th><th className="px-3 py-2 text-center">Actions</th><th className="px-3 py-2 text-right">Details</th></tr></thead>
         <tbody className="divide-y divide-white/5">
           {rows.map((row) => <React.Fragment key={row.feature.id}>
             <tr onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
-              <td className="max-w-56 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}</span></td><td className="px-3 py-2">{row.type}</td><td className="px-3 py-2">{humanizeOsmValue(row.category)}</td><td className="max-w-56 px-3 py-2 text-zinc-400"><span className="block truncate">{row.address || 'Not listed'}</span></td>
+              <td className="max-w-56 px-3 py-2 text-zinc-400">{row.address ? <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} className="block truncate text-cyan-200 hover:underline" title="Open this address in Google Maps">{row.address}</a> : <span className="text-zinc-500">Not listed</span>}</td>
+              <td className="px-3 py-2"><div className="flex items-center justify-center gap-1">
+                <button type="button" onClick={(event) => { event.stopPropagation(); onLocate(row.feature); }} aria-label={`View ${row.name} on map`} title="View in map" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Crosshair className="h-3.5 w-3.5" /></button>
+                <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Open ${row.name} in Google Maps`} title="Google Maps" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><MapPinIcon className="h-3.5 w-3.5" /></a>
+                <a href={getStreetViewUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Open Street View for ${row.name}`} title="Street View" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Eye className="h-3.5 w-3.5" /></a>
+                <a href={`https://www.google.com/search?q=${encodeURIComponent(row.name)}`} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Search Google for ${row.name}`} title="Google search" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Search className="h-3.5 w-3.5" /></a>
+              </div></td>
               <td className="px-3 py-2 text-right"><button type="button" onClick={(event) => { event.stopPropagation(); toggleDetails(row.feature.id); }} className="rounded-md px-1.5 py-1 text-[9px] text-cyan-200 hover:bg-white/10">{expandedDetails[row.feature.id] ? 'Hide' : 'More'}</button></td>
             </tr>
             {expandedDetails[row.feature.id] && <tr className="bg-white/[0.025]"><td colSpan={5} className="px-3 py-2"><div className="grid gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">{row.details.length ? row.details.map(([label, value]) => <div key={label} className="min-w-0"><span className="text-[9px] text-zinc-500">{label}: </span><span className="break-words text-[9px] text-zinc-200">{value}</span></div>) : <span className="text-[9px] text-zinc-500">No additional place details are listed.</span>}<div className="text-[8px] text-zinc-600">Place data from OpenStreetMap</div></div></td></tr>}
@@ -378,7 +400,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [resultsView, setResultsView] = useState<'groups' | 'table'>('groups');
   const [resultsTableMaximized, setResultsTableMaximized] = useState(false);
   const [resultsTableSearch, setResultsTableSearch] = useState('');
-  const [resultsSortBy, setResultsSortBy] = useState<'name' | 'type' | 'category'>('name');
+  const [resultsSortBy, setResultsSortBy] = useState<'name' | 'type'>('name');
   const [resultsSortAscending, setResultsSortAscending] = useState(true);
   const [expandedResultDetails, setExpandedResultDetails] = useState<Record<number, boolean>>({});
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
@@ -457,11 +479,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         feature,
         name,
         type: classification.label || humanizeOsmValue(feature.props.poiType || 'Place'),
-        category: feature.props.amenityGroupLabel || classification.category || humanizeOsmValue(feature.props.category || 'Other'),
         address: getPoiAddress(tags),
         details: getPoiDetails(tags),
       };
-    }).filter((row) => !query || [row.name, row.type, row.category, row.address].some((value) => value.toLowerCase().includes(query)))
+    }).filter((row) => !query || [row.name, row.type, row.address].some((value) => value.toLowerCase().includes(query)))
       .sort((a, b) => {
         const comparison = a[resultsSortBy].localeCompare(b[resultsSortBy]);
         return resultsSortAscending ? comparison : -comparison;
