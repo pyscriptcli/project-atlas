@@ -137,6 +137,8 @@ export interface FeatureProps {
   amenityGroupLabel?: string;
   managedBy?: 'open-node';
   osmTags?: Record<string, string>;
+  osmType?: string;
+  osmId?: number;
 }
 
 export interface GISFeature {

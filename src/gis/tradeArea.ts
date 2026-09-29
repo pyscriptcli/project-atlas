@@ -179,6 +179,8 @@ export interface ScannedPOI {
   lat: number;
   lon: number;
   tags: Record<string, string>;
+  osmType?: string;
+  osmId?: number;
 }
 
 export interface ScanResult {
@@ -399,6 +401,8 @@ function processOverpassElements(elements: any[], selectedTags: string[]): ScanR
       lat,
       lon,
       tags,
+      osmType: typeof el.type === 'string' ? el.type : undefined,
+      osmId: el.id != null && Number.isFinite(Number(el.id)) ? Number(el.id) : undefined,
     });
   });
 

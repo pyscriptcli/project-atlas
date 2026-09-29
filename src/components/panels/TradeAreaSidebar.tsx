@@ -238,6 +238,7 @@ const getStreetViewUrl = (feature: GISFeature, name: string, address: string) =>
 interface ResultsTableRow {
   feature: GISFeature;
   name: string;
+  displayName: string;
   type: string;
   address: string;
   details: Array<[string, string]>;
@@ -276,7 +277,7 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
         <tbody className="divide-y divide-white/5">
           {rows.map((row) => <React.Fragment key={row.feature.id}>
             <tr onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
-              <td className="max-w-56 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}</span></td>
+              <td className="max-w-72 px-3 py-2 font-medium text-white"><span className="block truncate" title={row.displayName}>{row.displayName}</span></td>
               <td className="px-3 py-2">{row.type}</td>
               <td className="max-w-56 px-3 py-2 text-zinc-400">{row.address ? <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} className="block truncate text-cyan-200 hover:underline" title="Open this address in Google Maps">{row.address}</a> : <span className="text-zinc-500">Not listed</span>}</td>
               <td className="px-3 py-2"><div className="flex items-center justify-center gap-1">
@@ -473,7 +474,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   const resultTableRows = useMemo(() => {
     const query = resultsTableSearch.trim().toLowerCase();
-    return activeScannedFeatures.map((feature) => {
+    const rows = activeScannedFeatures.map((feature) => {
       const tags = (feature.props.osmTags || {}) as Record<string, unknown>;
       const classification = getPoiClassification(tags);
       const name = getReadablePoiName(feature);
@@ -484,7 +485,18 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         address: getPoiAddress(tags),
         details: getPoiDetails(tags),
       };
-    }).filter((row) => !query || [row.name, row.type, row.address].some((value) => value.toLowerCase().includes(query)))
+    });
+    const nameCounts = rows.reduce<Record<string, number>>((counts, row) => {
+      const normalized = row.name.trim().toLocaleLowerCase();
+      counts[normalized] = (counts[normalized] || 0) + 1;
+      return counts;
+    }, {});
+    return rows.map((row) => {
+      const displayName = nameCounts[row.name.trim().toLocaleLowerCase()] > 1
+        ? `${row.name} · ${row.address ? `${row.address} · ` : ''}${row.feature.geometry.type === 'Point' ? `${row.feature.geometry.coordinates[1].toFixed(5)}, ${row.feature.geometry.coordinates[0].toFixed(5)}` : `ID ${row.feature.id}`}`
+        : row.name;
+      return { ...row, displayName };
+    }).filter((row) => !query || [row.name, row.displayName, row.type, row.address].some((value) => value.toLowerCase().includes(query)))
       .sort((a, b) => {
         const comparison = a[resultsSortBy].localeCompare(b[resultsSortBy]);
         return resultsSortAscending ? comparison : -comparison;
@@ -1115,7 +1127,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
     const uniquePois = new Map<string, ScannedPOI>();
     areaResults.forEach((areaResult) => areaResult.features.forEach((poi) => {
-      const key = `${poi.type.toLowerCase()}|${poi.name.toLowerCase()}|${poi.lat.toFixed(6)}|${poi.lon.toFixed(6)}`;
+      const sourceKey = poi.osmType && poi.osmId != null ? `${poi.osmType}/${poi.osmId}` : null;
+      const key = sourceKey || `${poi.type.trim().toLocaleLowerCase()}|${poi.name.trim().toLocaleLowerCase()}|${poi.lat.toFixed(6)}|${poi.lon.toFixed(6)}`;
       if (!uniquePois.has(key)) uniquePois.set(key, poi);
     }));
     const result: ScanResult = {
@@ -1172,12 +1185,15 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
           poiType: poi.type,
           managedBy: 'open-node',
           osmTags: poi.tags,
+          osmType: poi.osmType,
+          osmId: poi.osmId,
           attributes: {
             Name: poi.name,
             Category: poi.category,
             Type: poi.type,
             Latitude: poi.lat.toFixed(6),
             Longitude: poi.lon.toFixed(6),
+            ...(poi.osmType && poi.osmId != null ? { 'OSM element': `${poi.osmType}/${poi.osmId}` } : {}),
           },
         },
       });
@@ -1295,10 +1311,54 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   // Fly to single POI
   const handleFlyToPoi = (f: GISFeature) => {
-    if (mapInstance && f.geometry.type === 'Point') {
-      const coords = f.geometry.coordinates;
-      mapInstance.flyTo({ center: coords, zoom: 17, duration: 1000 });
+    if (f.geometry.type !== 'Point') {
+      setToast(`Can't locate ${getReadablePoiName(f)} because it has no point location.`);
+      return;
     }
+    const [longitude, latitude] = f.geometry.coordinates;
+    if (!Number.isFinite(longitude) || !Number.isFinite(latitude) || Math.abs(longitude) > 180 || Math.abs(latitude) > 90) {
+      setToast(`Can't locate ${getReadablePoiName(f)} because its coordinates are invalid.`);
+      return;
+    }
+    if (!mapInstance) {
+      setToast('The map is still loading. Try locating this place again in a moment.');
+      return;
+    }
+    if (f.props.visible === 0) updateFeature(f.id, (previous) => ({ ...previous, props: { ...previous.props, visible: 1 } }));
+    try {
+      if (openNodeDisplayMode !== 'pins') setOpenNodeDisplayMode('pins');
+      mapInstance.flyTo({ center: [longitude, latitude], zoom: 17, duration: 1000 });
+      setToast(`Showing ${getReadablePoiName(f)} on the map.`);
+    } catch (error) {
+      console.error('Unable to focus map on scanned place:', error);
+      setToast(`Atlas couldn't move the map to ${getReadablePoiName(f)}.`);
+    }
+  };
+
+  const handleExportResultsCsv = () => {
+    const quote = (value: unknown) => {
+      let text = String(value ?? '');
+      if (/^[\s]*[=+@\-]/.test(text)) text = `'${text}`;
+      return `"${text.replace(/"/g, '""')}"`;
+    };
+    const header = ['Place', 'Type', 'Address', 'Latitude', 'Longitude', 'OSM element'];
+    const rows = resultTableRows.map(({ feature, name, type, address }) => [
+      name,
+      type,
+      address || 'Not listed',
+      feature.geometry.type === 'Point' ? feature.geometry.coordinates[1] : '',
+      feature.geometry.type === 'Point' ? feature.geometry.coordinates[0] : '',
+      feature.props.osmType && feature.props.osmId ? `${feature.props.osmType}/${feature.props.osmId}` : '',
+    ]);
+    const csv = `\uFEFF${[header, ...rows].map((row) => row.map(quote).join(',')).join('\r\n')}`;
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `trade_area_places_${new Date().toISOString().slice(0, 10)}.csv`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setShowExportMenu(false);
+    setToast(`Exported ${rows.length} places to an Excel-compatible CSV file.`);
   };
 
   // Fly to Commercial Cluster
@@ -1542,6 +1602,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
               {showExportMenu && (
                 <div className="absolute right-0 top-full mt-1.5 w-44 bg-zinc-950 border border-white/15 rounded-2xl shadow-2xl p-1.5 z-50 backdrop-blur-xl animate-in fade-in">
+                  <button
+                    type="button"
+                    onClick={handleExportResultsCsv}
+                    className="w-full text-left px-3 py-2 text-[11px] text-zinc-200 hover:bg-white/10 rounded-xl transition flex items-center gap-2 font-medium"
+                  >
+                    <Table2 className="w-3.5 h-3.5 text-emerald-300" />
+                    <span>Excel-compatible table (CSV)</span>
+                  </button>
                   <button
                     type="button"
                     onClick={handleExportGeoJSON}
