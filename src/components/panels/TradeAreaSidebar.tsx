@@ -505,8 +505,6 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     };
   }, [resultsTableMaximized]);
 
-  if (!activePanels.tradeArea) return null;
-
   // Coordinate parser
   const parseCoordsList = (): Array<{ lat: number; lon: number }> | null => {
     const lines = coordsInput.split(/\r?\n|;/).map((line) => line.trim()).filter(Boolean);
@@ -1477,6 +1475,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       setIsQaLoading(false);
     }
   };
+
+  if (!activePanels.tradeArea) return null;
 
   return (
     <div className="fixed top-16 left-4 bottom-4 w-[480px] max-w-[calc(100vw-2rem)] z-[1000] bg-zinc-950/85 border border-white/10 rounded-3xl shadow-[0_24px_80px_rgba(0,0,0,0.9)] backdrop-blur-2xl flex flex-col overflow-hidden text-xs text-zinc-300 animate-in fade-in slide-in-from-left-4 select-none">
