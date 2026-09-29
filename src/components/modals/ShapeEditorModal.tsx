@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   X,
   Trash2,
@@ -48,31 +48,48 @@ export const ShapeEditorModal: React.FC = () => {
     setToast,
   } = useMapStore();
 
-  if (!activePanels.shapeEditor || !selectedId) return null;
   const f = features.find((x) => x.id === selectedId);
-  if (!f) return null;
+
+  // Vicinity Logo & Shape Customization State
+  const [markerSubTab, setMarkerSubTab] = useState<'shapes' | 'logos'>(
+    f?.props.shape === 'vicinity-logo' ? 'logos' : 'shapes'
+  );
+  const [shapeCategory, setShapeCategory] = useState<string>('All');
+  const [logoCategory, setLogoCategory] = useState<string>('All');
+  const [customLogoUrl, setCustomLogoUrl] = useState<string>(f?.props.logoUrl || '');
+  const [monogramInput, setMonogramInput] = useState<string>(f?.props.logoText || '');
+  const [logoFrame, setLogoFrame] = useState<'circle' | 'squircle' | 'hexagon' | 'pin-badge'>(
+    f?.props.logoFrame || 'circle'
+  );
+  const [logoBg, setLogoBg] = useState<string>(f?.props.logoBg || '#ffffff');
+  const [logoBorder, setLogoBorder] = useState<string>(f?.props.logoBorder || '#ffffff');
+  const [logoScale, setLogoScale] = useState<number>(f?.props.logoScale || 0.72);
+  const [isRenderingLogo, setIsRenderingLogo] = useState<boolean>(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Keep hook order stable while the modal is closed, and refresh its draft fields
+  // when the user opens the editor for a different feature.
+  useEffect(() => {
+    const currentFeature = useMapStore.getState().features.find((feature) => feature.id === selectedId);
+    if (!currentFeature) return;
+    setMarkerSubTab(currentFeature.props.shape === 'vicinity-logo' ? 'logos' : 'shapes');
+    setShapeCategory('All');
+    setLogoCategory('All');
+    setCustomLogoUrl(currentFeature.props.logoUrl || '');
+    setMonogramInput(currentFeature.props.logoText || '');
+    setLogoFrame(currentFeature.props.logoFrame || 'circle');
+    setLogoBg(currentFeature.props.logoBg || '#ffffff');
+    setLogoBorder(currentFeature.props.logoBorder || '#ffffff');
+    setLogoScale(currentFeature.props.logoScale || 0.72);
+    setIsRenderingLogo(false);
+  }, [selectedId]);
+
+  if (!activePanels.shapeEditor || !selectedId || !f) return null;
 
   const isPolygon = ['polygon', 'rectangle', 'circle', 'polygon3d'].includes(f.kind);
   const isMarker = f.kind === 'marker';
   const isText = f.kind === 'textbox';
   const isRoute = f.kind === 'route';
-
-  // Vicinity Logo & Shape Customization State
-  const [markerSubTab, setMarkerSubTab] = useState<'shapes' | 'logos'>(
-    f.props.shape === 'vicinity-logo' ? 'logos' : 'shapes'
-  );
-  const [shapeCategory, setShapeCategory] = useState<string>('All');
-  const [logoCategory, setLogoCategory] = useState<string>('All');
-  const [customLogoUrl, setCustomLogoUrl] = useState<string>(f.props.logoUrl || '');
-  const [monogramInput, setMonogramInput] = useState<string>(f.props.logoText || '');
-  const [logoFrame, setLogoFrame] = useState<'circle' | 'squircle' | 'hexagon' | 'pin-badge'>(
-    f.props.logoFrame || 'circle'
-  );
-  const [logoBg, setLogoBg] = useState<string>(f.props.logoBg || '#ffffff');
-  const [logoBorder, setLogoBorder] = useState<string>(f.props.logoBorder || '#ffffff');
-  const [logoScale, setLogoScale] = useState<number>(f.props.logoScale || 0.72);
-  const [isRenderingLogo, setIsRenderingLogo] = useState<boolean>(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleApplyPresetLogo = async (preset: VicinityPresetLogo) => {
     setIsRenderingLogo(true);
