@@ -134,6 +134,8 @@ export interface FeatureProps {
   // OSM / Trade area scan metadata
   category?: string;
   poiType?: string;
+  amenityGroupLabel?: string;
+  managedBy?: 'open-node';
   osmTags?: Record<string, string>;
 }
 

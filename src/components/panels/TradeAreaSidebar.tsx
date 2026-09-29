@@ -194,6 +194,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     activePanels,
     togglePanel,
     features,
+    setFeatures,
     addFeature,
     updateFeature,
     removeFeature,
@@ -205,11 +206,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setActiveTool,
   } = useMapStore();
 
-  // Primary 2-Tab Workflow: 'target_layers' (Setup & Mapped Assets) | 'ai' (Spatial Intelligence & Q&A)
-  const [activeTab, setActiveTab] = useState<'target_layers' | 'ai'>('target_layers');
+  const activeTab = 'target_layers';
 
-  // Target Mode: 'coords' (Open Node default) | 'circle' (Map circle) | 'shape' (Drawn polygon) | 'isochrone' (Mapbox Catchment)
-  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'isochrone'>('coords');
+  // Start with a map boundary; coordinates remain available for precise targeting.
+  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'isochrone'>('shape');
+  const [areaDetailsOpen, setAreaDetailsOpen] = useState(true);
   const [coordsInput, setCoordsInput] = useState<string>('14.5995, 120.9842');
   const [radiusMeters, setRadiusMeters] = useState<number>(1000);
   const [showRadiusGraphics, setShowRadiusGraphics] = useState<boolean>(true);
@@ -257,6 +258,12 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [globalMarkerSize, setGlobalMarkerSize] = useState<number>(20);
   const [globalMarkerColor, setGlobalMarkerColor] = useState<string>('#ffffff');
   const [showStyleMenu, setShowStyleMenu] = useState<boolean>(false);
+  const [analysisExpanded, setAnalysisExpanded] = useState(false);
+  const [openAmenityGroups, setOpenAmenityGroups] = useState<Record<string, boolean>>({});
+  const [openPoiStyles, setOpenPoiStyles] = useState<Record<number, boolean>>({});
+  const [editingAmenityGroup, setEditingAmenityGroup] = useState<string | null>(null);
+  const [amenityGroupDraft, setAmenityGroupDraft] = useState('');
+  const [resultsExpanded, setResultsExpanded] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
 
   // Visual AI Intelligence Dashboard State
@@ -275,6 +282,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   // Drawn circles and shapes on MapLibre
   const drawnCircles = useMemo(() => features.filter((f) => f.kind === 'circle'), [features]);
   const drawnShapes = useMemo(() => features.filter((f) => ['polygon', 'rectangle'].includes(f.kind)), [features]);
+  const drawnShapeCountRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (drawnShapeCountRef.current !== null && drawnShapes.length > drawnShapeCountRef.current) {
+      setSelectedShapeId(drawnShapes[drawnShapes.length - 1].id);
+    }
+    drawnShapeCountRef.current = drawnShapes.length;
+  }, [drawnShapes]);
 
   // Scanned POI features currently in the store
   const scannedFeatureIds = useMemo(() => {
@@ -289,7 +304,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const featuresByCategory = useMemo(() => {
     const map: Record<string, GISFeature[]> = {};
     activeScannedFeatures.forEach((f) => {
-      const cat = f.props?.category || 'OTHER';
+      const cat = f.props?.amenityGroupLabel || f.props?.poiType || f.props?.category || 'OTHER';
       if (!map[cat]) map[cat] = [];
       map[cat].push(f);
     });
@@ -314,10 +329,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   // Auto-scroll chat to bottom
   useEffect(() => {
-    if (activeTab === 'ai') {
+    if (analysisExpanded) {
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [qaMessages, isQaLoading, activeTab]);
+  }, [qaMessages, isQaLoading, analysisExpanded]);
 
   if (!activePanels.tradeArea) return null;
 
@@ -325,7 +340,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const parseCoords = (): { lat: number; lon: number } | null => {
     const match = coordsInput.match(/^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$/);
     if (match) {
-      return { lat: parseFloat(match[1]), lon: parseFloat(match[2]) };
+      const lat = parseFloat(match[1]);
+      const lon = parseFloat(match[2]);
+      if (Number.isFinite(lat) && Number.isFinite(lon) && lat >= -90 && lat <= 90 && lon >= -180 && lon <= 180) {
+        return { lat, lon };
+      }
     }
     return null;
   };
@@ -466,6 +485,22 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     if (areaMode === 'shape') return 'within the selected map boundary';
     return 'within the selected map circle';
   };
+
+  const getAreaLabel = () => {
+    if (areaMode === 'coords') return `${coordsInput || 'Choose a location'} · ${(radiusMeters / 1000).toFixed(1)} km radius`;
+    if (areaMode === 'isochrone') return `${isochroneMinutes}-minute ${isochroneProfile} reach`;
+    if (areaMode === 'shape') return selectedShapeId ? (features.find((f) => f.id === Number(selectedShapeId))?.name || 'Selected boundary') : 'Draw or choose a boundary';
+    const circle = features.find((f) => f.id === selectedCircleId) || drawnCircles[drawnCircles.length - 1];
+    return circle ? `${circle.name} · ${((circle.props?.radiusMeters || 0) / 1000).toFixed(1)} km radius` : 'Draw or choose a circle';
+  };
+
+  const isSearchAreaReady = areaMode === 'coords'
+    ? parseCoords() !== null
+    : areaMode === 'shape'
+      ? Boolean(features.some((feature) => feature.id === Number(selectedShapeId)))
+      : areaMode === 'isochrone'
+        ? Boolean(features.some((feature) => feature.id === activeIsochroneFeatureId))
+        : Boolean(features.some((feature) => feature.id === selectedCircleId && feature.kind === 'circle') || drawnCircles.length);
 
   // The AI needs the selected area mode, not the user's precise coordinates.
   const getSearchAreaContextForAI = () => {
@@ -801,6 +836,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     const signal = abortControllerRef.current.signal;
 
     setIsScanning(true);
+    setAreaDetailsOpen(false);
+    setResultsExpanded(true);
     setToast(`Searching OpenStreetMap for ${selectedTags.length + customFilterGroups.length} place types...`);
 
     let result = null;
@@ -863,6 +900,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
           visible: 1,
           category: poi.category,
           poiType: poi.type,
+          managedBy: 'open-node',
           osmTags: poi.tags,
           attributes: {
             Name: poi.name,
@@ -900,6 +938,44 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setToast(`Applied ${style} style to all scanned POIs.`);
   };
 
+  const handleApplyAmenityStyle = (feats: GISFeature[], updates: { color?: string; shape?: MarkerShape; iconSize?: number }) => {
+    const ids = new Set(feats.map((feature) => feature.id));
+    setFeatures(features.map((feature) => {
+      if (!ids.has(feature.id)) return feature;
+      return { ...feature, props: { ...feature.props, ...updates, managedBy: 'open-node' } };
+    }), false);
+  };
+
+  const handleRenameAmenityGroup = (feats: GISFeature[], nextName: string) => {
+    const label = nextName.trim();
+    if (!label) return;
+    const ids = new Set(feats.map((feature) => feature.id));
+    setFeatures(features.map((feature) => ids.has(feature.id)
+      ? { ...feature, props: { ...feature.props, amenityGroupLabel: label, managedBy: 'open-node' } }
+      : feature), false);
+    setEditingAmenityGroup(null);
+    setToast(`Renamed amenity group to “${label}”.`);
+  };
+
+  const handleUpdatePoi = (featureId: number, updates: { name?: string; color?: string; shape?: MarkerShape; iconSize?: number; visible?: number }) => {
+    const { name, ...styleUpdates } = updates;
+    const existingFeature = features.find((feature) => feature.id === featureId);
+    updateFeature(featureId, (feature) => ({
+      ...feature,
+      name: name ?? feature.name,
+      props: {
+        ...feature.props,
+        ...styleUpdates,
+        attributes: name === undefined ? feature.props.attributes : { ...feature.props.attributes, Name: name },
+        managedBy: 'open-node',
+      },
+    }));
+    if (name !== undefined && existingFeature?.props.poiType && existingFeature.geometry.type === 'Point') {
+      const [lon, lat] = existingFeature.geometry.coordinates as [number, number];
+      setScannedPois((previous) => previous.map((poi) => poi.type === existingFeature.props.poiType && poi.lon === lon && poi.lat === lat ? { ...poi, name } : poi));
+    }
+  };
+
   // Batch toggle visibility of a category
   const handleToggleCategoryVisibility = (category: string) => {
     const feats = featuresByCategory[category] || [];
@@ -918,14 +994,17 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const handleDeleteCategory = (category: string) => {
     const feats = featuresByCategory[category] || [];
     if (confirm(`Remove all ${feats.length} POIs in "${category}"?`)) {
+      const removedTypes = new Set(feats.map((feature) => feature.props.poiType).filter(Boolean));
       feats.forEach((f) => removeFeature(f.id));
-      setScannedPois((prev) => prev.filter((p) => p.category !== category));
-      setCategoryBreakdown((prev) => {
-        const next = { ...prev };
-        delete next[category];
-        return next;
+      setScannedPois((prev) => {
+        const nextPois = prev.filter((poi) => !removedTypes.has(poi.type));
+        setCategoryBreakdown(nextPois.reduce<Record<string, number>>((counts, poi) => {
+          counts[poi.category] = (counts[poi.category] || 0) + 1;
+          return counts;
+        }, {}));
+        return nextPois;
       });
-      setToast(`Deleted category ${category}`);
+      setToast(`Removed ${feats.length} pins from ${category}.`);
     }
   };
 
@@ -1220,52 +1299,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         </div>
       </div>
 
-      {/* Primary 2-Tab Navigation (Decluttered, Modern Apple / Linear Aesthetic) */}
+      {/* Guided workflow */}
       <div className="px-5 pt-3.5 pb-2 shrink-0">
-        <div className="flex gap-1.5 p-1 bg-black/60 rounded-2xl border border-white/10 backdrop-blur-xl">
-          <button
-            type="button"
-            onClick={() => setActiveTab('target_layers')}
-            className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-2 ${
-              activeTab === 'target_layers'
-                ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Radar className={`w-3.5 h-3.5 ${activeTab === 'target_layers' ? 'text-black' : 'text-zinc-400'}`} />
-            <span>Target & POIs</span>
-            {activeScannedFeatures.length > 0 && (
-              <span
-                className={`px-1.5 py-0.2 rounded-full font-mono text-[9px] font-black ${
-                  activeTab === 'target_layers'
-                    ? 'bg-black text-white'
-                    : 'bg-white/15 text-zinc-200 border border-white/20'
-                }`}
-              >
-                {activeScannedFeatures.length}
-              </span>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab('ai')}
-            className={`flex-1 py-2 rounded-xl font-bold text-[11px] transition flex items-center justify-center gap-2 ${
-              activeTab === 'ai'
-                ? 'bg-white text-black shadow-lg shadow-white/10 font-extrabold'
-                : 'text-zinc-400 hover:text-white hover:bg-white/5'
-            }`}
-          >
-            <Sparkles className={`w-3.5 h-3.5 ${activeTab === 'ai' ? 'text-black' : 'text-zinc-400'}`} />
-            <span>Spatial AI & Q&A</span>
-            {aiData && (
-              <span
-                className={`w-2 h-2 rounded-full ${
-                  activeTab === 'ai' ? 'bg-black' : 'bg-emerald-400'
-                }`}
-              />
-            )}
-          </button>
+        <div className="flex items-center justify-between gap-2 px-1 text-[9px] font-semibold uppercase tracking-wide text-zinc-500">
+          <span className="text-cyan-200">1 · Area</span><span>›</span><span>2 · Places</span><span>›</span><span>3 · Results{activeScannedFeatures.length ? ` (${activeScannedFeatures.length})` : ''}</span>
         </div>
       </div>
 
@@ -1279,26 +1316,31 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
             {/* Target Area Definition Card */}
             <div className="bg-white/[0.02] border border-white/10 rounded-2xl p-3.5 space-y-3 shrink-0 backdrop-blur-xl">
               <div className="flex items-center justify-between">
-                <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Crosshair className="w-3.5 h-3.5 text-white" />
-                  <span>Target Area Definition</span>
-                </span>
+                <button type="button" onClick={() => setAreaDetailsOpen((open) => !open)} aria-expanded={areaDetailsOpen} className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5 text-left">
+                  {areaDetailsOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                  <Crosshair className="w-3.5 h-3.5 text-cyan-300" />
+                  <span>01 · Search area</span>
+                </button>
+                {!areaDetailsOpen && <span className="text-[10px] text-zinc-400 truncate max-w-[210px]">{getAreaLabel()}</span>}
+              </div>
+
+              {areaDetailsOpen && <div className="space-y-3">
                 <div className="flex gap-1 p-0.5 bg-black/60 rounded-xl border border-white/10">
                   <button
                     type="button"
                     onClick={() => setAreaMode('coords')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`order-3 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'coords'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    Coords
+                    Coordinates
                   </button>
                   <button
                     type="button"
                     onClick={() => setAreaMode('circle')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`order-2 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'circle'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
@@ -1309,28 +1351,27 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   <button
                     type="button"
                     onClick={() => setAreaMode('shape')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`order-1 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'shape'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    Polygon
+                    Boundary
                   </button>
                   <button
                     type="button"
                     onClick={() => setAreaMode('isochrone')}
-                    className={`px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                    className={`order-4 px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
                       areaMode === 'isochrone'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
                     <Clock className="w-3 h-3" />
-                    <span>Catchment</span>
+                    <span>Travel time</span>
                   </button>
                 </div>
-              </div>
 
               {/* Coordinates Mode */}
               {areaMode === 'coords' && (
@@ -1338,7 +1379,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <label className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
-                        Target Coordinates (Lat, Lon)
+                        Search center (latitude, longitude)
                       </label>
                       <div className="flex items-center gap-1.5">
                         <button
@@ -1467,15 +1508,13 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                       </option>
                     ))}
                   </select>
-                  {drawnShapes.length === 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setActiveTool('polygon')}
-                      className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/15 transition"
-                    >
-                      Draw Polygon on Map
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={() => { setActiveTool('polygon'); setToast('Draw a boundary on the map. Atlas will use it as the search area.'); }}
+                    className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/15 transition"
+                  >
+                    {drawnShapes.length ? 'Draw another boundary' : 'Draw boundary on map'}
+                  </button>
                 </div>
               )}
 
@@ -1621,6 +1660,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   )}
                 </div>
               )}
+              </div>}
             </div>
 
             {/* In-Flight Scanning Progress */}
@@ -1645,7 +1685,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 <div className="w-full space-y-1.5 text-left bg-black/60 p-2.5 rounded-xl border border-white/10">
                   {[
                     { label: 'Connecting to OpenStreetMap Gateway', done: scanStage > 0, active: scanStage === 0 },
-                    { label: `Querying ${selectedTags.length} active taxonomy layers`, done: scanStage > 1, active: scanStage === 1 },
+                    { label: `Searching ${selectedTags.length + customFilterGroups.length} place types`, done: scanStage > 1, active: scanStage === 1 },
                     { label: 'Parsing coordinates & building node geometry', done: scanStage > 2, active: scanStage === 2 },
                     { label: 'Rendering modern drop-pins and attributes', done: scanStage > 3, active: scanStage === 3 },
                   ].map((st, i) => (
@@ -1679,7 +1719,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
             <section className="space-y-3 shrink-0">
               <div className="flex items-center justify-between gap-2">
                 <div>
-                  <h3 className="font-bold text-white text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-cyan-300" />Find places</h3>
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-cyan-300" />02 · Find places</h3>
                   <p className="text-[10px] text-zinc-400 mt-1">Tell Atlas what you are looking for in everyday words.</p>
                 </div>
                 <button type="button" disabled={isBuilderLoading} onClick={() => { setPresetDraftTags(selectedTags); setShowPresetPicker(true); }} className="shrink-0 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-[10px] font-semibold text-zinc-200 transition disabled:opacity-40 disabled:cursor-not-allowed">
@@ -1732,7 +1772,6 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-100"><CheckCircle2 className="w-4 h-4" />Ready to search</div>
                   <p className="text-[10px] text-zinc-300">Looking for {builderPlaces.map((place) => place.label).join(', ')} {getSearchAreaSummary()}.</p>
                   {builderWarnings.length > 0 && <ul className="text-[10px] text-amber-200 space-y-1 list-disc pl-4">{builderWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
-                  <button type="button" onClick={handleRunScan} disabled={isScanning} className="w-full py-2.5 rounded-xl bg-emerald-300 hover:bg-emerald-200 text-zinc-950 font-bold text-[11px] transition disabled:opacity-50">Search this area</button>
                 </div>
               )}
             </section>
@@ -1787,86 +1826,68 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
             {activeScannedFeatures.length > 0 && (
               <div className="pt-2 border-t border-white/10 space-y-3">
                 <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                      <Layers className="w-3.5 h-3.5 text-white" />
-                      <span>Mapped Assets ({activeScannedFeatures.length})</span>
-                    </span>
-                  </div>
-
-                  {/* Marker Style Switcher */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleApplyGlobalStyle('modern-pin')}
-                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition ${
-                        globalMarkerStyle === 'modern-pin'
-                          ? 'bg-white text-black'
-                          : 'bg-white/5 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Pins
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleApplyGlobalStyle('dots')}
-                      className={`px-2 py-1 rounded-lg text-[9px] font-bold transition ${
-                        globalMarkerStyle === 'dots'
-                          ? 'bg-white text-black'
-                          : 'bg-white/5 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      Dots
-                    </button>
-                  </div>
+                  <button type="button" onClick={() => setResultsExpanded((expanded) => !expanded)} aria-expanded={resultsExpanded} className="flex items-center gap-2 text-left">
+                    {resultsExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                    <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-cyan-300" /><span>03 · Results ({activeScannedFeatures.length})</span><span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[8px] normal-case tracking-normal text-zinc-400">{scannedPois.length ? 'Current scan' : 'Saved results'}</span></span>
+                  </button>
+                  {resultsExpanded && <div className="flex items-center gap-1"><span className="text-[9px] text-zinc-500 mr-1">All pins</span><button type="button" onClick={() => handleApplyGlobalStyle('modern-pin')} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${globalMarkerStyle === 'modern-pin' ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>Pins</button><button type="button" onClick={() => handleApplyGlobalStyle('dots')} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${globalMarkerStyle === 'dots' ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>Dots</button></div>}
                 </div>
+                {resultsExpanded && <>
+                  <p className="text-[10px] text-zinc-500 -mt-1">Grouped by OSM amenity or place type. Expand a group to edit it.</p>
+                  <div className="space-y-1.5">
+                    {Object.entries(featuresByCategory).map(([category, feats]) => {
+                      const isVisible = feats.some((f) => f.props.visible !== 0);
+                      const firstFeature = feats[0];
+                      const color = firstFeature?.props.color || CATEGORY_COLORS[firstFeature?.props.category || ''] || '#ffffff';
+                      const groupOpen = openAmenityGroups[category] ?? false;
+                      const groupLabel = category.split(/[_-]+/).map((part) => part ? part[0].toUpperCase() + part.slice(1) : '').join(' ');
+                      const groupSize = firstFeature?.props.iconSize ?? 1;
 
-                {/* Categories Breakdown List */}
-                <div className="space-y-1.5">
-                  {Object.entries(featuresByCategory).map(([category, feats]) => {
-                    const isVisible = feats.some((f) => f.props.visible !== 0);
-                    const color = CATEGORY_COLORS[category] || '#ffffff';
-
-                    return (
-                      <div
-                        key={category}
-                        className="p-2.5 rounded-xl bg-white/[0.02] border border-white/10 flex items-center justify-between"
-                      >
-                        <div className="flex items-center gap-2 truncate">
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0"
-                            style={{ backgroundColor: color }}
-                          />
-                          <span className="font-semibold text-white text-[11px] truncate">
-                            {category}
-                          </span>
-                          <span className="text-[10px] text-zinc-400 font-mono">
-                            ({feats.length})
-                          </span>
+                      return <div key={category} className="rounded-xl bg-white/[0.02] border border-white/10 overflow-hidden">
+                        <div className="flex items-center justify-between gap-2 p-2">
+                          <button type="button" onClick={() => setOpenAmenityGroups((prev) => ({ ...prev, [category]: !groupOpen }))} aria-expanded={groupOpen} className="flex min-w-0 items-center gap-2 text-left">
+                            {groupOpen ? <ChevronDown className="w-3.5 h-3.5 shrink-0 text-zinc-400" /> : <ChevronRight className="w-3.5 h-3.5 shrink-0 text-zinc-400" />}
+                            <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: color }} /><span className="font-semibold text-white text-[11px] truncate">{groupLabel}</span><span className="text-[9px] text-zinc-500 font-mono">{feats.length}</span>
+                          </button>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            <button type="button" onClick={() => handleToggleCategoryVisibility(category)} className="p-1 rounded text-zinc-400 hover:text-white" title={isVisible ? 'Hide group' : 'Show group'}>{isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}</button>
+                            <button type="button" onClick={() => { setEditingAmenityGroup(category); setAmenityGroupDraft(groupLabel); setOpenAmenityGroups((prev) => ({ ...prev, [category]: true })); }} className="p-1 rounded text-zinc-400 hover:text-white" title="Rename amenity group"><Edit3 className="w-3.5 h-3.5" /></button>
+                            <button type="button" onClick={() => handleDeleteCategory(category)} className="p-1 rounded text-zinc-400 hover:text-red-400" title="Remove group"><Trash2 className="w-3 h-3" /></button>
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-1">
-                          <button
-                            type="button"
-                            onClick={() => handleToggleCategoryVisibility(category)}
-                            className="p-1 rounded text-zinc-400 hover:text-white"
-                            title="Toggle Visibility"
-                          >
-                            {isVisible ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDeleteCategory(category)}
-                            className="p-1 rounded text-zinc-400 hover:text-red-400"
-                            title="Remove Category"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                        {groupOpen && <div className="px-2.5 pb-2.5 border-t border-white/5 space-y-2">
+                          {editingAmenityGroup === category ? <form className="flex gap-1.5 pt-2" onSubmit={(event) => { event.preventDefault(); handleRenameAmenityGroup(feats, amenityGroupDraft); }}>
+                            <input autoFocus value={amenityGroupDraft} onChange={(event) => setAmenityGroupDraft(event.target.value)} aria-label="Amenity group name" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] text-white outline-none focus:border-cyan-300/50" />
+                            <button type="submit" className="rounded-lg bg-white px-2.5 py-1 text-[10px] font-bold text-black">Save</button><button type="button" onClick={() => setEditingAmenityGroup(null)} className="rounded-lg border border-white/10 px-2 py-1 text-[10px] text-zinc-300">Cancel</button>
+                          </form> : <div className="grid grid-cols-[auto_1fr_auto] items-center gap-2 pt-2">
+                            <label className="flex items-center gap-1.5 text-[9px] text-zinc-400"><span>Color</span><input type="color" aria-label={`Color for ${groupLabel}`} value={color} onChange={(event) => handleApplyAmenityStyle(feats, { color: event.target.value })} className="h-6 w-7 cursor-pointer rounded bg-transparent" /></label>
+                            <label className="flex min-w-0 items-center gap-1.5 text-[9px] text-zinc-400"><span>Icon</span><select aria-label={`Icon for ${groupLabel}`} value={firstFeature?.props.shape || 'modern-pin'} onChange={(event) => handleApplyAmenityStyle(feats, { shape: event.target.value as MarkerShape })} className="min-w-0 flex-1 rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[10px] text-zinc-200"><option value="modern-pin">Pin</option><option value="dots">Dot</option><option value="circle">Circle</option><option value="star">Star</option><option value="square">Square</option><option value="diamond">Diamond</option><option value="heart">Heart</option><option value="shield">Shield</option></select></label>
+                            <span className="text-[9px] text-zinc-500">{Math.round(groupSize * 100)}%</span>
+                            <label className="col-span-3 flex items-center gap-2 text-[9px] text-zinc-400"><span className="w-7">Size</span><input type="range" min="0.4" max="2" step="0.05" value={groupSize} aria-label={`Size for ${groupLabel}`} onChange={(event) => handleApplyAmenityStyle(feats, { iconSize: Number(event.target.value) })} className="min-w-0 flex-1 accent-cyan-300" /><span className="w-9 text-right">{Math.round(groupSize * 100)}%</span></label>
+                          </div>}
+
+                          <div className="max-h-56 space-y-1 overflow-y-auto pr-0.5">
+                            {feats.map((feature) => {
+                              const styleOpen = openPoiStyles[feature.id] ?? false;
+                              return <div key={feature.id} className="rounded-lg border border-white/5 bg-black/25 px-2 py-1.5">
+                                <div className="flex min-w-0 items-center gap-1.5"><input value={feature.name} onChange={(event) => handleUpdatePoi(feature.id, { name: event.target.value })} aria-label="Pin name" className="min-w-0 flex-1 bg-transparent text-[10px] text-zinc-200 outline-none focus:text-white" /><button type="button" onClick={() => handleUpdatePoi(feature.id, { visible: feature.props.visible === 0 ? 1 : 0 })} className="p-1 text-zinc-500 hover:text-white" title={feature.props.visible === 0 ? 'Show pin' : 'Hide pin'}>{feature.props.visible === 0 ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}</button><button type="button" onClick={() => handleFlyToPoi(feature)} className="p-1 text-zinc-500 hover:text-white" title="Locate pin"><Crosshair className="w-3 h-3" /></button><button type="button" onClick={() => setOpenPoiStyles((prev) => ({ ...prev, [feature.id]: !styleOpen }))} aria-expanded={styleOpen} className={`p-1 ${styleOpen ? 'text-cyan-300' : 'text-zinc-500 hover:text-white'}`} title="Edit pin style"><Sliders className="w-3 h-3" /></button></div>
+                                {styleOpen && <div className="grid grid-cols-[auto_1fr] items-center gap-2 border-t border-white/5 pt-2 mt-1.5">
+                                  <label className="flex items-center gap-1 text-[9px] text-zinc-400">Color<input type="color" aria-label={`Color for ${feature.name}`} value={feature.props.color || '#ffffff'} onChange={(event) => handleUpdatePoi(feature.id, { color: event.target.value })} className="h-5 w-6 cursor-pointer rounded bg-transparent" /></label>
+                                  <label className="flex items-center gap-1.5 text-[9px] text-zinc-400">Icon<select aria-label={`Icon for ${feature.name}`} value={feature.props.shape || 'modern-pin'} onChange={(event) => handleUpdatePoi(feature.id, { shape: event.target.value as MarkerShape })} className="min-w-0 flex-1 rounded border border-white/10 bg-zinc-950 px-1.5 py-1 text-[9px] text-zinc-200"><option value="modern-pin">Pin</option><option value="dots">Dot</option><option value="circle">Circle</option><option value="star">Star</option><option value="square">Square</option><option value="diamond">Diamond</option><option value="heart">Heart</option><option value="shield">Shield</option></select></label>
+                                  <label className="col-span-2 flex items-center gap-2 text-[9px] text-zinc-400"><span>Size</span><input type="range" min="0.4" max="2" step="0.05" value={feature.props.iconSize ?? 1} aria-label={`Size for ${feature.name}`} onChange={(event) => handleUpdatePoi(feature.id, { iconSize: Number(event.target.value) })} className="min-w-0 flex-1 accent-cyan-300" /><span className="w-9 text-right">{Math.round((feature.props.iconSize ?? 1) * 100)}%</span></label>
+                                </div>}
+                              </div>;
+                            })}
+                          </div>
+                        </div>}
+                      </div>;
+                    })}
+                  </div>
+                </>}
+                <button type="button" onClick={() => setAnalysisExpanded((expanded) => !expanded)} aria-expanded={analysisExpanded} className="w-full flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-[10px] font-semibold text-zinc-200 hover:bg-white/[0.06]">
+                  <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-cyan-300" />Spatial analysis &amp; Q&amp;A</span>{analysisExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                </button>
               </div>
             )}
           </div>
@@ -1875,7 +1896,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         {/* =========================================================================
             TAB 2: SPATIAL AI INTELLIGENCE & INTERACTIVE Q&A
            ========================================================================= */}
-        {activeTab === 'ai' && (
+        {analysisExpanded && activeScannedFeatures.length > 0 && (
           <div className="space-y-4">
             {/* Header / Trigger Card */}
             <div className="p-4 bg-white/[0.02] border border-white/10 rounded-2xl space-y-3 backdrop-blur-xl">
@@ -2247,7 +2268,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       </div>
 
       {/* Sticky Bottom Action Bar for AI Tab (Pinned Persistent Inquiry Input) */}
-      {activeTab === 'ai' && (
+      {analysisExpanded && activeScannedFeatures.length > 0 && (
         <div className="p-3.5 border-t border-white/10 shrink-0 bg-black/80 backdrop-blur-2xl">
           <form
             onSubmit={(e) => {
@@ -2281,7 +2302,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       )}
 
       {/* Sticky Bottom Action Bar (Setup Tab) */}
-      {activeTab === 'target_layers' && (
+      {activeTab === 'target_layers' && (builderReady || isScanning) && (
         <div className="p-4 pt-3 border-t border-white/10 shrink-0 bg-black/60 backdrop-blur-2xl flex gap-2">
           {isScanning ? (
             <>
@@ -2305,11 +2326,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
           ) : (
             <button
               onClick={handleRunScan}
-              disabled={!builderReady}
+              disabled={!builderReady || !isSearchAreaReady}
               className="flex-1 py-3.5 bg-white hover:bg-zinc-200 disabled:bg-white/10 disabled:text-zinc-500 disabled:border-white/10 text-black font-black rounded-2xl shadow-xl shadow-white/10 flex items-center justify-center gap-2 text-xs transition active:scale-[0.99] border border-white/40"
             >
               <Radar className="w-4 h-4" />
-              <span className="tracking-wider uppercase font-black">{builderReady ? 'SEARCH THIS AREA' : 'DESCRIBE PLACES TO SEARCH'}</span>
+              <span className="tracking-wider uppercase font-black">{!isSearchAreaReady ? 'CHOOSE A SEARCH AREA' : activeScannedFeatures.length ? 'SEARCH AGAIN' : 'SEARCH THIS AREA'}</span>
             </button>
           )}
         </div>

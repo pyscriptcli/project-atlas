@@ -138,7 +138,12 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
   // Grouped vs Ungrouped
   const groupedIds = new Set<number>();
   Object.values(customGroups).forEach((g) => g.ids.forEach((id) => groupedIds.add(id)));
-  const ungroupedFeats = features.filter((f) => !groupedIds.has(f.id));
+  const openNodeIds = new Set(customGroups['Trade Area Scan']?.ids || []);
+  features.forEach((feature) => {
+    if (feature.props.managedBy === 'open-node') openNodeIds.add(feature.id);
+  });
+  const layerFeatures = features.filter((feature) => !openNodeIds.has(feature.id));
+  const ungroupedFeats = layerFeatures.filter((f) => !groupedIds.has(f.id));
 
   const renderLayerCard = (f: GISFeature) => {
     const isSelected = selectedLayerIds.includes(f.id);
@@ -276,7 +281,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
           <FolderTree className="w-4 h-4 text-white" />
           <span>My Layers</span>
           <span className="ml-1 text-[10px] px-2 py-0.5 rounded-full bg-white/15 border border-white/20 text-white font-semibold">
-            {features.length}
+            {layerFeatures.length}
           </span>
         </div>
         <button
@@ -328,8 +333,8 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
       {/* Layers List */}
       <div className="flex-1 overflow-y-auto pr-1 py-2 flex flex-col gap-3">
         {/* Custom Groups */}
-        {Object.entries(customGroups).map(([gName, grp]) => {
-          const groupFeats = features.filter((f) => grp.ids.includes(f.id));
+        {Object.entries(customGroups).filter(([gName]) => gName !== 'Trade Area Scan').map(([gName, grp]) => {
+          const groupFeats = layerFeatures.filter((f) => grp.ids.includes(f.id));
           const isStylingOpen = stylingGroupId === gName;
 
           return (

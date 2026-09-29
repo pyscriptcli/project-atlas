@@ -323,9 +323,11 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   selectAllLayers: () =>
     set((state) => {
-      const allSelected = state.selectedLayerIds.length === state.features.length;
+      const openNodeIds = new Set(state.customGroups['Trade Area Scan']?.ids || []);
+      const selectableFeatures = state.features.filter((feature) => feature.props.managedBy !== 'open-node' && !openNodeIds.has(feature.id));
+      const allSelected = state.selectedLayerIds.length === selectableFeatures.length;
       return {
-        selectedLayerIds: allSelected ? [] : state.features.map((f) => f.id),
+        selectedLayerIds: allSelected ? [] : selectableFeatures.map((f) => f.id),
       };
     }),
 
