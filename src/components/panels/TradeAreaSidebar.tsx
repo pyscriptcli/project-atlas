@@ -179,6 +179,16 @@ interface QAMessage {
   timestamp: string;
 }
 
+interface SearchBuilderPlace {
+  label: string;
+  filters: Array<{ key: string; value: string }>;
+}
+
+interface SearchBuilderMessage {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
 export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance }) => {
   const {
     activePanels,
@@ -221,8 +231,19 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   // Taxonomy & Search State - CLEARED BY DEFAULT
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [presetDraftTags, setPresetDraftTags] = useState<string[]>([]);
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
-  const [customTag, setCustomTag] = useState<string>('');
+  const [customFilterGroups, setCustomFilterGroups] = useState<Array<{ filters: Array<{ key: string; value: string }> }>>([]);
+  const [builderMessages, setBuilderMessages] = useState<SearchBuilderMessage[]>([]);
+  const [builderInput, setBuilderInput] = useState('');
+  const [builderQuestion, setBuilderQuestion] = useState('');
+  const [builderOptions, setBuilderOptions] = useState<string[]>([]);
+  const [builderPlaces, setBuilderPlaces] = useState<SearchBuilderPlace[]>([]);
+  const [builderWarnings, setBuilderWarnings] = useState<string[]>([]);
+  const [builderReady, setBuilderReady] = useState(false);
+  const [isBuilderLoading, setIsBuilderLoading] = useState(false);
+  const [showPresetPicker, setShowPresetPicker] = useState(false);
+  const builderRequestIdRef = useRef(0);
 
   // Scanning, Multi-Stage Progress, & Cancel State
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -399,41 +420,166 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   // Toggle single tag
   const handleTagToggle = (tag: string) => {
-    setSelectedTags((prev) =>
+    if (isBuilderLoading) return;
+    setPresetDraftTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
     );
   };
 
   // Select/Deselect all tags in a category
   const handleCategorySelectAll = (category: string) => {
+    if (isBuilderLoading) return;
     const items = POI_CONFIG[category] || [];
     const catTags = items.map(([_, tag]) => tag);
-    const allSelected = catTags.every((t) => selectedTags.includes(t));
+    const allSelected = catTags.every((t) => presetDraftTags.includes(t));
 
     if (allSelected) {
-      setSelectedTags((prev) => prev.filter((t) => !catTags.includes(t)));
+      setPresetDraftTags((prev) => prev.filter((t) => !catTags.includes(t)));
     } else {
-      setSelectedTags((prev) => Array.from(new Set([...prev, ...catTags])));
+      setPresetDraftTags((prev) => Array.from(new Set([...prev, ...catTags])));
     }
   };
 
   // Quick preset selections
   const handleSelectPreset = (preset: 'commercial' | 'all' | 'clear') => {
+    if (isBuilderLoading) return;
     if (preset === 'clear') {
-      setSelectedTags([]);
+      setPresetDraftTags([]);
       return;
     }
     if (preset === 'all') {
       const allTags = Object.values(POI_CONFIG).flatMap((items) => items.map(([_, tag]) => tag));
-      setSelectedTags(Array.from(new Set(allTags)));
+      setPresetDraftTags(Array.from(new Set(allTags)));
       return;
     }
     if (preset === 'commercial') {
       const commTags = (POI_CONFIG['COMMERCIAL & OFFICES'] || []).map(([_, t]) => t);
       const retTags = (POI_CONFIG['RETAIL'] || []).map(([_, t]) => t);
       const fbTags = (POI_CONFIG['FOOD, BEVERAGE & HOSPITALITY'] || []).map(([_, t]) => t);
-      setSelectedTags(Array.from(new Set([...commTags, ...retTags, ...fbTags])));
+      setPresetDraftTags(Array.from(new Set([...commTags, ...retTags, ...fbTags])));
     }
+  };
+
+  const getSearchAreaSummary = () => {
+    if (areaMode === 'coords') return `within ${(radiusMeters / 1000).toFixed(1)} km of ${coordsInput || 'the selected coordinates'}`;
+    if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} area`;
+    if (areaMode === 'shape') return 'within the selected map boundary';
+    return 'within the selected map circle';
+  };
+
+  // The AI needs the selected area mode, not the user's precise coordinates.
+  const getSearchAreaContextForAI = () => {
+    if (areaMode === 'coords') return `within ${(radiusMeters / 1000).toFixed(1)} km of the selected map point`;
+    if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} travel area`;
+    if (areaMode === 'shape') return 'within the selected map boundary';
+    return 'within the selected map circle';
+  };
+
+  const getPresetCatalog = () => Object.entries(POI_CONFIG).flatMap(([category, items]) =>
+    items.map(([label, tag]) => ({ label, category, tag }))
+  );
+
+  const submitSearchBuilder = async (answer: string) => {
+    const text = answer.trim();
+    if (!text || isBuilderLoading) return;
+
+    const nextMessages: SearchBuilderMessage[] = [...builderMessages, { role: 'user', content: text }];
+    const requestId = ++builderRequestIdRef.current;
+    setBuilderMessages(nextMessages);
+    setBuilderInput('');
+    setBuilderQuestion('');
+    setBuilderOptions([]);
+    setBuilderReady(false);
+    setBuilderPlaces([]);
+    setBuilderWarnings([]);
+    setIsBuilderLoading(true);
+
+    try {
+      const response = await fetch('/api/ai/search-builder', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: nextMessages.slice(-12),
+          areaSummary: getSearchAreaContextForAI(),
+        }),
+      });
+      const data = await response.json();
+      if (requestId !== builderRequestIdRef.current) return;
+      if (!response.ok) throw new Error(data?.error || 'Search helper is temporarily unavailable.');
+      if (typeof data?.message !== 'string' || !data.message.trim()) throw new Error('The search helper returned an unreadable response.');
+
+      if (data.status === 'clarification' && typeof data.question === 'string' && data.question.trim() && Array.isArray(data.options)) {
+        const options = data.options.filter((option: unknown): option is string => typeof option === 'string' && option.trim().length > 0).slice(0, 5);
+        setBuilderMessages((prev) => [...prev, { role: 'assistant', content: data.message }]);
+        setBuilderQuestion(data.question);
+        setBuilderOptions(options);
+        return;
+      }
+      if (data.status !== 'ready' || !Array.isArray(data.places)) {
+        throw new Error('The search helper could not prepare a safe search. Please try again.');
+      }
+      const placesAreValid = data.places.length > 0 && data.places.every((place: any) =>
+        typeof place?.label === 'string' && place.label.trim().length > 0 &&
+        Array.isArray(place.filters) && place.filters.length > 0 &&
+        place.filters.every((filter: any) => typeof filter?.key === 'string' && filter.key.trim() && typeof filter?.value === 'string' && filter.value.trim())
+      );
+      if (!placesAreValid) throw new Error('The search helper returned incomplete place details. Please try again.');
+
+      const knownTags = new Map<string, string>();
+      getPresetCatalog().forEach(({ tag }) => {
+        const exactMatch = tag.match(/^"([^"]+)"="([^"]+)"$/);
+        if (exactMatch) knownTags.set(`${exactMatch[1]}=${exactMatch[2]}`, tag);
+      });
+      const knownSelected: string[] = [];
+      const customGroups: Array<{ filters: Array<{ key: string; value: string }> }> = [];
+      const places: SearchBuilderPlace[] = data.places.flatMap((place: any) => {
+        const placeFilters = place.filters.filter((filter: any) =>
+          typeof filter?.key === 'string' && typeof filter?.value === 'string'
+        );
+        // A multi-filter place is conjunctive; preserve it intact even if one filter matches a preset.
+        const presetTag = placeFilters.length === 1
+          ? knownTags.get(`${placeFilters[0].key}=${placeFilters[0].value}`)
+          : undefined;
+        if (presetTag) knownSelected.push(presetTag);
+        else if (placeFilters.length) customGroups.push({ filters: placeFilters });
+        return [{ label: place.label, filters: place.filters }];
+      });
+      if (places.length === 0 || (knownSelected.length === 0 && customGroups.length === 0)) {
+        throw new Error('No searchable place types were returned. Please adjust your request.');
+      }
+
+      setBuilderMessages((prev) => [...prev, { role: 'assistant', content: data.message }]);
+      setSelectedTags(Array.from(new Set(knownSelected)));
+      setCustomFilterGroups(customGroups.filter((group, index, all) => all.findIndex((item) => JSON.stringify(item.filters) === JSON.stringify(group.filters)) === index));
+      setBuilderPlaces(places);
+      setBuilderWarnings(Array.isArray(data.warnings) ? data.warnings.filter((warning: unknown): warning is string => typeof warning === 'string') : []);
+      setBuilderReady(true);
+    } catch (error: any) {
+      if (requestId !== builderRequestIdRef.current) return;
+      setToast(error?.message || 'Could not prepare that search. Please try again.');
+    } finally {
+      if (requestId === builderRequestIdRef.current) setIsBuilderLoading(false);
+    }
+  };
+
+  const applyPresetSelection = () => {
+    if (isBuilderLoading) return;
+    const catalog = getPresetCatalog();
+    const selected = catalog.filter((item) => presetDraftTags.includes(item.tag));
+    if (!selected.length) {
+      setToast('Choose at least one place type from the presets.');
+      return;
+    }
+    setSelectedTags(presetDraftTags);
+    setCustomFilterGroups([]);
+    setBuilderPlaces(selected.map(({ label }) => ({ label, filters: [] })));
+    setBuilderWarnings([]);
+    setBuilderReady(true);
+    setBuilderQuestion('');
+    setBuilderOptions([]);
+    setBuilderInput('');
+    setBuilderMessages([{ role: 'assistant', content: `Selected ${selected.length} place type${selected.length === 1 ? '' : 's'} from presets. Review your search below.` }]);
+    setShowPresetPicker(false);
   };
 
   // Direct Circle Polygon Tool activator
@@ -595,8 +741,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   // Execute Trade Area Scan
   const handleRunScan = async () => {
-    if (selectedTags.length === 0 && !customTag.trim()) {
-      setToast('Please select at least one POI category or enter a custom tag.');
+    if (!builderReady || (selectedTags.length === 0 && customFilterGroups.length === 0)) {
+      setToast('Describe the places you want or choose them from presets, then review the search.');
       return;
     }
 
@@ -655,14 +801,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     const signal = abortControllerRef.current.signal;
 
     setIsScanning(true);
-    setToast(`Scanning Overpass & OSMnx for ${selectedTags.length} categories...`);
+    setToast(`Searching OpenStreetMap for ${selectedTags.length + customFilterGroups.length} place types...`);
 
     let result = null;
     try {
       if ((areaMode === 'shape' || areaMode === 'isochrone') && targetShapeFeature) {
-        result = await scanTradeAreaPolygon(targetShapeFeature, selectedTags, customTag, signal);
+        result = await scanTradeAreaPolygon(targetShapeFeature, selectedTags, signal, customFilterGroups);
       } else {
-        result = await scanTradeAreaCoordinates(lat, lon, radius, selectedTags, customTag, signal);
+        result = await scanTradeAreaCoordinates(lat, lon, radius, selectedTags, signal, customFilterGroups);
       }
     } catch (e: any) {
       if (e.name === 'AbortError' || signal.aborted) {
@@ -1245,7 +1391,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                         max="50000"
                         step="100"
                         value={radiusMeters}
-                        onChange={(e) => setRadiusMeters(Math.max(100, Number(e.target.value)))}
+                        onChange={(e) => setRadiusMeters(Math.min(50_000, Math.max(100, Number(e.target.value))))}
                         className="w-20 bg-black/50 border border-white/15 rounded-xl px-2 py-1 text-white font-mono text-xs text-right outline-none focus:border-white/40"
                       />
                     </div>
@@ -1529,189 +1675,113 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               </div>
             )}
 
-            {/* SEARCH TRADE AREA (Compact Hierarchical Checklist with Icons) */}
-            <div className="space-y-2.5 shrink-0">
-              <div className="flex items-center justify-between">
-                <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5">
-                  <Search className="w-3.5 h-3.5 text-white" />
-                  <span>SEARCH TRADE AREA ({Object.keys(POI_CONFIG).length} Sectors)</span>
-                </span>
-                <span className="text-[10px] text-zinc-400 font-mono">
-                  {selectedTags.length} tags selected
-                </span>
-              </div>
-
-              {/* Tag Search Input */}
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-2.5" />
-                <input
-                  type="text"
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Filter parameters (e.g. office, bank, restaurant, pharmacy)..."
-                  className="w-full bg-black/50 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-white placeholder-zinc-500 outline-none focus:border-white/40 text-xs transition backdrop-blur-sm"
-                />
-              </div>
-
-              {/* Quick Preset Selector Chips */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset('commercial')}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-300 hover:text-white transition"
-                >
-                  Commercial & Retail
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset('all')}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-300 hover:text-white transition"
-                >
-                  Select All
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSelectPreset('clear')}
-                  className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-400 hover:text-white transition"
-                >
-                  Clear
+            {/* Conversational OpenStreetMap place search */}
+            <section className="space-y-3 shrink-0">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="font-bold text-white text-sm flex items-center gap-2"><Sparkles className="w-4 h-4 text-cyan-300" />Find places</h3>
+                  <p className="text-[10px] text-zinc-400 mt-1">Tell Atlas what you are looking for in everyday words.</p>
+                </div>
+                <button type="button" disabled={isBuilderLoading} onClick={() => { setPresetDraftTags(selectedTags); setShowPresetPicker(true); }} className="shrink-0 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/15 text-[10px] font-semibold text-zinc-200 transition disabled:opacity-40 disabled:cursor-not-allowed">
+                  Choose from presets
                 </button>
               </div>
 
-              {/* Sleek Vertical Category Tree (With SVG Icons) */}
-              <div className="space-y-1.5">
-                {Object.entries(POI_CONFIG).map(([category, items]) => {
-                  const filteredItems = searchQuery.trim()
-                    ? items.filter(
-                        ([label, tag]) =>
-                          label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          tag.toLowerCase().includes(searchQuery.toLowerCase())
-                      )
-                    : items;
-
-                  if (filteredItems.length === 0) return null;
-
-                  const isOpen = openCategories[category] || searchQuery.trim().length > 0;
-                  const catTags = items.map(([_, tag]) => tag);
-                  const selectedCount = catTags.filter((t) => selectedTags.includes(t)).length;
-                  const isAllSelected = selectedCount === catTags.length;
-                  const isPartiallySelected = selectedCount > 0 && selectedCount < catTags.length;
-                  const color = CATEGORY_COLORS[category] || '#ffffff';
-
-                  return (
-                    <div
-                      key={category}
-                      className="border border-white/10 rounded-2xl bg-white/[0.02] overflow-hidden shrink-0 transition hover:border-white/20 backdrop-blur-sm"
-                    >
-                      {/* Category Master Row */}
-                      <div className="flex items-center justify-between p-2.5 hover:bg-white/[0.04] transition">
-                        <div
-                          className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer select-none"
-                          onClick={() => handleCategorySelectAll(category)}
-                        >
-                          {/* Tri-state Checkbox */}
-                          <div className="text-white hover:text-zinc-300 shrink-0">
-                            {isAllSelected ? (
-                              <CheckSquare className="w-4 h-4 text-white" />
-                            ) : isPartiallySelected ? (
-                              <MinusSquare className="w-4 h-4 text-zinc-300" />
-                            ) : (
-                              <Square className="w-4 h-4 text-zinc-600" />
-                            )}
-                          </div>
-
-                          <span
-                            className="w-2 h-2 rounded-full shrink-0 shadow-sm border border-white/30"
-                            style={{ backgroundColor: color }}
-                          />
-
-                          <span className="text-zinc-400 shrink-0">
-                            {getCategoryIcon(category)}
-                          </span>
-
-                          <span className="font-semibold text-white text-[11px] truncate">
-                            {category}
-                          </span>
-                        </div>
-
-                        {/* Right: Count Badge & Expand Toggle */}
-                        <div
-                          className="flex items-center gap-2 shrink-0 cursor-pointer pl-2"
-                          onClick={() =>
-                            setOpenCategories((prev) => ({ ...prev, [category]: !isOpen }))
-                          }
-                        >
-                          <span
-                            className={`text-[9.5px] font-mono px-2 py-0.5 rounded-full border transition ${
-                              selectedCount > 0
-                                ? 'bg-white/10 border-white/20 text-white font-bold'
-                                : 'bg-black/30 border-white/5 text-zinc-500'
-                            }`}
-                          >
-                            {selectedCount}/{items.length}
-                          </span>
-                          {isOpen ? (
-                            <ChevronDown className="w-3.5 h-3.5 text-zinc-400" />
-                          ) : (
-                            <ChevronRight className="w-3.5 h-3.5 text-zinc-400" />
-                          )}
+              <div className="rounded-2xl border border-white/10 bg-black/35 p-3 space-y-3">
+                {builderMessages.length === 0 ? (
+                  <div className="rounded-xl border border-white/5 bg-white/[0.03] p-3 text-[11px] text-zinc-300">
+                    <p className="font-semibold text-white">What places would you like to find?</p>
+                    <p className="text-zinc-500 mt-1">For example: “clinics and pharmacies” or “coffee shops near the selected area”.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2.5 max-h-56 overflow-y-auto pr-1">
+                    {builderMessages.map((message, index) => (
+                      <div key={`${index}-${message.role}`} className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                        <div className={`max-w-[92%] rounded-2xl px-3 py-2 text-[11px] leading-relaxed whitespace-pre-wrap ${message.role === 'user' ? 'bg-white text-zinc-950 rounded-tr-sm' : 'bg-white/[0.06] border border-white/10 text-zinc-200 rounded-tl-sm'}`}>
+                          {message.content}
                         </div>
                       </div>
+                    ))}
+                    {isBuilderLoading && <div className="flex items-center gap-2 text-[10px] text-zinc-400"><Loader2 className="w-3.5 h-3.5 animate-spin" />Working out the place types…</div>}
+                  </div>
+                )}
 
-                      {/* Expanded Sub-items Checklist */}
-                      {isOpen && (
-                        <div className="px-3 py-2 border-t border-white/5 bg-black/40 max-h-56 overflow-y-auto">
-                          <div className="grid grid-cols-2 gap-1.5">
-                            {filteredItems.map(([label, tag]) => {
-                              const isChecked = selectedTags.includes(tag);
-                              return (
-                                <div
-                                  key={label}
-                                  onClick={() => handleTagToggle(tag)}
-                                  className={`flex items-center gap-2 p-1.5 rounded-xl cursor-pointer transition select-none ${
-                                    isChecked
-                                      ? 'bg-white/10 text-white font-semibold'
-                                      : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
-                                  }`}
-                                >
-                                  <div className="shrink-0">
-                                    {isChecked ? (
-                                      <CheckSquare className="w-3.5 h-3.5 text-white" />
-                                    ) : (
-                                      <Square className="w-3.5 h-3.5 text-zinc-600" />
-                                    )}
-                                  </div>
-                                  <span className={`shrink-0 ${isChecked ? 'text-white' : 'text-zinc-400'}`}>
-                                    {getPoiItemIcon(label, category)}
-                                  </span>
-                                  <span className="text-[10.5px] truncate" title={label}>
-                                    {label}
-                                  </span>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                {builderQuestion && (
+                  <div className="rounded-xl border border-cyan-300/20 bg-cyan-300/[0.06] p-3 space-y-2.5">
+                    <p className="text-[11px] font-semibold text-white">{builderQuestion}</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {builderOptions.map((option) => <button key={option} type="button" disabled={isBuilderLoading} onClick={() => submitSearchBuilder(option)} className="px-2.5 py-1.5 rounded-lg bg-black/30 hover:bg-white/10 border border-white/10 text-[10px] text-zinc-200 transition disabled:opacity-50">{option}</button>)}
                     </div>
-                  );
-                })}
+                    <form onSubmit={(event) => { event.preventDefault(); submitSearchBuilder(builderInput); }} className="flex gap-2">
+                      <input value={builderInput} onChange={(event) => setBuilderInput(event.target.value)} placeholder="Or type your own answer" disabled={isBuilderLoading} className="min-w-0 flex-1 bg-black/40 border border-white/10 rounded-lg px-2.5 py-2 text-[10px] text-white placeholder-zinc-500 outline-none focus:border-cyan-300/40 disabled:opacity-50" />
+                      <button type="submit" disabled={!builderInput.trim() || isBuilderLoading} className="px-3 rounded-lg bg-white text-black text-[10px] font-bold disabled:opacity-40">Reply</button>
+                    </form>
+                  </div>
+                )}
+
+                {!builderQuestion && (
+                  <form onSubmit={(event) => { event.preventDefault(); submitSearchBuilder(builderInput); }} className="flex gap-2">
+                    <input value={builderInput} onChange={(event) => { setBuilderInput(event.target.value); if (builderReady) setBuilderReady(false); }} placeholder="Describe the places you want to find…" disabled={isBuilderLoading} className="min-w-0 flex-1 bg-black/50 border border-white/15 rounded-xl px-3 py-2.5 text-[11px] text-white placeholder-zinc-500 outline-none focus:border-white/40 disabled:opacity-50" />
+                    <button type="submit" disabled={!builderInput.trim() || isBuilderLoading} aria-label="Send search request" className="px-3 rounded-xl bg-white text-black disabled:opacity-40"><Send className="w-4 h-4" /></button>
+                  </form>
+                )}
               </div>
 
-              {/* Custom OSM Tag Filter */}
-              <div className="pt-1 space-y-1">
-                <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-wide">
-                  Custom OSM Filter Tag
-                </span>
-                <input
-                  type="text"
-                  value={customTag}
-                  onChange={(e) => setCustomTag(e.target.value)}
-                  placeholder='e.g. "amenity"="clinic" or "shop"="bakery"'
-                  className="w-full bg-black/50 border border-white/15 rounded-xl px-3 py-1.5 text-white text-xs outline-none focus:border-white/40 transition"
-                />
+              {builderReady && (
+                <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3 space-y-2">
+                  <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-100"><CheckCircle2 className="w-4 h-4" />Ready to search</div>
+                  <p className="text-[10px] text-zinc-300">Looking for {builderPlaces.map((place) => place.label).join(', ')} {getSearchAreaSummary()}.</p>
+                  {builderWarnings.length > 0 && <ul className="text-[10px] text-amber-200 space-y-1 list-disc pl-4">{builderWarnings.map((warning, index) => <li key={index}>{warning}</li>)}</ul>}
+                  <button type="button" onClick={handleRunScan} disabled={isScanning} className="w-full py-2.5 rounded-xl bg-emerald-300 hover:bg-emerald-200 text-zinc-950 font-bold text-[11px] transition disabled:opacity-50">Search this area</button>
+                </div>
+              )}
+            </section>
+
+            {showPresetPicker && (
+              <div className="fixed inset-0 z-[120] bg-black/75 backdrop-blur-sm flex items-center justify-center p-3" role="dialog" aria-modal="true" aria-label="Choose place presets" onMouseDown={(event) => { if (event.target === event.currentTarget) setShowPresetPicker(false); }}>
+                <div className="w-full max-w-xl max-h-[88vh] flex flex-col rounded-2xl bg-zinc-950 border border-white/15 shadow-2xl overflow-hidden">
+                  <div className="p-4 border-b border-white/10 flex items-start justify-between gap-3">
+                    <div><h3 className="text-sm font-bold text-white">Choose from presets</h3><p className="text-[10px] text-zinc-400 mt-1">Pick familiar place types, then review before searching.</p></div>
+                    <button type="button" onClick={() => setShowPresetPicker(false)} aria-label="Close presets" className="p-1.5 rounded-lg hover:bg-white/10 text-zinc-400"><X className="w-4 h-4" /></button>
+                  </div>
+                  <div className="p-4 space-y-3 overflow-y-auto">
+                    <div className="relative"><Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-2.5" /><input type="text" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} disabled={isBuilderLoading} placeholder="Find a place type, like clinic or bakery" className="w-full bg-black/50 border border-white/15 rounded-xl pl-9 pr-3 py-2 text-white placeholder-zinc-500 outline-none focus:border-white/40 text-xs disabled:opacity-50" /></div>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button type="button" disabled={isBuilderLoading} onClick={() => handleSelectPreset('commercial')} className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-300 disabled:opacity-40">Commercial &amp; Retail</button>
+                      <button type="button" disabled={isBuilderLoading} onClick={() => handleSelectPreset('all')} className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-300 disabled:opacity-40">Select All</button>
+                      <button type="button" disabled={isBuilderLoading} onClick={() => handleSelectPreset('clear')} className="px-2.5 py-1 rounded-lg bg-white/5 hover:bg-white/15 border border-white/10 text-[9px] font-semibold text-zinc-400 disabled:opacity-40">Clear</button>
+                      <span className="ml-auto self-center text-[9px] text-zinc-500">{presetDraftTags.length} selected</span>
+                    </div>
+                    <div className="space-y-1.5">
+                      {Object.entries(POI_CONFIG).map(([category, items]) => {
+                        const filteredItems = searchQuery.trim() ? items.filter(([label]) => label.toLowerCase().includes(searchQuery.toLowerCase())) : items;
+                        if (!filteredItems.length) return null;
+                        const isOpen = openCategories[category] || searchQuery.trim().length > 0;
+                        const categoryTags = items.map(([, tag]) => tag);
+                        const selectedCount = categoryTags.filter((tag) => presetDraftTags.includes(tag)).length;
+                        const color = CATEGORY_COLORS[category] || '#fff';
+                        return <div key={category} className="border border-white/10 rounded-xl bg-white/[0.02] overflow-hidden">
+                          <div className="flex items-center justify-between p-2.5">
+                            <button type="button" disabled={isBuilderLoading} onClick={() => handleCategorySelectAll(category)} className="flex items-center gap-2.5 min-w-0 text-left disabled:opacity-40">
+                              {selectedCount === categoryTags.length ? <CheckSquare className="w-4 h-4 text-white" /> : selectedCount > 0 ? <MinusSquare className="w-4 h-4 text-zinc-300" /> : <Square className="w-4 h-4 text-zinc-600" />}
+                              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: color }} />{getCategoryIcon(category)}<span className="font-semibold text-white text-[11px] truncate">{category}</span>
+                            </button>
+                            <button type="button" disabled={isBuilderLoading} onClick={() => setOpenCategories((prev) => ({ ...prev, [category]: !isOpen }))} className="flex items-center gap-2 pl-2 text-[9px] text-zinc-400 disabled:opacity-40"><span>{selectedCount}/{items.length}</span>{isOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}</button>
+                          </div>
+                          {isOpen && <div className="px-3 py-2 border-t border-white/5 bg-black/40 max-h-48 overflow-y-auto"><div className="grid grid-cols-2 gap-1.5">{filteredItems.map(([label, tag]) => {
+                            const isChecked = presetDraftTags.includes(tag);
+                            return <button type="button" disabled={isBuilderLoading} key={label} onClick={() => handleTagToggle(tag)} className={`flex items-center gap-2 p-1.5 rounded-lg text-left disabled:opacity-40 ${isChecked ? 'bg-white/10 text-white' : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'}`}>
+                              {isChecked ? <CheckSquare className="w-3.5 h-3.5 shrink-0" /> : <Square className="w-3.5 h-3.5 shrink-0 text-zinc-600" />}<span className="shrink-0">{getPoiItemIcon(label, category)}</span><span className="text-[10.5px] truncate">{label}</span>
+                            </button>;
+                          })}</div></div>}
+                        </div>;
+                      })}
+                    </div>
+                  </div>
+                  <div className="p-3 border-t border-white/10 flex justify-end gap-2"><button type="button" onClick={() => setShowPresetPicker(false)} className="px-3 py-2 rounded-lg border border-white/10 text-[10px] text-zinc-300">Cancel</button><button type="button" disabled={isBuilderLoading} onClick={applyPresetSelection} className="px-4 py-2 rounded-lg bg-white text-black text-[10px] font-bold disabled:opacity-40">Use selected places</button></div>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Mapped Assets Section */}
             {activeScannedFeatures.length > 0 && (
@@ -2235,10 +2305,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
           ) : (
             <button
               onClick={handleRunScan}
-              className="flex-1 py-3.5 bg-white hover:bg-zinc-200 text-black font-black rounded-2xl shadow-xl shadow-white/10 flex items-center justify-center gap-2 text-xs transition active:scale-[0.99] border border-white/40"
+              disabled={!builderReady}
+              className="flex-1 py-3.5 bg-white hover:bg-zinc-200 disabled:bg-white/10 disabled:text-zinc-500 disabled:border-white/10 text-black font-black rounded-2xl shadow-xl shadow-white/10 flex items-center justify-center gap-2 text-xs transition active:scale-[0.99] border border-white/40"
             >
-              <Radar className="w-4 h-4 text-black" />
-              <span className="tracking-wider uppercase font-black">SCAN AREA</span>
+              <Radar className="w-4 h-4" />
+              <span className="tracking-wider uppercase font-black">{builderReady ? 'SEARCH THIS AREA' : 'DESCRIBE PLACES TO SEARCH'}</span>
             </button>
           )}
         </div>

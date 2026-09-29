@@ -187,6 +187,37 @@ export interface ScanResult {
   categoryCounts: Record<string, number>;
 }
 
+/** A validated exact-match OSM tag predicate produced by the search builder. */
+export interface OsmTagFilter {
+  key: string;
+  value: string;
+}
+
+/** Predicates inside a group are ANDed; separate groups are ORed. */
+export interface OsmTagFilterGroup {
+  filters: OsmTagFilter[];
+}
+
+function compileExactOsmFilter(filter: OsmTagFilter): string | null {
+  if (!filter || typeof filter !== 'object' || typeof filter.key !== 'string' || typeof filter.value !== 'string') return null;
+  if (!/^[a-zA-Z0-9:_-]{1,64}$/.test(filter.key)) return null;
+  if (!filter.value || filter.value.length > 80 || /[\u0000-\u001f\u007f"\\\[\]]/.test(filter.value)) return null;
+  return `${JSON.stringify(filter.key)}=${JSON.stringify(filter.value)}`;
+}
+
+function buildTagsToQuery(selectedTags: string[], customFilterGroups: OsmTagFilterGroup[] = []): string[] {
+  const knownPresetTags = new Set(Object.values(POI_CONFIG).flatMap((items) => items.map(([, tag]) => tag)));
+  const tags = selectedTags.filter((tag) => knownPresetTags.has(tag));
+  for (const group of Array.isArray(customFilterGroups) ? customFilterGroups.slice(0, 12) : []) {
+    if (!group || typeof group !== 'object' || !Array.isArray(group.filters) || group.filters.length === 0 || group.filters.length > 6) continue;
+    const compiled = group.filters.map(compileExactOsmFilter);
+    if (compiled.every((filter): filter is string => Boolean(filter))) {
+      tags.push(compiled.join(']['));
+    }
+  }
+  return Array.from(new Set(tags));
+}
+
 /**
  * Compiles a list of POI features into a standard Google Earth KML document string
  */
@@ -235,19 +266,10 @@ export async function scanTradeAreaCoordinates(
   lon: number,
   radius: number,
   selectedTags: string[],
-  customTag?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  customFilterGroups: OsmTagFilterGroup[] = []
 ): Promise<ScanResult | null> {
-  const tagsToQuery = [...selectedTags];
-  if (customTag && customTag.trim()) {
-    const cs = customTag.trim();
-    if (cs.includes('=')) {
-      const [k, v] = cs.split('=');
-      tagsToQuery.push(`"${k.trim()}"="${v.trim()}"`);
-    } else {
-      tagsToQuery.push(`"amenity"~"${cs}",i`);
-    }
-  }
+  const tagsToQuery = buildTagsToQuery(selectedTags, customFilterGroups);
 
   if (tagsToQuery.length === 0) return null;
 
@@ -302,24 +324,14 @@ export async function scanTradeAreaCoordinates(
 export async function scanTradeAreaPolygon(
   targetPoly: GISFeature,
   selectedTags: string[],
-  customTag?: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  customFilterGroups: OsmTagFilterGroup[] = []
 ): Promise<ScanResult | null> {
   const bnd = calcBounds(targetPoly);
   if (!bnd) return null;
 
   const bbox = `${bnd[0][1]},${bnd[0][0]},${bnd[1][1]},${bnd[1][0]}`;
-  const tagsToQuery = [...selectedTags];
-
-  if (customTag && customTag.trim()) {
-    const cs = customTag.trim();
-    if (cs.includes('=')) {
-      const [k, v] = cs.split('=');
-      tagsToQuery.push(`"${k.trim()}"="${v.trim()}"`);
-    } else {
-      tagsToQuery.push(`"amenity"~"${cs}",i`);
-    }
-  }
+  const tagsToQuery = buildTagsToQuery(selectedTags, customFilterGroups);
 
   if (tagsToQuery.length === 0) return null;
 
@@ -343,7 +355,7 @@ export async function scanTradeAreaPolygon(
     });
   }
 
-  return processOverpassElements(elements, selectedTags);
+  return processOverpassElements(elements, tagsToQuery);
 }
 
 function processOverpassElements(elements: any[], selectedTags: string[]): ScanResult {
