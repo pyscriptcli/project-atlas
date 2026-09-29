@@ -140,6 +140,8 @@ export interface FeatureProps {
   osmType?: string;
   osmId?: number;
   searchAreaLabels?: string[];
+  // Flexible, externally researched/enriched fields kept separate from source OSM tags.
+  researchData?: Record<string, unknown>;
 }
 
 export interface GISFeature {

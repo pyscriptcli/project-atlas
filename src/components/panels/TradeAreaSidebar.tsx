@@ -27,6 +27,8 @@ import {
   RotateCcw,
   Trash2,
   Download,
+  FileJson,
+  Upload,
   Edit3,
   Eye,
   EyeOff,
@@ -262,6 +264,7 @@ interface ResultsTableRow {
   type: string;
   address: string;
   searchAreaLabels: string[];
+  researchData: Record<string, unknown>;
 }
 
 interface ResultsTableProps {
@@ -280,10 +283,33 @@ interface ResultsTableProps {
   setPlaceGroupBy: (value: 'street' | 'city') => void;
   onToggleMaximize: () => void;
   onLocate: (feature: GISFeature) => void;
+  onExportResearchPack: () => void;
+  onImportResearchFile: (file: File) => void;
 }
 
-const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maximized, search, setSearch, sortBy, setSortBy, ascending, setAscending, groupBy, setGroupBy, placeGroupBy, setPlaceGroupBy, onToggleMaximize, onLocate }) => {
+const formatResearchValue = (value: unknown) => {
+  if (value == null || value === '') return '—';
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return JSON.stringify(value);
+};
+
+const isSafeResearchValue = (value: unknown, depth = 0): boolean => {
+  if (value === null || typeof value === 'boolean') return true;
+  if (typeof value === 'string') return value.length <= 20000;
+  if (typeof value === 'number') return Number.isFinite(value);
+  if (depth >= 6) return false;
+  if (Array.isArray(value)) return value.length <= 200 && value.every((item) => isSafeResearchValue(item, depth + 1));
+  if (typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>);
+    return entries.length <= 100 && entries.every(([key, item]) => key.length > 0 && key.length <= 100 && !['__proto__', 'prototype', 'constructor'].includes(key) && isSafeResearchValue(item, depth + 1));
+  }
+  return false;
+};
+
+const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maximized, search, setSearch, sortBy, setSortBy, ascending, setAscending, groupBy, setGroupBy, placeGroupBy, setPlaceGroupBy, onToggleMaximize, onLocate, onExportResearchPack, onImportResearchFile }) => {
+  const importInputRef = useRef<HTMLInputElement>(null);
   const mainRows = rows;
+  const researchColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.researchData || {})))).sort((a, b) => a.localeCompare(b));
   const groupLabel = (row: ResultsTableRow) => {
     if (groupBy === 'type') return row.type || 'Uncategorized';
     if (groupBy === 'name') return row.name || 'Unnamed place';
@@ -308,19 +334,23 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
         {groupBy === 'place' && <select aria-label="Group place locations by" value={placeGroupBy} onChange={(event) => setPlaceGroupBy(event.target.value as 'street' | 'city')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="street">Street</option><option value="city">City</option></select>}
         <select aria-label="Sort places by" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'name' | 'type')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="name">Name</option><option value="type">Place type</option></select>
         <button type="button" onClick={() => setAscending((value) => !value)} aria-label={ascending ? 'Sort descending' : 'Sort ascending'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10"><ArrowUpDown className="h-3.5 w-3.5" /></button>
+        <button type="button" onClick={onExportResearchPack} className="flex items-center gap-1 rounded-lg border border-cyan-300/20 px-2 py-1.5 text-[9px] text-cyan-100 hover:bg-cyan-300/10" title="Export cafés with a research prompt as structured JSON"><FileJson className="h-3 w-3" />AI pack</button>
+        <button type="button" onClick={() => importInputRef.current?.click()} className="flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1.5 text-[9px] text-zinc-200 hover:bg-white/10" title="Import AI research JSON"><Upload className="h-3 w-3" />Import</button>
+        <input ref={importInputRef} type="file" accept="application/json,.json" className="hidden" onChange={(event) => { const file = event.target.files?.[0]; if (file) onImportResearchFile(file); event.currentTarget.value = ''; }} />
         <button type="button" onClick={onToggleMaximize} aria-label={maximized ? 'Restore table size' : 'Enlarge table'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10">{maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
       </div>
     </div>
     <div className={`overflow-auto rounded-lg border border-white/10 ${maximized ? 'min-h-0 flex-1' : 'max-h-72'}`}>
       <table className="w-full min-w-[620px] border-collapse text-left text-[10px]">
-        <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Address</th><th className="px-3 py-2 text-center">Actions</th></tr></thead>
+        <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Address</th>{researchColumns.map((column) => <th key={column} className="min-w-28 px-3 py-2 normal-case">{column}</th>)}<th className="px-3 py-2 text-center">Actions</th></tr></thead>
         <tbody className="divide-y divide-white/5">
           {groups.map((group) => <React.Fragment key={`${groupBy}:${group.label}`}>
-            <tr className="bg-white/[0.035]"><td colSpan={4} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-zinc-400">{group.label}<span className="ml-2 font-mono normal-case text-zinc-600">{group.rows.length}</span></td></tr>
+            <tr className="bg-white/[0.035]"><td colSpan={4 + researchColumns.length} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-zinc-400">{group.label}<span className="ml-2 font-mono normal-case text-zinc-600">{group.rows.length}</span></td></tr>
             {group.rows.map((row) => <tr key={row.feature.id} onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
               <td className="max-w-72 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}</span></td>
               <td className="px-3 py-2">{row.type}</td>
               <td className="max-w-56 px-3 py-2 text-zinc-400">{row.address ? <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} className="block truncate text-cyan-200 hover:underline" title="Open this address in Google Maps">{row.address}</a> : <span className="text-zinc-500">Not listed</span>}</td>
+              {researchColumns.map((column) => <td key={column} className="max-w-48 px-3 py-2 text-zinc-300"><span className="block truncate" title={formatResearchValue(row.researchData[column])}>{formatResearchValue(row.researchData[column])}</span></td>)}
               <td className="px-3 py-2"><div className="flex items-center justify-center gap-1">
                 <button type="button" onClick={(event) => { event.stopPropagation(); onLocate(row.feature); }} aria-label={`View ${row.name} on map`} title="View in map" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Crosshair className="h-3.5 w-3.5" /></button>
                 <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Open ${row.name} in Google Maps`} title="Google Maps" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><MapPinIcon className="h-3.5 w-3.5" /></a>
@@ -329,7 +359,7 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
               </div></td>
             </tr>)}
           </React.Fragment>)}
-          {rows.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-[10px] text-zinc-500">No places match this search.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={4 + researchColumns.length} className="px-3 py-8 text-center text-[10px] text-zinc-500">No places match this search.</td></tr>}
         </tbody>
       </table>
     </div>
@@ -573,9 +603,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         type: classification.label || humanizeOsmValue(feature.props.poiType || 'Place'),
         address: getPoiAddress(tags),
         searchAreaLabels: feature.props.searchAreaLabels || [],
+        researchData: feature.props.researchData || {},
       };
     });
-    return rows.filter((row) => !query || [row.name, row.type, row.address, ...row.searchAreaLabels].some((value) => value.toLowerCase().includes(query)))
+    return rows.filter((row) => !query || [row.name, row.type, row.address, ...row.searchAreaLabels, ...Object.values(row.researchData).map(formatResearchValue)].some((value) => value.toLowerCase().includes(query)))
       .sort((a, b) => {
         const groupKey = (row: ResultsTableRow) => resultsGroupBy === 'type'
           ? row.type.toLocaleLowerCase()
@@ -1473,8 +1504,9 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       if (/^[\s]*[=+@\-]/.test(text)) text = `'${text}`;
       return `"${text.replace(/"/g, '""')}"`;
     };
-    const header = ['Place', 'Type', 'Address', 'Latitude', 'Longitude', 'Search areas', 'OSM element'];
-    const rows = resultTableRows.map(({ feature, name, type, address }) => [
+    const researchColumns = Array.from(new Set(resultTableRows.flatMap(({ researchData }) => Object.keys(researchData)))).sort((a, b) => a.localeCompare(b));
+    const header = ['Place', 'Type', 'Address', 'Latitude', 'Longitude', 'Search areas', 'OSM element', ...researchColumns];
+    const rows = resultTableRows.map(({ feature, name, type, address, researchData }) => [
       name,
       type,
       address || 'Not listed',
@@ -1482,6 +1514,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       feature.geometry.type === 'Point' ? feature.geometry.coordinates[0] : '',
       (feature.props.searchAreaLabels || []).join('; '),
       feature.props.osmType && feature.props.osmId ? `${feature.props.osmType}/${feature.props.osmId}` : '',
+      ...researchColumns.map((column) => formatResearchValue(researchData[column])),
     ]);
     const csv = `\uFEFF${[header, ...rows].map((row) => row.map(quote).join(',')).join('\r\n')}`;
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
@@ -1492,6 +1525,79 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
     setShowExportMenu(false);
     setToast(`Exported ${rows.length} places to an Excel-compatible CSV file.`);
+  };
+
+  const handleExportResearchPack = () => {
+    const records = resultTableRows
+      .filter(({ feature }) => typeof feature.props.osmType === 'string' && Number.isInteger(feature.props.osmId))
+      .map(({ feature, name, address, researchData }) => ({
+        osmType: feature.props.osmType,
+        osmId: feature.props.osmId,
+        name,
+        address: address || null,
+        coordinates: feature.geometry.type === 'Point'
+          ? { lat: feature.geometry.coordinates[1], lon: feature.geometry.coordinates[0] }
+          : null,
+        researchData,
+      }));
+    const pack = {
+      format: 'project-atlas.poi-research',
+      version: 1,
+      prompt: [
+        'Research each listed cafe independently using public sources that permit this use, prioritizing the business website and published menu.',
+        'Do not scrape Google Maps, bypass access controls, or invent details. If evidence is unavailable, use unknown/not_found and leave prices empty.',
+        'Preserve osmType and osmId exactly. Never merge different OSM IDs, even when names match. Return one record per input record.',
+        'Put all new flexible fields under researchData. For each record, include vietnameseCoffeeStatus (confirmed, not_found, or unclear), vietnameseCoffeeItems (array), menuPrices (array of objects with item, amount, currency, size, and sourceUrl), researchSources (array of objects with url and title), researchCheckedAt (YYYY-MM-DD), and researchConfidence (high, medium, or low).',
+        'Return only valid JSON using the same format and version, with records containing osmType, osmId, and researchData. Do not change the OSM identity fields.',
+      ].join('\n'),
+      records,
+    };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(pack, null, 2)], { type: 'application/json' }));
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `atlas_poi_research_${new Date().toISOString().slice(0, 10)}.json`;
+    anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setToast(`Exported ${records.length} POIs with an AI research prompt.`);
+  };
+
+  const handleImportResearchFile = async (file: File) => {
+    if (file.size > 10 * 1024 * 1024) {
+      setToast('Research JSON is too large. Import a file under 10 MB.');
+      return;
+    }
+    try {
+      const parsed: unknown = JSON.parse(await file.text());
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('The file must contain a JSON object.');
+      const pack = parsed as { format?: unknown; version?: unknown; records?: unknown };
+      if (pack.format !== 'project-atlas.poi-research' || pack.version !== 1 || !Array.isArray(pack.records)) {
+        throw new Error('This is not a supported Atlas POI research file. Export a fresh AI pack and use its format.');
+      }
+      if (pack.records.length > 10000) throw new Error('The file contains too many records.');
+
+      const incoming = new Map<string, Record<string, unknown>>();
+      for (const recordValue of pack.records) {
+        if (!recordValue || typeof recordValue !== 'object' || Array.isArray(recordValue)) continue;
+        const record = recordValue as { osmType?: unknown; osmId?: unknown; researchData?: unknown };
+        if (typeof record.osmType !== 'string' || !record.osmType.trim() || !Number.isInteger(record.osmId) || !record.researchData || typeof record.researchData !== 'object' || Array.isArray(record.researchData) || !isSafeResearchValue(record.researchData)) continue;
+        incoming.set(`${record.osmType.toLowerCase()}/${record.osmId}`, record.researchData as Record<string, unknown>);
+      }
+      if (!incoming.size) throw new Error('No records with OSM IDs and researchData were found.');
+
+      let matchedFeatures = 0;
+      const nextFeatures = features.map((feature) => {
+        const key = `${feature.props.osmType?.toLowerCase()}/${feature.props.osmId}`;
+        const researchData = incoming.get(key);
+        if (!researchData || feature.props.managedBy !== 'open-node') return feature;
+        matchedFeatures += 1;
+        return { ...feature, props: { ...feature.props, researchData: { ...(feature.props.researchData || {}), ...researchData } } };
+      });
+      if (!matchedFeatures) throw new Error('None of the OSM IDs in this file match the current Open Node results.');
+      setFeatures(nextFeatures);
+      setToast(`Imported research for ${matchedFeatures} POIs. New research fields now appear as table columns.`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Could not import this research JSON.');
+    }
   };
 
   // Fly to Commercial Cluster
@@ -2399,8 +2505,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                     })}
                   </div></>}
                   {resultsView === 'table' && (resultsTableMaximized && typeof document !== 'undefined'
-                    ? createPortal(<div role="dialog" aria-modal="true" aria-label="Places results table" className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-3 sm:p-6"><div className="h-full w-full max-w-7xl"><TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(false)} onLocate={handleFlyToPoi} /></div></div>, document.body)
-                    : <TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized={false} search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(true)} onLocate={handleFlyToPoi} />)}
+                    ? createPortal(<div role="dialog" aria-modal="true" aria-label="Places results table" className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-3 sm:p-6"><div className="h-full w-full max-w-7xl"><TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(false)} onLocate={handleFlyToPoi} onExportResearchPack={handleExportResearchPack} onImportResearchFile={handleImportResearchFile} /></div></div>, document.body)
+                    : <TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized={false} search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(true)} onLocate={handleFlyToPoi} onExportResearchPack={handleExportResearchPack} onImportResearchFile={handleImportResearchFile} />)}
                 </>}
                 <button type="button" onClick={() => setAnalysisExpanded((expanded) => !expanded)} aria-expanded={analysisExpanded} className="w-full flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-[10px] font-semibold text-zinc-200 hover:bg-white/[0.06]">
                   <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-cyan-300" />Spatial analysis &amp; Q&amp;A</span>{analysisExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
