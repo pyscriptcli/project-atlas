@@ -181,6 +181,7 @@ export interface ScannedPOI {
   tags: Record<string, string>;
   osmType?: string;
   osmId?: number;
+  searchAreaLabels?: string[];
 }
 
 export interface ScanResult {

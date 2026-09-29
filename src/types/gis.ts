@@ -139,6 +139,7 @@ export interface FeatureProps {
   osmTags?: Record<string, string>;
   osmType?: string;
   osmId?: number;
+  searchAreaLabels?: string[];
 }
 
 export interface GISFeature {

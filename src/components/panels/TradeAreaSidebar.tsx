@@ -261,6 +261,7 @@ interface ResultsTableRow {
   name: string;
   type: string;
   address: string;
+  searchAreaLabels: string[];
 }
 
 interface ResultsTableProps {
@@ -273,8 +274,8 @@ interface ResultsTableProps {
   setSortBy: (value: 'name' | 'type') => void;
   ascending: boolean;
   setAscending: React.Dispatch<React.SetStateAction<boolean>>;
-  groupBy: 'place' | 'type' | 'name';
-  setGroupBy: (value: 'place' | 'type' | 'name') => void;
+  groupBy: 'place' | 'type' | 'name' | 'searchArea';
+  setGroupBy: (value: 'place' | 'type' | 'name' | 'searchArea') => void;
   placeGroupBy: 'street' | 'city';
   setPlaceGroupBy: (value: 'street' | 'city') => void;
   onToggleMaximize: () => void;
@@ -286,6 +287,7 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
   const groupLabel = (row: ResultsTableRow) => {
     if (groupBy === 'type') return row.type || 'Uncategorized';
     if (groupBy === 'name') return row.name || 'Unnamed place';
+    if (groupBy === 'searchArea') return row.searchAreaLabels[0] || 'Search area not recorded';
     return getPoiPlaceGroup(row.feature, row.address, placeGroupBy);
   };
   const groups = mainRows.reduce<Array<{ label: string; rows: ResultsTableRow[] }>>((result, row) => {
@@ -302,7 +304,7 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
       <div><h4 className="flex items-center gap-1.5 text-[11px] font-bold text-white"><Table2 className="h-3.5 w-3.5 text-cyan-300" />Places table</h4><p className="mt-0.5 text-[9px] text-zinc-500">{rows.length} of {total} places · Select a row to locate it on the map.</p></div>
       <div className="flex items-center gap-1.5">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a place…" aria-label="Search places table" className="w-32 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] text-white placeholder-zinc-500 outline-none focus:border-cyan-300/40" />
-        <select aria-label="Group places by" value={groupBy} onChange={(event) => setGroupBy(event.target.value as 'place' | 'type' | 'name')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="place">Group: Place</option><option value="type">Group: Type</option><option value="name">Group: Name</option></select>
+        <select aria-label="Group places by" value={groupBy} onChange={(event) => setGroupBy(event.target.value as 'place' | 'type' | 'name' | 'searchArea')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="place">Group: Place</option><option value="type">Group: Type</option><option value="name">Group: Name</option><option value="searchArea">Group: Search Area</option></select>
         {groupBy === 'place' && <select aria-label="Group place locations by" value={placeGroupBy} onChange={(event) => setPlaceGroupBy(event.target.value as 'street' | 'city')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="street">Street</option><option value="city">City</option></select>}
         <select aria-label="Sort places by" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'name' | 'type')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="name">Name</option><option value="type">Place type</option></select>
         <button type="button" onClick={() => setAscending((value) => !value)} aria-label={ascending ? 'Sort descending' : 'Sort ascending'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10"><ArrowUpDown className="h-3.5 w-3.5" /></button>
@@ -448,7 +450,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [resultsTableSearch, setResultsTableSearch] = useState('');
   const [resultsSortBy, setResultsSortBy] = useState<'name' | 'type'>('name');
   const [resultsSortAscending, setResultsSortAscending] = useState(true);
-  const [resultsGroupBy, setResultsGroupBy] = useState<'place' | 'type' | 'name'>('type');
+  const [resultsGroupBy, setResultsGroupBy] = useState<'place' | 'type' | 'name' | 'searchArea'>('type');
   const [placeGroupBy, setPlaceGroupBy] = useState<'street' | 'city'>('street');
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
   const [boundaryQuery, setBoundaryQuery] = useState('');
@@ -570,15 +572,18 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         name,
         type: classification.label || humanizeOsmValue(feature.props.poiType || 'Place'),
         address: getPoiAddress(tags),
+        searchAreaLabels: feature.props.searchAreaLabels || [],
       };
     });
-    return rows.filter((row) => !query || [row.name, row.type, row.address].some((value) => value.toLowerCase().includes(query)))
+    return rows.filter((row) => !query || [row.name, row.type, row.address, ...row.searchAreaLabels].some((value) => value.toLowerCase().includes(query)))
       .sort((a, b) => {
         const groupKey = (row: ResultsTableRow) => resultsGroupBy === 'type'
           ? row.type.toLocaleLowerCase()
           : resultsGroupBy === 'name'
             ? row.name.toLocaleLowerCase()
-            : getPoiPlaceGroup(row.feature, row.address, placeGroupBy).toLocaleLowerCase();
+            : resultsGroupBy === 'searchArea'
+              ? (row.searchAreaLabels[0] || 'Search area not recorded').toLocaleLowerCase()
+              : getPoiPlaceGroup(row.feature, row.address, placeGroupBy).toLocaleLowerCase();
         const groupComparison = groupKey(a).localeCompare(groupKey(b));
         if (groupComparison !== 0) return groupComparison;
         const comparison = a[resultsSortBy].localeCompare(b[resultsSortBy]);
@@ -1137,7 +1142,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       return;
     }
 
-    type SearchArea = { kind: 'coordinates'; lat: number; lon: number; radius: number } | { kind: 'polygon'; feature: GISFeature };
+    type SearchArea = { kind: 'coordinates'; lat: number; lon: number; radius: number; label: string } | { kind: 'polygon'; feature: GISFeature; label: string };
     const searchAreas: SearchArea[] = [];
 
     if (areaMode === 'coords') {
@@ -1146,7 +1151,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         setToast('Enter valid coordinates, one “latitude, longitude” pair per line.');
         return;
       }
-      points.forEach(({ lat, lon }) => searchAreas.push({ kind: 'coordinates', lat, lon, radius: radiusMeters }));
+      points.forEach(({ lat, lon }, index) => searchAreas.push({ kind: 'coordinates', lat, lon, radius: radiusMeters, label: `Location ${index + 1} · ${lat.toFixed(4)}, ${lon.toFixed(4)}` }));
       if (points.length === 1) syncTargetRadiusGraphics(points[0].lat, points[0].lon, radiusMeters);
     } else if (areaMode === 'isochrone') {
       const activeIso = features.find((f) => f.id === activeIsochroneFeatureId);
@@ -1154,14 +1159,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         setToast('Generate a travel catchment first before scanning.');
         return;
       }
-      searchAreas.push({ kind: 'polygon', feature: activeIso });
+      searchAreas.push({ kind: 'polygon', feature: activeIso, label: activeIso.name });
     } else if (areaMode === 'shape') {
       const targets = selectedShapeIds.map((id) => drawnShapes.find((feature) => feature.id === id)).filter((feature): feature is GISFeature => Boolean(feature));
       if (!targets.length || targets.length !== selectedShapeIds.length) {
         setToast('Select one or more drawn boundaries before searching.');
         return;
       }
-      targets.forEach((feature) => searchAreas.push({ kind: 'polygon', feature }));
+      targets.forEach((feature) => searchAreas.push({ kind: 'polygon', feature, label: feature.name }));
     } else if (areaMode === 'street') {
       const targets = selectedStreetRouteIds.map((id) => drawnStreetRoutes.find((route) => route.id === id)).filter((route): route is GISFeature => Boolean(route));
       if (!targets.length || targets.length !== selectedStreetRouteIds.length) {
@@ -1176,6 +1181,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         }
         searchAreas.push({
           kind: 'polygon',
+          label: `${route.name} · ${streetCorridorWidthMeters} m corridor`,
           feature: {
             ...route,
             kind: 'polygon',
@@ -1194,7 +1200,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         const center = circle.props?.centerCoord || (circle.geometry.type === 'Polygon' && circle.geometry.coordinates?.[0]?.[0]
           ? [circle.geometry.coordinates[0][0][0], circle.geometry.coordinates[0][0][1]] as [number, number]
           : null);
-        if (center) searchAreas.push({ kind: 'coordinates', lon: center[0], lat: center[1], radius: circle.props?.radiusMeters || 1000 });
+        if (center) searchAreas.push({ kind: 'coordinates', lon: center[0], lat: center[1], radius: circle.props?.radiusMeters || 1000, label: circle.name });
       });
     }
 
@@ -1216,14 +1222,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setResultsExpanded(true);
     setToast(`Searching ${searchAreas.length} area${searchAreas.length === 1 ? '' : 's'} for ${selectedTags.length + customFilterGroups.length} place types...`);
 
-    let areaResults: ScanResult[] = [];
+    let areaResults: Array<{ label: string; result: ScanResult }> = [];
     try {
       for (const area of searchAreas) {
         if (signal.aborted) break;
         const areaResult = area.kind === 'polygon'
           ? await scanTradeAreaPolygon(area.feature, selectedTags, signal, customFilterGroups)
           : await scanTradeAreaCoordinates(area.lat, area.lon, area.radius, selectedTags, signal, customFilterGroups);
-        if (areaResult) areaResults.push(areaResult);
+        if (areaResult) areaResults.push({ label: area.label, result: areaResult });
       }
     } catch (e: any) {
       if (e.name === 'AbortError' || signal.aborted) {
@@ -1245,10 +1251,15 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
 
     const uniquePois = new Map<string, ScannedPOI>();
-    areaResults.forEach((areaResult) => areaResult.features.forEach((poi) => {
+    areaResults.forEach(({ label, result: areaResult }) => areaResult.features.forEach((poi) => {
       const normalizedName = poi.name.trim().replace(/\s+/g, ' ').toLocaleLowerCase();
       const key = `${normalizedName}|${poi.lat.toFixed(6)}|${poi.lon.toFixed(6)}`;
-      if (!uniquePois.has(key)) uniquePois.set(key, poi);
+      const existing = uniquePois.get(key);
+      if (existing) {
+        existing.searchAreaLabels = Array.from(new Set([...(existing.searchAreaLabels || []), label]));
+      } else {
+        uniquePois.set(key, { ...poi, searchAreaLabels: [label] });
+      }
     }));
     const result: ScanResult = {
       features: Array.from(uniquePois.values()),
@@ -1306,6 +1317,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
           osmTags: poi.tags,
           osmType: poi.osmType,
           osmId: poi.osmId,
+          searchAreaLabels: poi.searchAreaLabels,
           attributes: {
             Name: poi.name,
             Category: poi.category,
@@ -1313,6 +1325,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
             Latitude: poi.lat.toFixed(6),
             Longitude: poi.lon.toFixed(6),
             ...(poi.osmType && poi.osmId != null ? { 'OSM element': `${poi.osmType}/${poi.osmId}` } : {}),
+            'Search area': (poi.searchAreaLabels || []).join('; '),
           },
         },
       });
@@ -1460,13 +1473,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       if (/^[\s]*[=+@\-]/.test(text)) text = `'${text}`;
       return `"${text.replace(/"/g, '""')}"`;
     };
-    const header = ['Place', 'Type', 'Address', 'Latitude', 'Longitude', 'OSM element'];
+    const header = ['Place', 'Type', 'Address', 'Latitude', 'Longitude', 'Search areas', 'OSM element'];
     const rows = resultTableRows.map(({ feature, name, type, address }) => [
       name,
       type,
       address || 'Not listed',
       feature.geometry.type === 'Point' ? feature.geometry.coordinates[1] : '',
       feature.geometry.type === 'Point' ? feature.geometry.coordinates[0] : '',
+      (feature.props.searchAreaLabels || []).join('; '),
       feature.props.osmType && feature.props.osmId ? `${feature.props.osmType}/${feature.props.osmId}` : '',
     ]);
     const csv = `\uFEFF${[header, ...rows].map((row) => row.map(quote).join(',')).join('\r\n')}`;
