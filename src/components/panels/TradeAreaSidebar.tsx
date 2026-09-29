@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Radar,
   X,
@@ -29,6 +30,10 @@ import {
   Eye,
   EyeOff,
   Layers,
+  Table2,
+  Maximize2,
+  Minimize2,
+  ArrowUpDown,
   Sliders,
   Palette,
   Send,
@@ -169,6 +174,104 @@ const getPoiItemIcon = (label: string, category: string) => {
   return <Tag className="w-3.5 h-3.5 shrink-0" />;
 };
 
+const humanizeOsmValue = (value: unknown) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const getPoiClassification = (tags: Record<string, unknown>) => {
+  const candidates = Object.entries(POI_CONFIG).flatMap(([category, items]) => items.map(([label, tagQuery]) => ({ category, label, tagQuery })))
+    .sort((a, b) => Number(a.tagQuery.includes('~')) - Number(b.tagQuery.includes('~')));
+  for (const { category, label, tagQuery } of candidates) {
+      const match = tagQuery.match(/^"([^"]+)"\s*(=|~)\s*"([^"]+)"\s*(,i)?$/);
+      if (!match) continue;
+      const [, key, operator, expected, insensitive] = match;
+      const actual = tags[key];
+      if (actual == null) continue;
+      const value = String(actual);
+      const matches = operator === '='
+        ? (insensitive ? value.toLowerCase() === expected.toLowerCase() : value === expected)
+        : (() => { try { return new RegExp(expected, insensitive ? 'i' : '').test(value); } catch { return false; } })();
+      if (matches) return { label, category };
+  }
+  const key = ['amenity', 'shop', 'office', 'tourism', 'leisure', 'healthcare', 'craft', 'place', 'building', 'industrial'].find((tagKey) => tags[tagKey]);
+  return { label: humanizeOsmValue(key ? tags[key] : 'Place'), category: key === 'shop' ? 'RETAIL' : key ? 'OTHER SERVICES' : 'OTHER' };
+};
+
+const getPoiAddress = (tags: Record<string, unknown>) => {
+  const full = tags['addr:full'];
+  if (full) return String(full);
+  return [tags['addr:housenumber'], tags['addr:street'], tags['addr:suburb'], tags['addr:city'], tags['addr:postcode']]
+    .filter(Boolean).map(String).join(', ');
+};
+
+const getPoiDetails = (tags: Record<string, unknown>) => [
+  ['Brand', tags.brand], ['Address', getPoiAddress(tags)], ['Phone', tags.phone || tags['contact:phone']],
+  ['Website', tags.website || tags['contact:website']], ['Opening hours', tags.opening_hours],
+  ['Cuisine', tags.cuisine ? humanizeOsmValue(tags.cuisine) : null],
+  ['Wheelchair access', tags.wheelchair ? humanizeOsmValue(tags.wheelchair) : null],
+].filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => [label, String(value)] as [string, string]);
+
+const getReadablePoiName = (feature: GISFeature) => {
+  const tags = (feature.props.osmTags || {}) as Record<string, unknown>;
+  const type = getPoiClassification(tags).label;
+  const name = String(feature.name || '').trim();
+  const generic = ['amenity', 'shop', 'office', 'tourism', 'leisure', 'healthcare', 'place', 'building'].some((key) => String(tags[key] || '').toLowerCase() === name.toLowerCase());
+  if (generic || !name) return String(tags.name || tags.brand || `Unnamed ${type}`);
+  return name;
+};
+
+interface ResultsTableRow {
+  feature: GISFeature;
+  name: string;
+  type: string;
+  category: string;
+  address: string;
+  details: Array<[string, string]>;
+}
+
+interface ResultsTableProps {
+  rows: ResultsTableRow[];
+  total: number;
+  maximized: boolean;
+  search: string;
+  setSearch: (value: string) => void;
+  sortBy: 'name' | 'type' | 'category';
+  setSortBy: (value: 'name' | 'type' | 'category') => void;
+  ascending: boolean;
+  setAscending: React.Dispatch<React.SetStateAction<boolean>>;
+  expandedDetails: Record<number, boolean>;
+  toggleDetails: (id: number) => void;
+  onToggleMaximize: () => void;
+  onLocate: (feature: GISFeature) => void;
+}
+
+const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maximized, search, setSearch, sortBy, setSortBy, ascending, setAscending, expandedDetails, toggleDetails, onToggleMaximize, onLocate }) => (
+  <div className={`${maximized ? 'flex h-full min-h-0 flex-col rounded-2xl border border-white/15 bg-zinc-950 p-3 shadow-2xl sm:p-5' : 'rounded-xl border border-white/10 bg-black/20 p-2.5'}`}>
+    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+      <div><h4 className="flex items-center gap-1.5 text-[11px] font-bold text-white"><Table2 className="h-3.5 w-3.5 text-cyan-300" />Places table</h4><p className="mt-0.5 text-[9px] text-zinc-500">{rows.length} of {total} places · Select a row to locate it on the map.</p></div>
+      <div className="flex items-center gap-1.5">
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a place…" aria-label="Search places table" className="w-32 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] text-white placeholder-zinc-500 outline-none focus:border-cyan-300/40" />
+        <select aria-label="Sort places by" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'name' | 'type' | 'category')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="name">Name</option><option value="type">Place type</option><option value="category">Category</option></select>
+        <button type="button" onClick={() => setAscending((value) => !value)} aria-label={ascending ? 'Sort descending' : 'Sort ascending'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10"><ArrowUpDown className="h-3.5 w-3.5" /></button>
+        <button type="button" onClick={onToggleMaximize} aria-label={maximized ? 'Restore table size' : 'Enlarge table'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10">{maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
+      </div>
+    </div>
+    <div className={`overflow-auto rounded-lg border border-white/10 ${maximized ? 'min-h-0 flex-1' : 'max-h-72'}`}>
+      <table className="w-full min-w-[620px] border-collapse text-left text-[10px]">
+        <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Category</th><th className="px-3 py-2">Address</th><th className="px-3 py-2 text-right">Details</th></tr></thead>
+        <tbody className="divide-y divide-white/5">
+          {rows.map((row) => <React.Fragment key={row.feature.id}>
+            <tr onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
+              <td className="max-w-56 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}</span></td><td className="px-3 py-2">{row.type}</td><td className="px-3 py-2">{humanizeOsmValue(row.category)}</td><td className="max-w-56 px-3 py-2 text-zinc-400"><span className="block truncate">{row.address || 'Not listed'}</span></td>
+              <td className="px-3 py-2 text-right"><button type="button" onClick={(event) => { event.stopPropagation(); toggleDetails(row.feature.id); }} className="rounded-md px-1.5 py-1 text-[9px] text-cyan-200 hover:bg-white/10">{expandedDetails[row.feature.id] ? 'Hide' : 'More'}</button></td>
+            </tr>
+            {expandedDetails[row.feature.id] && <tr className="bg-white/[0.025]"><td colSpan={5} className="px-3 py-2"><div className="grid gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">{row.details.length ? row.details.map(([label, value]) => <div key={label} className="min-w-0"><span className="text-[9px] text-zinc-500">{label}: </span><span className="break-words text-[9px] text-zinc-200">{value}</span></div>) : <span className="text-[9px] text-zinc-500">No additional place details are listed.</span>}<div className="text-[8px] text-zinc-600">Place data from OpenStreetMap</div></div></td></tr>}
+          </React.Fragment>)}
+          {rows.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-[10px] text-zinc-500">No places match this search.</td></tr>}
+        </tbody>
+      </table>
+    </div>
+  </div>
+);
+
 const MAX_SEARCH_AREAS = 5;
 
 interface TradeAreaSidebarProps {
@@ -251,6 +354,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [isBuilderLoading, setIsBuilderLoading] = useState(false);
   const [showPresetPicker, setShowPresetPicker] = useState(false);
   const builderRequestIdRef = useRef(0);
+  const pendingAutoRunRef = useRef(false);
+  const autoRunAreaNoticeRef = useRef(false);
 
   // Scanning, Multi-Stage Progress, & Cancel State
   const [isScanning, setIsScanning] = useState<boolean>(false);
@@ -270,6 +375,12 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [editingAmenityGroup, setEditingAmenityGroup] = useState<string | null>(null);
   const [amenityGroupDraft, setAmenityGroupDraft] = useState('');
   const [resultsExpanded, setResultsExpanded] = useState(true);
+  const [resultsView, setResultsView] = useState<'groups' | 'table'>('groups');
+  const [resultsTableMaximized, setResultsTableMaximized] = useState(false);
+  const [resultsTableSearch, setResultsTableSearch] = useState('');
+  const [resultsSortBy, setResultsSortBy] = useState<'name' | 'type' | 'category'>('name');
+  const [resultsSortAscending, setResultsSortAscending] = useState(true);
+  const [expandedResultDetails, setExpandedResultDetails] = useState<Record<number, boolean>>({});
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
   const [boundaryQuery, setBoundaryQuery] = useState('');
   const [boundaryResults, setBoundaryResults] = useState<any[]>([]);
@@ -336,6 +447,27 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     return map;
   }, [activeScannedFeatures]);
 
+  const resultTableRows = useMemo(() => {
+    const query = resultsTableSearch.trim().toLowerCase();
+    return activeScannedFeatures.map((feature) => {
+      const tags = (feature.props.osmTags || {}) as Record<string, unknown>;
+      const classification = getPoiClassification(tags);
+      const name = getReadablePoiName(feature);
+      return {
+        feature,
+        name,
+        type: classification.label || humanizeOsmValue(feature.props.poiType || 'Place'),
+        category: feature.props.amenityGroupLabel || classification.category || humanizeOsmValue(feature.props.category || 'Other'),
+        address: getPoiAddress(tags),
+        details: getPoiDetails(tags),
+      };
+    }).filter((row) => !query || [row.name, row.type, row.category, row.address].some((value) => value.toLowerCase().includes(query)))
+      .sort((a, b) => {
+        const comparison = a[resultsSortBy].localeCompare(b[resultsSortBy]);
+        return resultsSortAscending ? comparison : -comparison;
+      });
+  }, [activeScannedFeatures, resultsTableSearch, resultsSortBy, resultsSortAscending]);
+
   // Progressive scan stages
   useEffect(() => {
     let timer: any;
@@ -358,6 +490,20 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [qaMessages, isQaLoading, analysisExpanded]);
+
+  useEffect(() => {
+    if (!resultsTableMaximized) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setResultsTableMaximized(false);
+    };
+    document.body.style.overflow = 'hidden';
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [resultsTableMaximized]);
 
   if (!activePanels.tradeArea) return null;
 
@@ -597,6 +743,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
     const nextMessages: SearchBuilderMessage[] = [...builderMessages, { role: 'user', content: text }];
     const requestId = ++builderRequestIdRef.current;
+    pendingAutoRunRef.current = false;
+    autoRunAreaNoticeRef.current = false;
     setBuilderMessages(nextMessages);
     setBuilderInput('');
     setBuilderQuestion('');
@@ -665,6 +813,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       setCustomFilterGroups(customGroups.filter((group, index, all) => all.findIndex((item) => JSON.stringify(item.filters) === JSON.stringify(group.filters)) === index));
       setBuilderPlaces(places);
       setBuilderWarnings(Array.isArray(data.warnings) ? data.warnings.filter((warning: unknown): warning is string => typeof warning === 'string') : []);
+      pendingAutoRunRef.current = true;
       setBuilderReady(true);
     } catch (error: any) {
       if (requestId !== builderRequestIdRef.current) return;
@@ -931,6 +1080,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         return;
       }
       console.error(e);
+      setToast('Atlas could not load place data just now. Please try the search again in a moment.');
+      return;
     } finally {
       setIsScanning(false);
       abortControllerRef.current = null;
@@ -1017,6 +1168,21 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
     setToast(`Found and mapped ${result.features.length} POIs!`);
   };
+
+  useEffect(() => {
+    if (!pendingAutoRunRef.current || !builderReady) return;
+    if (!isSearchAreaReady) {
+      setActiveWorkflowStep(1);
+      if (!autoRunAreaNoticeRef.current) {
+        setToast('Your place search is ready. Select or finish a search area and Atlas will start the scan automatically.');
+        autoRunAreaNoticeRef.current = true;
+      }
+      return;
+    }
+    pendingAutoRunRef.current = false;
+    autoRunAreaNoticeRef.current = false;
+    void handleRunScan();
+  }, [builderReady, isSearchAreaReady, activeWorkflowStep, handleRunScan]);
 
   // Apply global styling to all scanned features
   const handleApplyGlobalStyle = (style: MarkerShape) => {
@@ -1330,7 +1496,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               </span>
             </div>
             <p className="text-[10px] text-zinc-400 font-medium mt-0.5">
-              Overpass Multi-Mirror & AI Trade Area Suite
+              OpenStreetMap place search & area analysis
             </p>
           </div>
         </div>
@@ -1755,11 +1921,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 </div>
 
                 <div className="space-y-0.5">
-                  <h4 className="font-bold text-white text-xs tracking-tight">
-                    Spatial POI Query Running
+                    <h4 className="font-bold text-white text-xs tracking-tight">
+                    Finding places in your area
                   </h4>
                   <p className="text-[10px] text-zinc-400">
-                    Querying Overpass Multi-Mirror Gateways & OSMnx
+                    Searching OpenStreetMap place data
                   </p>
                 </div>
 
@@ -1767,8 +1933,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   {[
                     { label: 'Connecting to OpenStreetMap Gateway', done: scanStage > 0, active: scanStage === 0 },
                     { label: `Searching ${selectedTags.length + customFilterGroups.length} place types`, done: scanStage > 1, active: scanStage === 1 },
-                    { label: 'Parsing coordinates & building node geometry', done: scanStage > 2, active: scanStage === 2 },
-                    { label: 'Rendering modern drop-pins and attributes', done: scanStage > 3, active: scanStage === 3 },
+                    { label: 'Checking and organizing place details', done: scanStage > 2, active: scanStage === 2 },
+                    { label: 'Adding places to your map', done: scanStage > 3, active: scanStage === 3 },
                   ].map((st, i) => (
                     <div key={i} className="flex items-center gap-2 text-[10.5px]">
                       {st.done ? (
@@ -1848,7 +2014,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 )}
               </div>
 
-              {builderReady && (
+              {builderReady && !pendingAutoRunRef.current && (
                 <div className="rounded-2xl border border-emerald-300/20 bg-emerald-300/[0.05] p-3 space-y-2">
                   <div className="flex items-center gap-2 text-[11px] font-bold text-emerald-100"><CheckCircle2 className="w-4 h-4" />Ready to search</div>
                   <p className="text-[10px] text-zinc-300">Looking for {builderPlaces.map((place) => place.label).join(', ')} {getSearchAreaSummary()}.</p>
@@ -1911,13 +2077,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                     {resultsExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-cyan-300" /><span>03 · Results ({activeScannedFeatures.length})</span><span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[8px] normal-case tracking-normal text-zinc-400">{scannedPois.length ? 'Current scan' : 'Saved results'}</span></span>
                   </button>
-                  {resultsExpanded && <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-1"><span className="text-[9px] text-zinc-500 mr-1">Map</span>{([['pins', 'Pins'], ['heatmap', 'Heatmap'], ['clusters', 'Clusters']] as const).map(([mode, label]) => <button key={mode} type="button" onClick={() => setOpenNodeDisplayMode(mode)} aria-pressed={openNodeDisplayMode === mode} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${openNodeDisplayMode === mode ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>{label}</button>)}</div>
-                    <div className="flex items-center gap-1"><span className="text-[8px] text-zinc-600 mr-1">Pin shape</span><button type="button" onClick={() => handleApplyGlobalStyle('modern-pin')} className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold ${globalMarkerStyle === 'modern-pin' ? 'bg-white/15 text-white' : 'text-zinc-500 hover:text-white'}`}>Pins</button><button type="button" onClick={() => handleApplyGlobalStyle('dots')} className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold ${globalMarkerStyle === 'dots' ? 'bg-white/15 text-white' : 'text-zinc-500 hover:text-white'}`}>Dots</button></div>
+                  {resultsExpanded && <div className="flex flex-col items-end gap-1.5">
+                    <div className="flex flex-wrap items-center justify-end gap-1"><span className="text-[9px] text-zinc-500 mr-1">Map</span>{([['pins', 'Pins'], ['heatmap', 'Heatmap'], ['clusters', 'Clusters']] as const).map(([mode, label]) => <button key={mode} type="button" onClick={() => setOpenNodeDisplayMode(mode)} aria-pressed={openNodeDisplayMode === mode} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${openNodeDisplayMode === mode ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>{label}</button>)}</div>
+                    <div className="flex flex-wrap items-center justify-end gap-1"><span className="text-[8px] text-zinc-600 mr-1">Results</span>{([['groups', 'Groups'], ['table', 'Table']] as const).map(([view, label]) => <button key={view} type="button" onClick={() => setResultsView(view)} aria-pressed={resultsView === view} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${resultsView === view ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>{view === 'table' && <Table2 className="mr-1 inline h-3 w-3" />}{label}</button>)}</div>
+                    {resultsView === 'groups' && <div className="flex items-center gap-1"><span className="text-[8px] text-zinc-600 mr-1">Pin shape</span><button type="button" onClick={() => handleApplyGlobalStyle('modern-pin')} className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold ${globalMarkerStyle === 'modern-pin' ? 'bg-white/15 text-white' : 'text-zinc-500 hover:text-white'}`}>Pins</button><button type="button" onClick={() => handleApplyGlobalStyle('dots')} className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold ${globalMarkerStyle === 'dots' ? 'bg-white/15 text-white' : 'text-zinc-500 hover:text-white'}`}>Dots</button></div>}
                   </div>}
                 </div>
                 {resultsExpanded && <>
-                  <p className="text-[10px] text-zinc-500 -mt-1">Grouped by OSM amenity or place type. Expand a group to edit it.</p>
+                  {resultsView === 'groups' && <><p className="text-[10px] text-zinc-500 -mt-1">Grouped by familiar place type. Expand a group to manage its results.</p>
                   <div className="space-y-1.5">
                     {Object.entries(featuresByCategory).map(([category, feats]) => {
                       const isVisible = feats.some((f) => f.props.visible !== 0);
@@ -1955,7 +2122,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                             {feats.map((feature) => {
                               const styleOpen = openPoiStyles[feature.id] ?? false;
                               return <div key={feature.id} className="rounded-lg border border-white/5 bg-black/25 px-2 py-1.5">
-                                <div className="flex min-w-0 items-center gap-1.5"><input value={feature.name} onChange={(event) => handleUpdatePoi(feature.id, { name: event.target.value })} aria-label="Pin name" className="min-w-0 flex-1 bg-transparent text-[10px] text-zinc-200 outline-none focus:text-white" /><button type="button" onClick={() => handleUpdatePoi(feature.id, { visible: feature.props.visible === 0 ? 1 : 0 })} className="p-1 text-zinc-500 hover:text-white" title={feature.props.visible === 0 ? 'Show pin' : 'Hide pin'}>{feature.props.visible === 0 ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}</button><button type="button" onClick={() => handleFlyToPoi(feature)} className="p-1 text-zinc-500 hover:text-white" title="Locate pin"><Crosshair className="w-3 h-3" /></button><button type="button" onClick={() => setOpenPoiStyles((prev) => ({ ...prev, [feature.id]: !styleOpen }))} aria-expanded={styleOpen} className={`p-1 ${styleOpen ? 'text-cyan-300' : 'text-zinc-500 hover:text-white'}`} title="Edit pin style"><Sliders className="w-3 h-3" /></button></div>
+                                <div className="flex min-w-0 items-center gap-1.5"><input value={getReadablePoiName(feature)} onChange={(event) => handleUpdatePoi(feature.id, { name: event.target.value })} aria-label="Place name" className="min-w-0 flex-1 bg-transparent text-[10px] text-zinc-200 outline-none focus:text-white" /><button type="button" onClick={() => handleUpdatePoi(feature.id, { visible: feature.props.visible === 0 ? 1 : 0 })} className="p-1 text-zinc-500 hover:text-white" title={feature.props.visible === 0 ? 'Show pin' : 'Hide pin'}>{feature.props.visible === 0 ? <EyeOff className="w-3 h-3" /> : <Eye className="w-3 h-3" />}</button><button type="button" onClick={() => handleFlyToPoi(feature)} className="p-1 text-zinc-500 hover:text-white" title="Locate pin"><Crosshair className="w-3 h-3" /></button><button type="button" onClick={() => setOpenPoiStyles((prev) => ({ ...prev, [feature.id]: !styleOpen }))} aria-expanded={styleOpen} className={`p-1 ${styleOpen ? 'text-cyan-300' : 'text-zinc-500 hover:text-white'}`} title="Edit pin style"><Sliders className="w-3 h-3" /></button></div>
                                 {styleOpen && <div className="grid grid-cols-[auto_1fr] items-center gap-2 border-t border-white/5 pt-2 mt-1.5">
                                   <label className="flex items-center gap-1 text-[9px] text-zinc-400">Color<input type="color" aria-label={`Color for ${feature.name}`} value={feature.props.color || '#ffffff'} onChange={(event) => handleUpdatePoi(feature.id, { color: event.target.value })} className="h-5 w-6 cursor-pointer rounded bg-transparent" /></label>
                                   <label className="flex items-center gap-1.5 text-[9px] text-zinc-400">Icon<select aria-label={`Icon for ${feature.name}`} value={feature.props.shape || 'modern-pin'} onChange={(event) => handleUpdatePoi(feature.id, { shape: event.target.value as MarkerShape })} className="min-w-0 flex-1 rounded border border-white/10 bg-zinc-950 px-1.5 py-1 text-[9px] text-zinc-200"><option value="modern-pin">Pin</option><option value="dots">Dot</option><option value="circle">Circle</option><option value="star">Star</option><option value="square">Square</option><option value="diamond">Diamond</option><option value="heart">Heart</option><option value="shield">Shield</option></select></label>
@@ -1967,7 +2134,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                         </div>}
                       </div>;
                     })}
-                  </div>
+                  </div></>}
+                  {resultsView === 'table' && (resultsTableMaximized && typeof document !== 'undefined'
+                    ? createPortal(<div role="dialog" aria-modal="true" aria-label="Places results table" className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-3 sm:p-6"><div className="h-full w-full max-w-7xl"><TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} expandedDetails={expandedResultDetails} toggleDetails={(id) => setExpandedResultDetails((current) => ({ ...current, [id]: !current[id] }))} onToggleMaximize={() => setResultsTableMaximized(false)} onLocate={handleFlyToPoi} /></div></div>, document.body)
+                    : <TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized={false} search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} expandedDetails={expandedResultDetails} toggleDetails={(id) => setExpandedResultDetails((current) => ({ ...current, [id]: !current[id] }))} onToggleMaximize={() => setResultsTableMaximized(true)} onLocate={handleFlyToPoi} />)}
                 </>}
                 <button type="button" onClick={() => setAnalysisExpanded((expanded) => !expanded)} aria-expanded={analysisExpanded} className="w-full flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-[10px] font-semibold text-zinc-200 hover:bg-white/[0.06]">
                   <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-cyan-300" />Spatial analysis &amp; Q&amp;A</span>{analysisExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -2394,7 +2564,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       )}
 
       {/* Sticky Bottom Action Bar (Setup Tab) */}
-      {activeTab === 'target_layers' && (isScanning || (builderReady && activeWorkflowStep === 2)) && (
+      {activeTab === 'target_layers' && (isScanning || (builderReady && activeWorkflowStep === 2 && !pendingAutoRunRef.current)) && (
         <div className="p-4 pt-3 border-t border-white/10 shrink-0 bg-black/60 backdrop-blur-2xl flex gap-2">
           {isScanning ? (
             <>

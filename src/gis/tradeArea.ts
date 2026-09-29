@@ -369,20 +369,25 @@ function processOverpassElements(elements: any[], selectedTags: string[]): ScanR
     if (!lat || !lon) return;
 
     const tags = el.tags || {};
-    const name = tags.name || tags['brand'] || tags.amenity || tags.shop || tags.building || 'Unnamed Location';
-    const poiType = tags.amenity || tags.shop || tags.building || tags.office || tags.tourism || tags.leisure || 'POI';
-
-    // Identify which high-level category this belongs to
-    let category = 'OTHER';
-    for (const [catName, items] of Object.entries(POI_CONFIG)) {
-      if (items.some(([_, tagQuery]) => {
-        const cleanTag = tagQuery.replace(/"/g, '').toLowerCase();
-        return Object.entries(tags).some(([k, v]) => `${k}=${v}`.toLowerCase().includes(cleanTag.split('=')[0]));
-      })) {
-        category = catName;
-        break;
-      }
-    }
+    const matchingPlace = Object.entries(POI_CONFIG)
+      .flatMap(([catName, items]) => items.map(([label, tagQuery]) => ({ catName, label, tagQuery })))
+      .sort((a, b) => Number(a.tagQuery.includes('~')) - Number(b.tagQuery.includes('~')))
+      .find(({ tagQuery }) => {
+        const match = tagQuery.match(/^"([^"]+)"\s*(=|~)\s*"([^"]+)"\s*(,i)?$/);
+        if (!match) return false;
+        const [, key, operator, expected, insensitive] = match;
+        const actual = tags[key];
+        if (actual == null) return false;
+        const value = String(actual);
+        if (operator === '=') return insensitive ? value.toLowerCase() === expected.toLowerCase() : value === expected;
+        try { return new RegExp(expected, insensitive ? 'i' : '').test(value); } catch { return false; }
+      });
+    const typeKey = ['amenity', 'shop', 'office', 'tourism', 'leisure', 'healthcare', 'craft', 'place', 'building', 'industrial'].find((key) => tags[key]);
+    const rawType = matchingPlace?.label || (typeKey ? String(tags[typeKey]) : 'Place');
+    const poiType = matchingPlace?.label || rawType.replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const sourceName = tags.name || tags['brand'];
+    const name = sourceName ? String(sourceName) : `Unnamed ${poiType}`;
+    const category = matchingPlace?.catName || humanCategoryForTag(typeKey);
 
     counts[poiType] = (counts[poiType] || 0) + 1;
     categoryCounts[category] = (categoryCounts[category] || 0) + 1;
@@ -398,4 +403,13 @@ function processOverpassElements(elements: any[], selectedTags: string[]): ScanR
   });
 
   return { features, counts, categoryCounts };
+}
+
+function humanCategoryForTag(key?: string): string {
+  if (key === 'shop') return 'RETAIL';
+  if (['amenity', 'healthcare'].includes(key || '')) return 'SERVICES';
+  if (['tourism', 'leisure'].includes(key || '')) return 'LEISURE & HOSPITALITY';
+  if (['office', 'building'].includes(key || '')) return 'PLACES & BUILDINGS';
+  if (key === 'industrial') return 'INDUSTRY & LOGISTICS';
+  return 'OTHER';
 }

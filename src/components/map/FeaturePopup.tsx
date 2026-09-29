@@ -14,7 +14,26 @@ export const FeaturePopup: React.FC = () => {
   if (!f) return null;
 
   const category = f.props?.category || 'ASSET';
+  const isOpenNodePlace = f.props?.managedBy === 'open-node';
   const categoryColor = CATEGORY_COLORS[category] || '#ffffff';
+  const osmTags = (f.props?.osmTags || {}) as Record<string, unknown>;
+  const humanize = (value: unknown) => String(value || '').replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const placeType = humanize(f.props?.poiType || osmTags.amenity || osmTags.shop || osmTags.office || osmTags.tourism || 'Place');
+  const featureName = String(f.name || '').trim();
+  const genericPlaceName = ['amenity', 'shop', 'office', 'tourism', 'leisure', 'healthcare', 'place', 'building'].some((key) => String(osmTags[key] || '').toLowerCase() === featureName.toLowerCase());
+  const displayName = isOpenNodePlace && (!featureName || genericPlaceName) ? String(osmTags.name || osmTags.brand || `Unnamed ${placeType}`) : f.name;
+  const placeCategory = String(f.props?.amenityGroupLabel || f.props?.category || 'Place').toLowerCase().replace(/[_-]+/g, ' ').replace(/\b\w/g, (letter) => letter.toUpperCase());
+  const placeAddress = String(osmTags['addr:full'] || [osmTags['addr:housenumber'], osmTags['addr:street'], osmTags['addr:suburb'], osmTags['addr:city'], osmTags['addr:postcode']].filter(Boolean).join(', ') || '');
+  const placeDetailCandidates: Array<[string, unknown]> = [
+    ['Type', placeType],
+    ['Brand', String(osmTags.brand || '')],
+    ['Address', placeAddress],
+    ['Phone', String(osmTags.phone || osmTags['contact:phone'] || '')],
+    ['Website', String(osmTags.website || osmTags['contact:website'] || '')],
+    ['Opening hours', String(osmTags.opening_hours || '')],
+    ['Cuisine', osmTags.cuisine ? humanize(osmTags.cuisine) : ''],
+  ];
+  const readablePlaceDetails: Array<[string, string]> = placeDetailCandidates.flatMap(([label, value]) => value ? [[label, String(value)]] : []);
 
   let primaryImage: string | null = null;
   if (f.props.attrRows && f.props.attrRows.length > 0 && f.props.attrTypes) {
@@ -54,14 +73,14 @@ export const FeaturePopup: React.FC = () => {
               style={{ backgroundColor: categoryColor }}
             />
             <span className="text-[9.5px] uppercase font-mono font-bold tracking-wider text-zinc-400 truncate">
-              {category}
+              {isOpenNodePlace ? placeCategory : category}
             </span>
             <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-mono">
-              {f.kind}
+              {isOpenNodePlace ? 'Place' : f.kind}
             </span>
           </div>
-          <h3 className="font-bold text-white text-sm tracking-tight leading-snug truncate" title={f.name}>
-            {f.name}
+          <h3 className="font-bold text-white text-sm tracking-tight leading-snug truncate" title={displayName}>
+            {displayName}
           </h3>
         </div>
 
@@ -102,11 +121,11 @@ export const FeaturePopup: React.FC = () => {
 
       {/* Attribute Properties List */}
       <div className="max-h-48 overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
-        {f.props.osmTags && Object.keys(f.props.osmTags).length > 0 ? (
-          Object.entries(f.props.osmTags).map(([k, v]) => (
-            <div key={k} className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/5 border-b border-white/5 transition">
-              <span className="text-zinc-400 font-mono text-[10px] truncate max-w-[100px]">{k}</span>
-              <span className="text-zinc-200 text-right font-medium text-[10.5px] truncate max-w-[170px]">{String(v)}</span>
+        {isOpenNodePlace ? (
+          readablePlaceDetails.map(([label, value]) => (
+            <div key={label} className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/5 border-b border-white/5 transition">
+              <span className="text-zinc-400 text-[10px] truncate max-w-[100px]">{label}</span>
+              <span className="text-zinc-200 text-right font-medium text-[10.5px] truncate max-w-[170px]">{value}</span>
             </div>
           ))
         ) : f.props.attributes && Object.keys(f.props.attributes).length > 0 ? (
