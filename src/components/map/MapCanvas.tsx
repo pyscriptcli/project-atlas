@@ -58,6 +58,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     is3DTerrain,
     isSmartHeightFilter,
     isNightGlowEnabled,
+    openNodeDisplayMode,
   } = useMapStore();
 
   const [mapboxToken, setMapboxToken] = useState<string | null>(null);
@@ -123,6 +124,17 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       applyVisibilities(map, useMapStore.getState().visibilities);
       syncData(map, useMapStore.getState().features);
       syncLabels(map, useMapStore.getState().features);
+      map.on('click', (event) => {
+        if (!map.getLayer('open-node-cluster-circles')) return;
+        const features = map.queryRenderedFeatures(event.point, { layers: ['open-node-cluster-circles'] });
+        const clusterId = features[0]?.properties?.cluster_id;
+        const source = map.getSource('open-node-clusters') as any;
+        if (clusterId != null && source?.getClusterExpansionZoom) {
+          source.getClusterExpansionZoom(clusterId, (error: Error | null, zoom: number) => {
+            if (!error) map.easeTo({ center: (features[0].geometry as any).coordinates, zoom });
+          });
+        }
+      });
       onMapReady(map);
     });
 
@@ -290,7 +302,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     syncData(map, features);
     syncLabels(map, features);
     syncVertexHandles(map, features, editMode, selectedId);
-  }, [features, editMode, selectedId]);
+  }, [features, editMode, selectedId, openNodeDisplayMode]);
 
   // Update draft rendering
   useEffect(() => {
@@ -448,6 +460,40 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       });
     }
 
+    if (!map.getSource('open-node-clusters')) {
+      map.addSource('open-node-clusters', {
+        type: 'geojson', data: { type: 'FeatureCollection', features: [] }, cluster: true, clusterRadius: 48, clusterMaxZoom: 15,
+      } as any);
+      map.addLayer({
+        id: 'open-node-cluster-circles', type: 'circle', source: 'open-node-clusters', filter: ['has', 'point_count'],
+        layout: { visibility: 'none' },
+        paint: { 'circle-color': '#06b6d4', 'circle-radius': ['step', ['get', 'point_count'], 16, 10, 21, 30, 27], 'circle-opacity': 0.9, 'circle-stroke-width': 2, 'circle-stroke-color': '#ffffff' },
+      });
+      map.addLayer({
+        id: 'open-node-cluster-count', type: 'symbol', source: 'open-node-clusters', filter: ['has', 'point_count'],
+        layout: { visibility: 'none', 'text-field': ['get', 'point_count_abbreviated'], 'text-size': 11, 'text-font': ['Noto Sans Bold'], 'text-allow-overlap': true },
+        paint: { 'text-color': '#ffffff' },
+      });
+      map.addLayer({
+        id: 'open-node-cluster-points', type: 'circle', source: 'open-node-clusters', filter: ['!', ['has', 'point_count']],
+        layout: { visibility: 'none' },
+        paint: { 'circle-color': ['coalesce', ['get', 'color'], '#22d3ee'], 'circle-radius': 6, 'circle-opacity': 0.9, 'circle-stroke-width': 1.5, 'circle-stroke-color': '#ffffff' },
+      });
+    }
+    if (!map.getSource('open-node-heat')) {
+      map.addSource('open-node-heat', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'open-node-heatmap', type: 'heatmap', source: 'open-node-heat', layout: { visibility: 'none' },
+        paint: {
+          'heatmap-weight': ['interpolate', ['linear'], ['zoom'], 0, 1, 15, 2],
+          'heatmap-intensity': ['interpolate', ['linear'], ['zoom'], 0, 0.8, 15, 2],
+          'heatmap-radius': ['interpolate', ['linear'], ['zoom'], 0, 12, 15, 32],
+          'heatmap-opacity': 0.85,
+          'heatmap-color': ['interpolate', ['linear'], ['heatmap-density'], 0, 'rgba(34,211,238,0)', 0.2, '#22d3ee', 0.45, '#a3e635', 0.7, '#facc15', 1, '#ef4444'],
+        },
+      });
+    }
+
     if (!map.getSource('label-src')) {
       map.addSource('label-src', {
         type: 'geojson',
@@ -537,6 +583,32 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
   const syncData = (map: maplibregl.Map, featList: GISFeature[]) => {
     const src = map.getSource('draw') as maplibregl.GeoJSONSource;
     if (!src) return;
+
+    const openNodePoints = featList.filter((f) => f.props.managedBy === 'open-node' && f.kind === 'marker' && f.geometry.type === 'Point' && f.props.visible !== 0);
+    const openNodeData: any = {
+      type: 'FeatureCollection',
+      features: openNodePoints.map((f) => ({
+        type: 'Feature', geometry: f.geometry as any,
+        properties: { id: f.id, name: f.name, color: f.props.color || '#22d3ee', category: f.props.amenityGroupLabel || f.props.poiType || '' },
+      })),
+    };
+    const heatSource = map.getSource('open-node-heat') as maplibregl.GeoJSONSource | undefined;
+    const clusterSource = map.getSource('open-node-clusters') as maplibregl.GeoJSONSource | undefined;
+    heatSource?.setData(openNodeData);
+    clusterSource?.setData(openNodeData);
+    const drawMarker = map.getLayer('draw-marker');
+    if (drawMarker) {
+      map.setFilter('draw-marker', [
+        'all', ['==', ['geometry-type'], 'Point'], ['!=', ['coalesce', ['get', 'kind'], 'marker'], 'textbox'],
+        ['!=', ['coalesce', ['get', 'visible'], 1], 0],
+        ...(openNodeDisplayMode === 'pins' ? [] : [['!=', ['get', 'managedBy'], 'open-node'] as any]),
+      ] as any);
+    }
+    const clusterVisibility = openNodeDisplayMode === 'clusters' ? 'visible' : 'none';
+    ['open-node-cluster-circles', 'open-node-cluster-count', 'open-node-cluster-points'].forEach((id) => {
+      if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', clusterVisibility);
+    });
+    if (map.getLayer('open-node-heatmap')) map.setLayoutProperty('open-node-heatmap', 'visibility', openNodeDisplayMode === 'heatmap' ? 'visible' : 'none');
 
     src.setData({
       type: 'FeatureCollection',

@@ -12,6 +12,8 @@ interface MapState {
   visibilities: LayerVisibilities;
   currentBasemap: string;
   is3DMode: boolean;
+  openNodeDisplayMode: 'pins' | 'heatmap' | 'clusters';
+  setOpenNodeDisplayMode: (mode: 'pins' | 'heatmap' | 'clusters') => void;
 
   // Drawing state
   draft: [number, number][];
@@ -178,6 +180,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   visibilities: DEFAULT_VISIBILITIES,
   currentBasemap: "Midnight Blue",
   is3DMode: true,
+  openNodeDisplayMode: 'pins',
+  setOpenNodeDisplayMode: (openNodeDisplayMode) => set({ openNodeDisplayMode }),
 
   draft: [],
   cursorLL: null,

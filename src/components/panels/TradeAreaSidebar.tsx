@@ -207,6 +207,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setActiveCinematicCluster,
     activeTool,
     setActiveTool,
+    openNodeDisplayMode,
+    setOpenNodeDisplayMode,
   } = useMapStore();
 
   const activeTab = 'target_layers';
@@ -269,6 +271,9 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [amenityGroupDraft, setAmenityGroupDraft] = useState('');
   const [resultsExpanded, setResultsExpanded] = useState(true);
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
+  const [boundaryQuery, setBoundaryQuery] = useState('');
+  const [boundaryResults, setBoundaryResults] = useState<any[]>([]);
+  const [isSearchingBoundaries, setIsSearchingBoundaries] = useState(false);
 
   // Visual AI Intelligence Dashboard State
   const [isAiLoading, setIsAiLoading] = useState<boolean>(false);
@@ -373,6 +378,51 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   };
 
   const parseCoords = (): { lat: number; lon: number } | null => parseCoordsList()?.[0] || null;
+
+  const searchBoundaries = async () => {
+    const query = boundaryQuery.trim();
+    if (query.length < 3) {
+      setToast('Enter at least 3 characters to search for a boundary.');
+      return;
+    }
+    setIsSearchingBoundaries(true);
+    try {
+      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=6&q=${encodeURIComponent(query)}`);
+      if (!response.ok) throw new Error(`Boundary search failed (${response.status})`);
+      const data = await response.json();
+      setBoundaryResults(Array.isArray(data) ? data.filter((item: any) => item.geojson && ['Polygon', 'MultiPolygon'].includes(item.geojson.type)) : []);
+      if (!data?.length) setToast('No matching boundary found. Try a city, district, or barangay name.');
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : 'Could not search boundaries. Please try again.');
+      setBoundaryResults([]);
+    } finally {
+      setIsSearchingBoundaries(false);
+    }
+  };
+
+  const addSearchedBoundary = (item: any) => {
+    if (selectedShapeIds.length >= MAX_SEARCH_AREAS) {
+      setToast(`You can search up to ${MAX_SEARCH_AREAS} boundaries at once.`);
+      return;
+    }
+    const name = `${String(item.display_name || 'Selected area').split(',')[0]} Boundary`;
+    const id = Date.now() + Math.floor(Math.random() * 1000);
+    const feature: GISFeature = {
+      id, name, kind: 'polygon', geometry: item.geojson,
+      props: {
+        borderColor: '#22d3ee', borderOpacity: 0.9, width: 2, fillColor: '#22d3ee', fillOpacity: 0.08, visible: 1,
+        attributes: { name: item.display_name, source: 'OpenStreetMap Nominatim' },
+      },
+    };
+    addFeature(feature);
+    setSelectedShapeIds((current) => current.includes(id) ? current : [...current, id]);
+    setBoundaryQuery(String(item.display_name || name));
+    setBoundaryResults([]);
+    if (item.boundingbox && mapInstance) {
+      mapInstance.fitBounds([[Number(item.boundingbox[2]), Number(item.boundingbox[0])], [Number(item.boundingbox[3]), Number(item.boundingbox[1])]], { padding: 70, duration: 800 });
+    }
+    setToast(`${name} added and selected as a search area.`);
+  };
 
   // Sync center target and buffer circle on map (Monochrome glass styling)
   const syncTargetRadiusGraphics = (targetLat: number, targetLon: number, targetRadius: number) => {
@@ -1522,6 +1572,19 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               {areaMode === 'shape' && (
                 <div className="space-y-2 pt-1">
                   <p className={`text-[9px] ${selectedShapeIds.length > MAX_SEARCH_AREAS ? 'text-amber-300' : 'text-zinc-500'}`}>{selectedShapeIds.length > MAX_SEARCH_AREAS ? `Limit each search to ${MAX_SEARCH_AREAS} boundaries.` : `Select up to ${MAX_SEARCH_AREAS} boundaries to search together.`}</p>
+                  <div className="space-y-1.5">
+                    <label className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">Search OpenStreetMap boundaries</label>
+                    <form onSubmit={(event) => { event.preventDefault(); void searchBoundaries(); }} className="flex gap-1.5">
+                      <input value={boundaryQuery} onChange={(event) => setBoundaryQuery(event.target.value)} placeholder="City, district, or barangay" className="min-w-0 flex-1 rounded-lg border border-white/10 bg-black/40 px-2.5 py-2 text-[10px] text-white placeholder-zinc-500 outline-none focus:border-cyan-300/50" />
+                      <button type="submit" disabled={isSearchingBoundaries || boundaryQuery.trim().length < 3} className="flex items-center gap-1 rounded-lg bg-white/10 px-2.5 text-[10px] font-semibold text-zinc-100 hover:bg-white/15 disabled:opacity-40">{isSearchingBoundaries ? <Loader2 className="h-3 w-3 animate-spin" /> : <Search className="h-3 w-3" />}Search</button>
+                    </form>
+                    {boundaryResults.length > 0 && <div className="max-h-36 overflow-y-auto rounded-lg border border-white/10 bg-zinc-950">
+                      {boundaryResults.map((item, index) => <button key={`${item.place_id || item.osm_id || index}`} type="button" onClick={() => addSearchedBoundary(item)} className="block w-full border-b border-white/5 px-2.5 py-2 text-left last:border-0 hover:bg-white/10">
+                        <span className="block truncate text-[10px] font-medium text-zinc-100">{item.display_name}</span><span className="text-[9px] capitalize text-zinc-500">{item.type || item.class || 'boundary'}</span>
+                      </button>)}
+                    </div>}
+                    <p className="text-[9px] text-zinc-500">Choose a result to add it to the map and select it for this search. Or draw your own boundary below.</p>
+                  </div>
                   <div className="max-h-36 space-y-1 overflow-y-auto">
                     {drawnShapes.length ? drawnShapes.map((shape) => <label key={shape.id} className="flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200"><input type="checkbox" checked={selectedShapeIds.includes(shape.id)} onChange={(event) => setSelectedShapeIds((current) => event.target.checked ? [...current, shape.id] : current.filter((id) => id !== shape.id))} className="accent-cyan-300" /><span className="min-w-0 flex-1 truncate">{shape.name}</span><span className="text-zinc-500">{shape.kind}</span></label>) : <p className="px-1 py-2 text-[10px] text-zinc-500">Draw boundaries on the map, then select the areas to include.</p>}
                   </div>
@@ -1848,7 +1911,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                     {resultsExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                     <span className="font-bold text-white text-[11px] uppercase tracking-wider flex items-center gap-1.5"><Layers className="w-3.5 h-3.5 text-cyan-300" /><span>03 · Results ({activeScannedFeatures.length})</span><span className="rounded-full bg-white/5 px-1.5 py-0.5 text-[8px] normal-case tracking-normal text-zinc-400">{scannedPois.length ? 'Current scan' : 'Saved results'}</span></span>
                   </button>
-                  {resultsExpanded && <div className="flex items-center gap-1"><span className="text-[9px] text-zinc-500 mr-1">All pins</span><button type="button" onClick={() => handleApplyGlobalStyle('modern-pin')} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${globalMarkerStyle === 'modern-pin' ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>Pins</button><button type="button" onClick={() => handleApplyGlobalStyle('dots')} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${globalMarkerStyle === 'dots' ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>Dots</button></div>}
+                  {resultsExpanded && <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1"><span className="text-[9px] text-zinc-500 mr-1">Map</span>{([['pins', 'Pins'], ['heatmap', 'Heatmap'], ['clusters', 'Clusters']] as const).map(([mode, label]) => <button key={mode} type="button" onClick={() => setOpenNodeDisplayMode(mode)} aria-pressed={openNodeDisplayMode === mode} className={`px-2 py-1 rounded-lg text-[9px] font-bold ${openNodeDisplayMode === mode ? 'bg-white text-black' : 'bg-white/5 text-zinc-400 hover:text-white'}`}>{label}</button>)}</div>
+                    <div className="flex items-center gap-1"><span className="text-[8px] text-zinc-600 mr-1">Pin shape</span><button type="button" onClick={() => handleApplyGlobalStyle('modern-pin')} className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold ${globalMarkerStyle === 'modern-pin' ? 'bg-white/15 text-white' : 'text-zinc-500 hover:text-white'}`}>Pins</button><button type="button" onClick={() => handleApplyGlobalStyle('dots')} className={`px-1.5 py-0.5 rounded-md text-[8px] font-bold ${globalMarkerStyle === 'dots' ? 'bg-white/15 text-white' : 'text-zinc-500 hover:text-white'}`}>Dots</button></div>
+                  </div>}
                 </div>
                 {resultsExpanded && <>
                   <p className="text-[10px] text-zinc-500 -mt-1">Grouped by OSM amenity or place type. Expand a group to edit it.</p>
