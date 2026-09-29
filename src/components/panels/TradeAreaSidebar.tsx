@@ -203,13 +203,6 @@ const getPoiAddress = (tags: Record<string, unknown>) => {
     .filter(Boolean).map(String).join(', ');
 };
 
-const getPoiDetails = (tags: Record<string, unknown>) => [
-  ['Brand', tags.brand], ['Address', getPoiAddress(tags)], ['Phone', tags.phone || tags['contact:phone']],
-  ['Website', tags.website || tags['contact:website']], ['Opening hours', tags.opening_hours],
-  ['Cuisine', tags.cuisine ? humanizeOsmValue(tags.cuisine) : null],
-  ['Wheelchair access', tags.wheelchair ? humanizeOsmValue(tags.wheelchair) : null],
-].filter((entry): entry is [string, string] => Boolean(entry[1])).map(([label, value]) => [label, String(value)] as [string, string]);
-
 const getReadablePoiName = (feature: GISFeature) => {
   const tags = (feature.props.osmTags || {}) as Record<string, unknown>;
   const type = getPoiClassification(tags).label;
@@ -238,10 +231,9 @@ const getStreetViewUrl = (feature: GISFeature, name: string, address: string) =>
 interface ResultsTableRow {
   feature: GISFeature;
   name: string;
-  displayName: string;
   type: string;
   address: string;
-  details: Array<[string, string]>;
+  isDuplicate: boolean;
 }
 
 interface ResultsTableProps {
@@ -254,18 +246,42 @@ interface ResultsTableProps {
   setSortBy: (value: 'name' | 'type') => void;
   ascending: boolean;
   setAscending: React.Dispatch<React.SetStateAction<boolean>>;
-  expandedDetails: Record<number, boolean>;
-  toggleDetails: (id: number) => void;
+  groupBy: 'place' | 'type' | 'name';
+  setGroupBy: (value: 'place' | 'type' | 'name') => void;
+  duplicatesExpanded: boolean;
+  setDuplicatesExpanded: React.Dispatch<React.SetStateAction<boolean>>;
   onToggleMaximize: () => void;
   onLocate: (feature: GISFeature) => void;
 }
 
-const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maximized, search, setSearch, sortBy, setSortBy, ascending, setAscending, expandedDetails, toggleDetails, onToggleMaximize, onLocate }) => (
+const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maximized, search, setSearch, sortBy, setSortBy, ascending, setAscending, groupBy, setGroupBy, duplicatesExpanded, setDuplicatesExpanded, onToggleMaximize, onLocate }) => {
+  const mainRows = rows.filter((row) => !row.isDuplicate);
+  const duplicateRows = rows.filter((row) => row.isDuplicate);
+  const groupLabel = (row: ResultsTableRow) => {
+    if (groupBy === 'type') return row.type || 'Uncategorized';
+    if (groupBy === 'name') return row.name || 'Unnamed place';
+    if (row.address) return row.address;
+    if (row.feature.geometry.type === 'Point') {
+      const [longitude, latitude] = row.feature.geometry.coordinates;
+      return `Address not listed · ${latitude.toFixed(5)}, ${longitude.toFixed(5)}`;
+    }
+    return 'Address not listed';
+  };
+  const groups = mainRows.reduce<Array<{ label: string; rows: ResultsTableRow[] }>>((result, row) => {
+    const label = groupLabel(row);
+    const existing = result[result.length - 1];
+    if (existing?.label === label) existing.rows.push(row);
+    else result.push({ label, rows: [row] });
+    return result;
+  }, []);
+
+  return (
   <div className={`${maximized ? 'flex h-full min-h-0 flex-col rounded-2xl border border-white/15 bg-zinc-950 p-3 shadow-2xl sm:p-5' : 'rounded-xl border border-white/10 bg-black/20 p-2.5'}`}>
     <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-      <div><h4 className="flex items-center gap-1.5 text-[11px] font-bold text-white"><Table2 className="h-3.5 w-3.5 text-cyan-300" />Places table</h4><p className="mt-0.5 text-[9px] text-zinc-500">{rows.length} of {total} places · Select a row to locate it on the map.</p></div>
+      <div><h4 className="flex items-center gap-1.5 text-[11px] font-bold text-white"><Table2 className="h-3.5 w-3.5 text-cyan-300" />Places table</h4><p className="mt-0.5 text-[9px] text-zinc-500">{rows.length} of {total} places · {duplicateRows.length} possible duplicate{duplicateRows.length === 1 ? '' : 's'} · Select a row to locate it on the map.</p></div>
       <div className="flex items-center gap-1.5">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a place…" aria-label="Search places table" className="w-32 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] text-white placeholder-zinc-500 outline-none focus:border-cyan-300/40" />
+        <select aria-label="Group places by" value={groupBy} onChange={(event) => setGroupBy(event.target.value as 'place' | 'type' | 'name')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="place">Group: Place</option><option value="type">Group: Type</option><option value="name">Group: Name</option></select>
         <select aria-label="Sort places by" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'name' | 'type')} className="rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="name">Name</option><option value="type">Place type</option></select>
         <button type="button" onClick={() => setAscending((value) => !value)} aria-label={ascending ? 'Sort descending' : 'Sort ascending'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10"><ArrowUpDown className="h-3.5 w-3.5" /></button>
         <button type="button" onClick={onToggleMaximize} aria-label={maximized ? 'Restore table size' : 'Enlarge table'} className="rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10">{maximized ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}</button>
@@ -273,11 +289,12 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
     </div>
     <div className={`overflow-auto rounded-lg border border-white/10 ${maximized ? 'min-h-0 flex-1' : 'max-h-72'}`}>
       <table className="w-full min-w-[620px] border-collapse text-left text-[10px]">
-        <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Address</th><th className="px-3 py-2 text-center">Actions</th><th className="px-3 py-2 text-right">Details</th></tr></thead>
+        <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Address</th><th className="px-3 py-2 text-center">Actions</th></tr></thead>
         <tbody className="divide-y divide-white/5">
-          {rows.map((row) => <React.Fragment key={row.feature.id}>
-            <tr onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
-              <td className="max-w-72 px-3 py-2 font-medium text-white"><span className="block truncate" title={row.displayName}>{row.displayName}</span></td>
+          {groups.map((group) => <React.Fragment key={`${groupBy}:${group.label}`}>
+            <tr className="bg-white/[0.035]"><td colSpan={4} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-zinc-400">{group.label}<span className="ml-2 font-mono normal-case text-zinc-600">{group.rows.length}</span></td></tr>
+            {group.rows.map((row) => <tr key={row.feature.id} onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
+              <td className="max-w-72 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}</span></td>
               <td className="px-3 py-2">{row.type}</td>
               <td className="max-w-56 px-3 py-2 text-zinc-400">{row.address ? <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} className="block truncate text-cyan-200 hover:underline" title="Open this address in Google Maps">{row.address}</a> : <span className="text-zinc-500">Not listed</span>}</td>
               <td className="px-3 py-2"><div className="flex items-center justify-center gap-1">
@@ -286,16 +303,22 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
                 <a href={getStreetViewUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Open Street View for ${row.name}`} title="Street View" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Eye className="h-3.5 w-3.5" /></a>
                 <a href={`https://www.google.com/search?q=${encodeURIComponent(row.name)}`} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Search Google for ${row.name}`} title="Google search" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Search className="h-3.5 w-3.5" /></a>
               </div></td>
-              <td className="px-3 py-2 text-right"><button type="button" onClick={(event) => { event.stopPropagation(); toggleDetails(row.feature.id); }} className="rounded-md px-1.5 py-1 text-[9px] text-cyan-200 hover:bg-white/10">{expandedDetails[row.feature.id] ? 'Hide' : 'More'}</button></td>
-            </tr>
-            {expandedDetails[row.feature.id] && <tr className="bg-white/[0.025]"><td colSpan={5} className="px-3 py-2"><div className="grid gap-x-5 gap-y-1 sm:grid-cols-2 lg:grid-cols-3">{row.details.length ? row.details.map(([label, value]) => <div key={label} className="min-w-0"><span className="text-[9px] text-zinc-500">{label}: </span><span className="break-words text-[9px] text-zinc-200">{value}</span></div>) : <span className="text-[9px] text-zinc-500">No additional place details are listed.</span>}<div className="text-[8px] text-zinc-600">Place data from OpenStreetMap</div></div></td></tr>}
+            </tr>)}
           </React.Fragment>)}
-          {rows.length === 0 && <tr><td colSpan={5} className="px-3 py-8 text-center text-[10px] text-zinc-500">No places match this search.</td></tr>}
+          {rows.length === 0 && <tr><td colSpan={4} className="px-3 py-8 text-center text-[10px] text-zinc-500">No places match this search.</td></tr>}
+          {duplicateRows.length > 0 && <tr className="bg-amber-400/[0.06]"><td colSpan={4} className="p-0"><button type="button" aria-expanded={duplicatesExpanded} onClick={() => setDuplicatesExpanded((expanded) => !expanded)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-[10px] font-bold text-amber-200 hover:bg-amber-400/[0.08]">{duplicatesExpanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}Duplicate POIs<span className="rounded-full bg-amber-300/10 px-1.5 py-0.5 text-[9px]">{duplicateRows.length}</span><span className="ml-auto text-[9px] font-normal text-zinc-500">Same name and coordinates · kept in results</span></button></td></tr>}
+          {duplicatesExpanded && duplicateRows.map((row) => <tr key={row.feature.id} onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this duplicate POI on the map">
+            <td className="max-w-72 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}<span className="ml-2 rounded bg-amber-300/10 px-1.5 py-0.5 align-middle text-[8px] font-bold uppercase tracking-wide text-amber-200">Duplicate</span></span></td>
+            <td className="px-3 py-2">{row.type}</td>
+            <td className="max-w-56 px-3 py-2 text-zinc-400">{row.address ? <a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} className="block truncate text-cyan-200 hover:underline">{row.address}</a> : <span className="text-zinc-500">Not listed</span>}</td>
+            <td className="px-3 py-2"><div className="flex items-center justify-center gap-1"><button type="button" onClick={(event) => { event.stopPropagation(); onLocate(row.feature); }} aria-label={`View duplicate ${row.name} on map`} title="View in map" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Crosshair className="h-3.5 w-3.5" /></button><a href={getGoogleMapsUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Open ${row.name} in Google Maps`} title="Google Maps" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><MapPinIcon className="h-3.5 w-3.5" /></a><a href={getStreetViewUrl(row.feature, row.name, row.address)} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Open Street View for ${row.name}`} title="Street View" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Eye className="h-3.5 w-3.5" /></a><a href={`https://www.google.com/search?q=${encodeURIComponent(row.name)}`} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Search Google for ${row.name}`} title="Google search" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Search className="h-3.5 w-3.5" /></a></div></td>
+          </tr>)}
         </tbody>
       </table>
     </div>
   </div>
-);
+  );
+};
 
 const MAX_SEARCH_AREAS = 5;
 
@@ -405,7 +428,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [resultsTableSearch, setResultsTableSearch] = useState('');
   const [resultsSortBy, setResultsSortBy] = useState<'name' | 'type'>('name');
   const [resultsSortAscending, setResultsSortAscending] = useState(true);
-  const [expandedResultDetails, setExpandedResultDetails] = useState<Record<number, boolean>>({});
+  const [resultsGroupBy, setResultsGroupBy] = useState<'place' | 'type' | 'name'>('type');
+  const [duplicatesExpanded, setDuplicatesExpanded] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
   const [boundaryQuery, setBoundaryQuery] = useState('');
   const [boundaryResults, setBoundaryResults] = useState<any[]>([]);
@@ -483,25 +507,30 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         name,
         type: classification.label || humanizeOsmValue(feature.props.poiType || 'Place'),
         address: getPoiAddress(tags),
-        details: getPoiDetails(tags),
       };
     });
-    const nameCounts = rows.reduce<Record<string, number>>((counts, row) => {
-      const normalized = row.name.trim().toLocaleLowerCase();
-      counts[normalized] = (counts[normalized] || 0) + 1;
-      return counts;
-    }, {});
+    const seenLocations = new Set<string>();
     return rows.map((row) => {
-      const displayName = nameCounts[row.name.trim().toLocaleLowerCase()] > 1
-        ? `${row.name} · ${row.address ? `${row.address} · ` : ''}${row.feature.geometry.type === 'Point' ? `${row.feature.geometry.coordinates[1].toFixed(5)}, ${row.feature.geometry.coordinates[0].toFixed(5)}` : `ID ${row.feature.id}`}`
-        : row.name;
-      return { ...row, displayName };
-    }).filter((row) => !query || [row.name, row.displayName, row.type, row.address].some((value) => value.toLowerCase().includes(query)))
+      const coordinates = row.feature.geometry.type === 'Point' ? row.feature.geometry.coordinates : null;
+      const duplicateKey = coordinates
+        ? `${row.name.trim().replace(/\s+/g, ' ').toLocaleLowerCase()}|${coordinates[1].toFixed(6)}|${coordinates[0].toFixed(6)}`
+        : `${row.name.trim().replace(/\s+/g, ' ').toLocaleLowerCase()}|feature:${row.feature.id}`;
+      const isDuplicate = seenLocations.has(duplicateKey);
+      seenLocations.add(duplicateKey);
+      return { ...row, isDuplicate };
+    }).filter((row) => !query || [row.name, row.type, row.address].some((value) => value.toLowerCase().includes(query)))
       .sort((a, b) => {
+        const groupKey = (row: ResultsTableRow) => resultsGroupBy === 'type'
+          ? row.type.toLocaleLowerCase()
+          : resultsGroupBy === 'name'
+            ? row.name.toLocaleLowerCase()
+            : (row.address || (row.feature.geometry.type === 'Point' ? `${row.feature.geometry.coordinates[1]},${row.feature.geometry.coordinates[0]}` : 'Address not listed')).toLocaleLowerCase();
+        const groupComparison = groupKey(a).localeCompare(groupKey(b));
+        if (groupComparison !== 0) return groupComparison;
         const comparison = a[resultsSortBy].localeCompare(b[resultsSortBy]);
         return resultsSortAscending ? comparison : -comparison;
       });
-  }, [activeScannedFeatures, resultsTableSearch, resultsSortBy, resultsSortAscending]);
+  }, [activeScannedFeatures, resultsTableSearch, resultsSortBy, resultsSortAscending, resultsGroupBy]);
 
   // Progressive scan stages
   useEffect(() => {
@@ -1341,13 +1370,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       if (/^[\s]*[=+@\-]/.test(text)) text = `'${text}`;
       return `"${text.replace(/"/g, '""')}"`;
     };
-    const header = ['Place', 'Type', 'Address', 'Latitude', 'Longitude', 'OSM element'];
-    const rows = resultTableRows.map(({ feature, name, type, address }) => [
+    const header = ['Place', 'Type', 'Address', 'Latitude', 'Longitude', 'Duplicate', 'OSM element'];
+    const rows = resultTableRows.map(({ feature, name, type, address, isDuplicate }) => [
       name,
       type,
       address || 'Not listed',
       feature.geometry.type === 'Point' ? feature.geometry.coordinates[1] : '',
       feature.geometry.type === 'Point' ? feature.geometry.coordinates[0] : '',
+      isDuplicate ? 'Yes' : 'No',
       feature.props.osmType && feature.props.osmId ? `${feature.props.osmType}/${feature.props.osmId}` : '',
     ]);
     const csv = `\uFEFF${[header, ...rows].map((row) => row.map(quote).join(',')).join('\r\n')}`;
@@ -2227,8 +2257,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                     })}
                   </div></>}
                   {resultsView === 'table' && (resultsTableMaximized && typeof document !== 'undefined'
-                    ? createPortal(<div role="dialog" aria-modal="true" aria-label="Places results table" className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-3 sm:p-6"><div className="h-full w-full max-w-7xl"><TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} expandedDetails={expandedResultDetails} toggleDetails={(id) => setExpandedResultDetails((current) => ({ ...current, [id]: !current[id] }))} onToggleMaximize={() => setResultsTableMaximized(false)} onLocate={handleFlyToPoi} /></div></div>, document.body)
-                    : <TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized={false} search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} expandedDetails={expandedResultDetails} toggleDetails={(id) => setExpandedResultDetails((current) => ({ ...current, [id]: !current[id] }))} onToggleMaximize={() => setResultsTableMaximized(true)} onLocate={handleFlyToPoi} />)}
+                    ? createPortal(<div role="dialog" aria-modal="true" aria-label="Places results table" className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-3 sm:p-6"><div className="h-full w-full max-w-7xl"><TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} duplicatesExpanded={duplicatesExpanded} setDuplicatesExpanded={setDuplicatesExpanded} onToggleMaximize={() => setResultsTableMaximized(false)} onLocate={handleFlyToPoi} /></div></div>, document.body)
+                    : <TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized={false} search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} duplicatesExpanded={duplicatesExpanded} setDuplicatesExpanded={setDuplicatesExpanded} onToggleMaximize={() => setResultsTableMaximized(true)} onLocate={handleFlyToPoi} />)}
                 </>}
                 <button type="button" onClick={() => setAnalysisExpanded((expanded) => !expanded)} aria-expanded={analysisExpanded} className="w-full flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-[10px] font-semibold text-zinc-200 hover:bg-white/[0.06]">
                   <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-cyan-300" />Spatial analysis &amp; Q&amp;A</span>{analysisExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
