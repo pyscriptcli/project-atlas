@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { createPortal } from 'react-dom';
+import { buffer as turfBuffer } from '@turf/turf';
 import {
   Radar,
   X,
@@ -84,6 +85,7 @@ import {
   Anchor,
   HelpCircle,
   Clock,
+  Route,
   Footprints,
   Cpu,
 } from 'lucide-react';
@@ -379,7 +381,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<1 | 2 | 3>(1);
 
   // Start with a map boundary; coordinates remain available for precise targeting.
-  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'isochrone'>('shape');
+  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'isochrone' | 'street'>('shape');
   const [areaDetailsOpen, setAreaDetailsOpen] = useState(true);
   const [coordsInput, setCoordsInput] = useState<string>('14.5995, 120.9842');
   const [radiusMeters, setRadiusMeters] = useState<number>(1000);
@@ -398,6 +400,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   // Selected Drawn shapes
   const [selectedCircleIds, setSelectedCircleIds] = useState<number[]>([]);
   const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
+  const [selectedStreetRouteIds, setSelectedStreetRouteIds] = useState<number[]>([]);
+  const [streetCorridorWidthMeters, setStreetCorridorWidthMeters] = useState(1000);
+  const streetRouteDrawPendingRef = useRef(false);
+  const streetRouteDrawStartedRef = useRef(false);
+  const streetRouteIdsBeforeDrawRef = useRef<Set<number>>(new Set());
 
   // Taxonomy & Search State - CLEARED BY DEFAULT
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -464,6 +471,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   // Drawn circles and shapes on MapLibre
   const drawnCircles = useMemo(() => features.filter((f) => f.kind === 'circle'), [features]);
   const drawnShapes = useMemo(() => features.filter((f) => ['polygon', 'rectangle'].includes(f.kind)), [features]);
+  const drawnStreetRoutes = useMemo(() => features.filter((f) => f.kind === 'route' && f.geometry.type === 'LineString'), [features]);
+  const selectedStreetRoutes = useMemo(() => drawnStreetRoutes.filter((route) => selectedStreetRouteIds.includes(route.id)), [drawnStreetRoutes, selectedStreetRouteIds]);
   const drawnShapeCountRef = useRef<number | null>(null);
   const drawnCircleCountRef = useRef<number | null>(null);
 
@@ -488,6 +497,23 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     });
     drawnCircleCountRef.current = drawnCircles.length;
   }, [drawnCircles]);
+
+  useEffect(() => {
+    if (!streetRouteDrawPendingRef.current) return;
+    const createdRoute = drawnStreetRoutes.find((route) => !streetRouteIdsBeforeDrawRef.current.has(route.id));
+    if (createdRoute) {
+      streetRouteDrawPendingRef.current = false;
+      streetRouteDrawStartedRef.current = false;
+      setSelectedStreetRouteIds((current) => Array.from(new Set([...current, createdRoute.id])).slice(-MAX_SEARCH_AREAS));
+      setToast(`Route added as a street search area. Set the corridor width, then scan.`);
+      return;
+    }
+    if (activeTool === 'route') streetRouteDrawStartedRef.current = true;
+    else if (streetRouteDrawStartedRef.current) {
+      streetRouteDrawPendingRef.current = false;
+      streetRouteDrawStartedRef.current = false;
+    }
+  }, [activeTool, drawnStreetRoutes, setToast]);
 
   // Scanned POI features currently in the store
   const scannedFeatureIds = useMemo(() => {
@@ -796,6 +822,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       return `within ${(radiusMeters / 1000).toFixed(1)} km of ${targets?.length || 0} selected location${targets?.length === 1 ? '' : 's'}`;
     }
     if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} area`;
+    if (areaMode === 'street') return `within a ${(streetCorridorWidthMeters / 1000).toFixed(streetCorridorWidthMeters % 1000 ? 1 : 0)} km-wide corridor along ${selectedStreetRoutes.length} selected street route${selectedStreetRoutes.length === 1 ? '' : 's'}`;
     if (areaMode === 'shape') return `within ${selectedShapeIds.length} selected map ${selectedShapeIds.length === 1 ? 'boundary' : 'boundaries'}`;
     return `within ${selectedCircleIds.length} selected map circle${selectedCircleIds.length === 1 ? '' : 's'}`;
   };
@@ -803,6 +830,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const getAreaLabel = () => {
     if (areaMode === 'coords') return `${parseCoordsList()?.length || 0} location${parseCoordsList()?.length === 1 ? '' : 's'} · ${(radiusMeters / 1000).toFixed(1)} km radius`;
     if (areaMode === 'isochrone') return `${isochroneMinutes}-minute ${isochroneProfile} reach`;
+    if (areaMode === 'street') return `${selectedStreetRoutes.length} street route${selectedStreetRoutes.length === 1 ? '' : 's'} · ${(streetCorridorWidthMeters / 1000).toFixed(streetCorridorWidthMeters % 1000 ? 1 : 0)} km wide`;
     if (areaMode === 'shape') return `${selectedShapeIds.length} ${selectedShapeIds.length === 1 ? 'boundary' : 'boundaries'} selected`;
     return `${selectedCircleIds.length} circle${selectedCircleIds.length === 1 ? '' : 's'} selected`;
   };
@@ -813,12 +841,24 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       ? selectedShapeIds.length > 0 && selectedShapeIds.length <= MAX_SEARCH_AREAS && selectedShapeIds.every((id) => drawnShapes.some((feature) => feature.id === id))
       : areaMode === 'isochrone'
         ? Boolean(features.some((feature) => feature.id === activeIsochroneFeatureId))
-        : selectedCircleIds.length > 0 && selectedCircleIds.length <= MAX_SEARCH_AREAS && selectedCircleIds.every((id) => drawnCircles.some((feature) => feature.id === id));
+        : areaMode === 'street'
+          ? selectedStreetRoutes.length > 0 && selectedStreetRoutes.length <= MAX_SEARCH_AREAS
+          : selectedCircleIds.length > 0 && selectedCircleIds.length <= MAX_SEARCH_AREAS && selectedCircleIds.every((id) => drawnCircles.some((feature) => feature.id === id));
+
+  const handleStartStreetRoute = () => {
+    streetRouteIdsBeforeDrawRef.current = new Set(drawnStreetRoutes.map((route) => route.id));
+    streetRouteDrawStartedRef.current = false;
+    streetRouteDrawPendingRef.current = true;
+    setAreaMode('street');
+    setActiveTool('route');
+    setToast('Click the map to place point A, then point B. Double-click to finish the route.');
+  };
 
   // The AI needs the selected area mode, not the user's precise coordinates.
   const getSearchAreaContextForAI = () => {
     if (areaMode === 'coords') return `within ${(radiusMeters / 1000).toFixed(1)} km of ${parseCoordsList()?.length || 0} selected map location(s)`;
     if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} travel area`;
+    if (areaMode === 'street') return `within a ${(streetCorridorWidthMeters / 1000).toFixed(streetCorridorWidthMeters % 1000 ? 1 : 0)} km-wide corridor along ${selectedStreetRoutes.length} street route(s)`;
     if (areaMode === 'shape') return `within ${selectedShapeIds.length} selected map boundary/boundaries`;
     return `within ${selectedCircleIds.length} selected map circle(s)`;
   };
@@ -1122,6 +1162,28 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         return;
       }
       targets.forEach((feature) => searchAreas.push({ kind: 'polygon', feature }));
+    } else if (areaMode === 'street') {
+      const targets = selectedStreetRouteIds.map((id) => drawnStreetRoutes.find((route) => route.id === id)).filter((route): route is GISFeature => Boolean(route));
+      if (!targets.length || targets.length !== selectedStreetRouteIds.length) {
+        setToast('Draw and select at least one street route before searching.');
+        return;
+      }
+      for (const route of targets) {
+        const corridor = turfBuffer({ type: 'Feature', properties: {}, geometry: route.geometry as any } as any, streetCorridorWidthMeters / 2, { units: 'meters' });
+        if (!corridor || !('geometry' in corridor) || corridor.geometry.type !== 'Polygon') {
+          setToast(`Atlas could not create a search corridor around ${route.name}. Try drawing the route again.`);
+          return;
+        }
+        searchAreas.push({
+          kind: 'polygon',
+          feature: {
+            ...route,
+            kind: 'polygon',
+            name: `${route.name} · ${streetCorridorWidthMeters} m corridor`,
+            geometry: corridor.geometry as any,
+          },
+        });
+      }
     } else {
       const targets = selectedCircleIds.map((id) => drawnCircles.find((feature) => feature.id === id)).filter((feature): feature is GISFeature => Boolean(feature));
       if (!targets.length || targets.length !== selectedCircleIds.length) {
@@ -1742,7 +1804,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
               </div>
 
               {areaDetailsOpen && <div className="space-y-3">
-                <div className="flex gap-1 p-0.5 bg-black/60 rounded-xl border border-white/10">
+                <div className="flex flex-wrap gap-1 p-0.5 bg-black/60 rounded-xl border border-white/10">
                   <button
                     type="button"
                     onClick={() => setAreaMode('coords')}
@@ -1787,6 +1849,16 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   >
                     <Clock className="w-3 h-3" />
                     <span>Travel time</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setAreaMode('street')}
+                    className={`order-5 px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
+                      areaMode === 'street' ? 'bg-white text-black shadow-sm' : 'text-zinc-400 hover:text-white'
+                    }`}
+                  >
+                    <Route className="w-3 h-3" />
+                    <span>Street</span>
                   </button>
                 </div>
 
@@ -1909,6 +1981,35 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   >
                     {drawnShapes.length ? 'Draw another boundary' : 'Draw boundary on map'}
                   </button>
+                </div>
+              )}
+
+              {areaMode === 'street' && (
+                <div className="space-y-3 pt-1 animate-in fade-in">
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-2">
+                      <label className="text-[10px] font-bold uppercase tracking-wide text-zinc-400">Street corridor width</label>
+                      <span className="text-[10px] font-mono font-bold text-white">{streetCorridorWidthMeters >= 1000 ? `${(streetCorridorWidthMeters / 1000).toFixed(streetCorridorWidthMeters % 1000 ? 1 : 0)} km` : `${streetCorridorWidthMeters} m`}</span>
+                    </div>
+                    <input type="range" min={100} max={5000} step={100} value={streetCorridorWidthMeters} onChange={(event) => setStreetCorridorWidthMeters(Number(event.target.value))} aria-label="Street corridor total width" className="w-full accent-cyan-300" />
+                    <p className="text-[9px] text-zinc-500">Total search width across the route. Atlas searches half on each side.</p>
+                  </div>
+                  <button type="button" onClick={handleStartStreetRoute} className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/15 bg-white/10 py-2 text-[11px] font-semibold text-white transition hover:bg-white/20">
+                    <Route className="h-3.5 w-3.5 text-cyan-300" />Draw street route (points A → B)
+                  </button>
+                  <p className="text-[9px] text-zinc-500">Uses the Route drawing tool. Click point A, then point B; add turns if needed and double-click to finish.</p>
+                  <div className="max-h-36 space-y-1 overflow-y-auto">
+                    {drawnStreetRoutes.length ? drawnStreetRoutes.map((route) => {
+                      const checked = selectedStreetRouteIds.includes(route.id);
+                      const disabled = !checked && selectedStreetRouteIds.length >= MAX_SEARCH_AREAS;
+                      return <label key={route.id} className={`flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200 ${disabled ? 'opacity-40' : ''}`}>
+                        <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => setSelectedStreetRouteIds((current) => event.target.checked ? [...current, route.id].slice(-MAX_SEARCH_AREAS) : current.filter((id) => id !== route.id))} className="accent-cyan-300" />
+                        <span className="min-w-0 flex-1 truncate">{route.name}</span>
+                        <span className="text-zinc-500">{route.props.description || route.props.metadata?.distance || 'Route'}</span>
+                      </label>;
+                    }) : <p className="px-1 py-2 text-[10px] text-zinc-500">Draw a route to select it as the street search area.</p>}
+                  </div>
+                  {selectedStreetRouteIds.length > MAX_SEARCH_AREAS && <p className="text-[9px] text-amber-300">Select up to {MAX_SEARCH_AREAS} routes per scan.</p>}
                 </div>
               )}
 
