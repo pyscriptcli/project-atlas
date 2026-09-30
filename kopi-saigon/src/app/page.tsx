@@ -1,7 +1,7 @@
 'use client';
 
 import maplibregl, { LngLatBounds, Map as MapLibreMap } from 'maplibre-gl';
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Coffee, Compass, LoaderCircle, MapPinned, RotateCcw } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, LoaderCircle, MapPinned, RotateCcw, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature as GeoFeature, FeatureCollection, Geometry } from 'geojson';
 import { ALL_STYLES, VIS_MAP } from '../gis/map';
@@ -47,12 +47,32 @@ function formatResearchPrice(value: unknown, currency: 'PHP' | 'MYR'): string | 
   return range ? `${currency} ${range}` : null;
 }
 
-function getPriceLabel(feature: AtlasFeature): string {
+function getPriceRanges(feature: AtlasFeature): { php: string | null; myr: string | null } {
   const research = feature.props?.researchData;
-  if (!research || typeof research !== 'object') return 'Price not available';
-  const php = formatResearchPrice(research.priceRangePhp ?? research.priceRangePHP, 'PHP');
-  const myr = formatResearchPrice(research.priceRangeMyr ?? research.priceRangeMYR, 'MYR');
+  if (!research || typeof research !== 'object') return { php: null, myr: null };
+  return {
+    php: formatResearchPrice(research.priceRangePhp ?? research.priceRangePHP, 'PHP'),
+    myr: formatResearchPrice(research.priceRangeMyr ?? research.priceRangeMYR, 'MYR'),
+  };
+}
+
+function getPriceLabel(feature: AtlasFeature): string {
+  const { php, myr } = getPriceRanges(feature);
   return php || myr ? `${php || 'PHP —'} / ${myr || 'MYR —'}` : 'Price not available';
+}
+
+function getLocationLabel(feature: AtlasFeature): string {
+  const tags = feature.props?.osmTags || {};
+  const address = tags['addr:full'] || [tags['addr:housenumber'], tags['addr:street'], tags['addr:suburb'], tags['addr:city'], tags['addr:postcode']].filter(Boolean).join(', ');
+  return String(address || '').trim() || 'View on Google Maps';
+}
+
+function getGoogleMapsUrl(feature: AtlasFeature): string {
+  const url = new URL('https://www.google.com/maps/search/');
+  url.searchParams.set('api', '1');
+  const point = feature.geometry.type === 'Point' ? feature.geometry.coordinates : null;
+  url.searchParams.set('query', point && point.every(Number.isFinite) ? `${point[1]},${point[0]}` : feature.name);
+  return url.toString();
 }
 
 function featureCollection(features: AtlasFeature[], selectedIds?: Set<number>): FeatureCollection<Geometry> {
@@ -134,6 +154,7 @@ const FALLBACK_OSM_STYLE = {
 export default function KopiSaigonPage() {
   const mapNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
+  const tableDialogRef = useRef<HTMLDialogElement>(null);
   const sourceReady = useRef(false);
   const selectedRef = useRef('overview');
   const styleNameRef = useRef('');
@@ -143,8 +164,21 @@ export default function KopiSaigonPage() {
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string>('overview');
   const [menuOpen, setMenuOpen] = useState(true);
+  const [tableOpen, setTableOpen] = useState(false);
   const features = useMemo(() => project?.features || [], [project]);
   const stops = useMemo(() => makeStops(features), [features]);
+  const tierGroups = useMemo(() => stops.map(stop => ({
+    stop,
+    places: features.filter(stop.match).sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id),
+  })), [features, stops]);
+  const tableCount = tierGroups.reduce((total, group) => total + group.places.length, 0);
+
+  useEffect(() => {
+    const dialog = tableDialogRef.current;
+    if (!dialog) return;
+    if (tableOpen && !dialog.open) dialog.showModal();
+    if (!tableOpen && dialog.open) dialog.close();
+  }, [tableOpen]);
 
   const refreshMap = useCallback((focus?: Stop) => {
     const map = mapRef.current;
@@ -319,11 +353,23 @@ export default function KopiSaigonPage() {
       {error && <div className="state-card state-error"><strong>Map unavailable</strong><p>{error}</p><button onClick={() => location.reload()}>Try again</button></div>}
       {project && <>
         <button className={`nav-item overview-item ${selected === 'overview' ? 'active' : ''}`} onClick={() => navigate()}><span className="nav-icon"><Compass size={17}/></span><span><b>All places</b><small>Full competitor map</small></span><span className="nav-count">{features.length}</span></button>
-        <div className="nav-section tier-section"><span className="eyebrow">COFFEE PRICE TIERS</span>{stops.map(stop => <button key={stop.id} className={`nav-item ${selected === stop.id ? 'active' : ''}`} onClick={() => navigate(stop)}><span className={`tier-dot tier-${stop.id.slice(5)}`} /><span><b>{stop.title}</b><small>{stop.subtitle}</small></span><span className="nav-count">{stop.featureIds.length}</span></button>)}</div>
+        <div className="nav-section tier-section"><span className="eyebrow">COFFEE PRICE TIERS</span>{stops.map(stop => <button key={stop.id} className={`nav-item ${selected === stop.id ? 'active' : ''}`} onClick={() => navigate(stop)}><span className={`tier-dot tier-${stop.id.slice(5)}`} /><span><b>{stop.title}</b><small>{stop.subtitle}</small></span><span className="nav-count">{stop.featureIds.length}</span></button>)}<button className="open-table-button" onClick={() => setTableOpen(true)}><Table2 size={16}/><span>View places table</span><span className="nav-count">{tableCount}</span></button></div>
         <div className="nav-foot"><div className="active-view"><span className="eyebrow">CURRENT VIEW</span><b>{selectedStop?.title || 'Overview'}</b><small>{visibleCount.toLocaleString()} places and features</small></div><div className="stepper"><button aria-label="Previous view" onClick={() => { const i = selected === 'overview' ? 0 : stops.findIndex(s => s.id === selected); navigate(i > 0 ? stops[i - 1] : undefined); }}><ArrowUp size={16}/></button><button aria-label="Next view" onClick={() => { const i = selected === 'overview' ? -1 : stops.findIndex(s => s.id === selected); navigate(stops[Math.min(stops.length - 1, i + 1)]); }}><ArrowDown size={16}/></button><button aria-label="Reset map view" onClick={() => navigate()}><RotateCcw size={16}/></button></div></div>
       </>}
     </aside>
     {!menuOpen && project && <button className="reopen-nav" onClick={() => setMenuOpen(true)}><MapPinned size={16}/> Explore map <ChevronRight size={16}/></button>}
     <div className={`map-caption ${menuOpen ? 'with-nav' : ''}`}><span className="caption-dot"/><span className="caption-title">{selectedStop ? selectedStop.title : 'KOPI SAIGON · Competitor overview'}</span><span className="caption-divider"/><span className="caption-count">{visibleCount.toLocaleString()} places</span></div>
+    <dialog ref={tableDialogRef} className="poi-table-dialog" aria-labelledby="poi-table-title" onClose={() => setTableOpen(false)}>
+      <div className="table-dialog-shell">
+        <div className="table-dialog-header"><div><span className="eyebrow">KOPI SAIGON · COMPETITOR LANDSCAPE</span><h2 id="poi-table-title">Places by coffee price tier</h2><p>{tableCount.toLocaleString()} places grouped by High, Mid, and Low tier</p></div><button className="table-close-button" onClick={() => setTableOpen(false)} aria-label="Close places table"><X size={18}/></button></div>
+        <div className="table-dialog-body">{tierGroups.map(({ stop, places }) => <section key={stop.id} className="table-tier-section" aria-label={`${stop.title}: ${places.length} places`}>
+          <div className="table-tier-heading"><span className={`tier-dot tier-${stop.id.slice(5)}`}/><h3>{stop.title}</h3><span>{places.length.toLocaleString()} places</span></div>
+          <div className="table-scroll"><table className="poi-table"><thead><tr><th scope="col">Name</th><th scope="col">Tier</th><th scope="col">Price range · PHP</th><th scope="col">Price range · MYR</th><th scope="col">Location</th></tr></thead><tbody>{places.map(feature => {
+            const { php, myr } = getPriceRanges(feature);
+            return <tr key={feature.id}><td className="table-place-name">{feature.name || 'Unnamed place'}</td><td><span className={`table-tier-chip tier-${stop.id.slice(5)}`}>{stop.title}</span></td><td>{php || '—'}</td><td>{myr || '—'}</td><td><a className="table-location-link" href={getGoogleMapsUrl(feature)} target="_blank" rel="noopener noreferrer"><span>{getLocationLabel(feature)}</span><ExternalLink size={14}/></a></td></tr>;
+          })}</tbody></table></div>
+        </section>)}</div>
+      </div>
+    </dialog>
   </main>;
 }
