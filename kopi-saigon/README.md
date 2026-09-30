@@ -1,0 +1,19 @@
+# KOPI SAIGON Competitor Viewer
+
+Standalone, read-only presentation for the KOPI SAIGON project in Atlas. It lives in its own folder so it can be deployed separately from the Atlas editor.
+
+## Deploy to Vercel
+
+Create a new Vercel project connected to this repository and set **Root Directory** to `kopi-saigon`. The app loads only the KOPI SAIGON project from the existing Supabase `map_projects` table and does not include editing or save controls. Add these environment variables if the Atlas defaults are not suitable:
+
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_KOPI_SAIGON_PROJECT_ID` (recommended; binds the viewer to one exact project record)
+
+After deployment, assign `kopi.saigon.competitorscheck.vercel.app` in Vercel's Domains settings. Apply `supabase/migrations/202609300003_restore_pre_viewer_project_saving.sql` from the repository root to restore the project-table read permission used by this viewer as well as Atlas editing.
+
+Navigation is generated from the project's saved search-area labels and place categories, alongside an Overview. Atlas remains the only place to edit project data; changes appear here after a refresh.
+
+## Local development
+
+From this folder run `npm install`, then `npm run dev`. The viewer uses Atlas's public Supabase project/key defaults unless overridden with environment variables.
