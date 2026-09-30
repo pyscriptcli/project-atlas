@@ -347,9 +347,10 @@ export async function scanTradeAreaPolygon(
 
   if (tagsToQuery.length === 0) return null;
 
-  // Optimized 'nw' query
+  // Fetch candidate OSM nodes, ways, and relations in the polygon bounds, then
+  // apply the exact polygon test below so areas such as drawn circles stay exact.
   const statements = tagsToQuery
-    .map((tag) => `  nw[${tag}](${bbox});`)
+    .map((tag) => `  nwr[${tag}](${bbox});`)
     .join('\n');
 
   const ql = `[out:json][timeout:30];(\n${statements}\n);\nout center;`;

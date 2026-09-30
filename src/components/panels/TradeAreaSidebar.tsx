@@ -1190,7 +1190,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       return;
     }
 
-    type SearchArea = { kind: 'coordinates'; lat: number; lon: number; radius: number; label: string } | { kind: 'polygon'; feature: GISFeature; label: string };
+    type SearchArea = { kind: 'coordinates'; lat: number; lon: number; radius: number; label: string } | { kind: 'polygon'; feature: GISFeature; label: string; focus?: { lat: number; lon: number; radius: number } };
     const searchAreas: SearchArea[] = [];
 
     if (areaMode === 'coords') {
@@ -1255,7 +1255,9 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         const center = circle.props?.centerCoord || (circle.geometry.type === 'Polygon' && circle.geometry.coordinates?.[0]?.[0]
           ? [circle.geometry.coordinates[0][0][0], circle.geometry.coordinates[0][0][1]] as [number, number]
           : null);
-        if (center) searchAreas.push({ kind: 'coordinates', lon: center[0], lat: center[1], radius: circle.props?.radiusMeters || 1000, label: circle.name });
+        if (circle.geometry.type === 'Polygon' && circle.geometry.coordinates?.[0]?.length >= 4) {
+          searchAreas.push({ kind: 'polygon', feature: circle, label: circle.name, focus: center ? { lon: center[0], lat: center[1], radius: circle.props?.radiusMeters || 1000 } : undefined });
+        }
       });
     }
 
@@ -1337,8 +1339,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setCategoryBreakdown(result.categoryCounts);
 
     const pointArea = searchAreas.find((area): area is Extract<SearchArea, { kind: 'coordinates' }> => area.kind === 'coordinates');
-    if (mapInstance && pointArea) {
-      mapInstance.easeTo({ center: [pointArea.lon, pointArea.lat], zoom: pointArea.radius > 5000 ? 12 : 14, duration: 1200 });
+    const circleArea = searchAreas.find((area): area is Extract<SearchArea, { kind: 'polygon' }> => area.kind === 'polygon' && Boolean(area.focus))?.focus;
+    const mapFocus = pointArea ? { lon: pointArea.lon, lat: pointArea.lat, radius: pointArea.radius } : circleArea;
+    if (mapInstance && mapFocus) {
+      mapInstance.easeTo({ center: [mapFocus.lon, mapFocus.lat], zoom: mapFocus.radius > 5000 ? 12 : 14, duration: 1200 });
     }
 
     let updatedGroups = { ...customGroups };
