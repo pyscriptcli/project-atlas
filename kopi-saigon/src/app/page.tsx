@@ -144,6 +144,10 @@ export default function KopiSaigonPage() {
     }
   }, [features, menuOpen]);
 
+  useEffect(() => {
+    if (sourceReady.current) refreshMap(stops.find(stop => stop.id === selectedRef.current));
+  }, [menuOpen, refreshMap, stops]);
+
   const loadProject = useCallback(async () => {
     try {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
@@ -269,7 +273,7 @@ export default function KopiSaigonPage() {
     <div ref={mapNode} className="map-canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="KOPI SAIGON competitor map" />
     <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); navigate(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><span className="live-pill"><i/> LIVE VIEW</span><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
     <aside className={`navigation ${menuOpen ? 'is-open' : 'is-closed'}`}>
-      <div className="nav-heading"><div><span className="eyebrow">ATLAS PRESENTATION</span><h1>{project?.name || PROJECT_NAME}</h1><p>{loading ? 'Connecting to Atlas…' : `${features.length.toLocaleString()} mapped places and features`}</p></div><button className="icon-button nav-collapse" aria-label="Collapse navigation" onClick={() => setMenuOpen(false)}><ChevronLeft size={18}/></button></div>
+      <div className="nav-heading"><div><span className="eyebrow">COMPETITOR LANDSCAPE</span><h1>{PROJECT_NAME}</h1><p>{loading ? 'Connecting to Atlas…' : `${features.length.toLocaleString()} mapped places and features`}</p></div><button className="icon-button nav-collapse" aria-label="Collapse navigation" onClick={() => setMenuOpen(false)}><ChevronLeft size={18}/></button></div>
       {loading && <div className="state-card"><LoaderCircle className="spin" size={21}/> Loading project from Atlas…</div>}
       {error && <div className="state-card state-error"><strong>Map unavailable</strong><p>{error}</p><button onClick={() => location.reload()}>Try again</button></div>}
       {project && <>
@@ -279,8 +283,6 @@ export default function KopiSaigonPage() {
       </>}
     </aside>
     {!menuOpen && project && <button className="reopen-nav" onClick={() => setMenuOpen(true)}><MapPinned size={16}/> Explore map <ChevronRight size={16}/></button>}
-    <div className="map-caption"><span className="caption-dot"/><span>{selectedStop ? selectedStop.title : 'KOPI SAIGON · Competitor overview'}</span><span className="caption-divider"/><span>{visibleCount.toLocaleString()} places</span></div>
-    <div className="atlas-credit" aria-label="Powered by Atlas">Powered by Atlas</div>
-    <div className="map-hint"><span>Click any point to see its name</span><button onClick={() => navigate()} aria-label="Show all map features"><RotateCcw size={15}/></button></div>
+    <div className={`map-caption ${menuOpen ? 'with-nav' : ''}`}><span className="caption-dot"/><span className="caption-title">{selectedStop ? selectedStop.title : 'KOPI SAIGON · Competitor overview'}</span><span className="caption-divider"/><span className="caption-count">{visibleCount.toLocaleString()} places</span></div>
   </main>;
 }
