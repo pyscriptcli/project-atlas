@@ -1,7 +1,7 @@
 'use client';
 
 import maplibregl, { LngLatBounds, Map as MapLibreMap } from 'maplibre-gl';
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, LoaderCircle, MapPinned, RotateCcw, Table2, X } from 'lucide-react';
+import { ArrowDown, ArrowUp, Box, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, LoaderCircle, Map as MapIcon, MapPinned, RotateCcw, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature as GeoFeature, FeatureCollection, Geometry } from 'geojson';
 import { ALL_STYLES, VIS_MAP } from '../gis/map';
@@ -11,7 +11,7 @@ type AtlasFeature = { id: number; name: string; kind: string; geometry: Geometry
 type AtlasProject = { id: string; name: string; basemap?: string; center?: [number, number]; zoom?: number; pitch?: number; bearing?: number; features?: AtlasFeature[]; layer_visibilities?: Record<string, boolean>; updated_at?: string };
 type Stop = { id: string; title: string; subtitle: string; tier: PriceTier; featureIds: number[]; match: (f: AtlasFeature) => boolean };
 type PriceTier = 'high' | 'mid' | 'low';
-const TIER_COLORS: Record<PriceTier, string> = { high: '#fb7185', mid: '#fbbf24', low: '#34d399' };
+const TIER_COLORS: Record<PriceTier, string> = { high: '#ef4444', mid: '#facc15', low: '#22c55e' };
 const PROJECT_NAME = 'KOPI SAIGON';
 const PROJECT_ID = 'c5e014fa-2c16-4ad5-8f00-5d525ba954d7';
 const DEFAULT_SUPABASE_URL = 'https://cyczyaswxkpdcremqnkn.supabase.co';
@@ -168,6 +168,7 @@ export default function KopiSaigonPage() {
   const [selected, setSelected] = useState<string>('overview');
   const [menuOpen, setMenuOpen] = useState(true);
   const [tableOpen, setTableOpen] = useState(false);
+  const [is3D, setIs3D] = useState(false);
   const features = useMemo(() => project?.features || [], [project]);
   const stops = useMemo(() => makeStops(features), [features]);
   const tierGroups = useMemo(() => stops.map(stop => ({
@@ -182,6 +183,10 @@ export default function KopiSaigonPage() {
     if (tableOpen && !dialog.open) dialog.showModal();
     if (!tableOpen && dialog.open) dialog.close();
   }, [tableOpen]);
+
+  useEffect(() => {
+    if (project) setIs3D((project.pitch || 0) >= 20);
+  }, [project?.id, project?.pitch]);
 
   const refreshMap = useCallback((focus?: Stop) => {
     const map = mapRef.current;
@@ -353,12 +358,16 @@ export default function KopiSaigonPage() {
     refreshMap(stop);
     setMenuOpen(true);
   };
+  const setMapMode = (threeD: boolean) => {
+    setIs3D(threeD);
+    mapRef.current?.easeTo({ pitch: threeD ? 55 : 0, bearing: threeD ? mapRef.current.getBearing() : 0, duration: 650 });
+  };
   const selectedStop = stops.find(s => s.id === selected);
   const visibleCount = selectedStop ? selectedStop.featureIds.length : features.length;
 
   return <main className="viewer-shell">
     <div ref={mapNode} className="map-canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="KOPI SAIGON competitor map" />
-    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); navigate(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><span className="live-pill"><i/> LIVE VIEW</span><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
+    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); navigate(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><span className="live-pill"><i/> LIVE VIEW</span><div className="map-view-toggle" role="group" aria-label="Map perspective"><button type="button" className={`map-view-button ${!is3D ? 'active' : ''}`} aria-label="Switch to 2D map" aria-pressed={!is3D} onClick={() => setMapMode(false)}><MapIcon size={14}/><span>2D</span></button><button type="button" className={`map-view-button ${is3D ? 'active' : ''}`} aria-label="Switch to 3D map" aria-pressed={is3D} onClick={() => setMapMode(true)}><Box size={14}/><span>3D</span></button></div><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
     <aside className={`navigation ${menuOpen ? 'is-open' : 'is-closed'}`}>
       <div className="nav-heading"><div><span className="eyebrow">COMPETITOR LANDSCAPE</span><h1>{PROJECT_NAME}</h1><p>{loading ? 'Connecting to Atlas…' : `${features.length.toLocaleString()} mapped places and features`}</p></div><button className="icon-button nav-collapse" aria-label="Collapse navigation" onClick={() => setMenuOpen(false)}><ChevronLeft size={18}/></button></div>
       {loading && <div className="state-card"><LoaderCircle className="spin" size={21}/> Loading project from Atlas…</div>}
