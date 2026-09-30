@@ -78,7 +78,9 @@ function getGoogleMapsUrl(feature: AtlasFeature): string {
 function featureCollection(features: AtlasFeature[], selectedIds?: Set<number>): FeatureCollection<Geometry> {
   return {
     type: 'FeatureCollection',
-    features: features.filter(f => f?.geometry && f.props?.visible !== 0).map(f => ({
+    // Tier navigation filters POI markers out of the source so unselected
+    // price tiers cannot remain visible or interactive on the map.
+    features: features.filter(f => f?.geometry && f.props?.visible !== 0 && (!selectedIds || f.kind !== 'marker' || selectedIds.has(f.id))).map(f => ({
       type: 'Feature', id: f.id,
       geometry: f.geometry,
       properties: {
@@ -262,8 +264,6 @@ export default function KopiSaigonPage() {
           layerIds.forEach(layerId => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none'); });
         });
         sourceReady.current = true;
-        const visibleSource = map.getSource('kopi-features') as maplibregl.GeoJSONSource | undefined;
-        visibleSource?.setData(featureCollection(features));
       });
       map.setStyle(FALLBACK_OSM_STYLE as any);
     };
