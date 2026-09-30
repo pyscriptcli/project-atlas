@@ -360,14 +360,20 @@ export default function KopiSaigonPage() {
   };
   const setMapMode = (threeD: boolean) => {
     setIs3D(threeD);
-    mapRef.current?.easeTo({ pitch: threeD ? 55 : 0, bearing: threeD ? mapRef.current.getBearing() : 0, duration: 650 });
+    const map = mapRef.current;
+    if (!map) return;
+    map.easeTo({ pitch: threeD ? 60 : 0, bearing: threeD ? -15 : 0, duration: 800 });
+    // Match Atlas's 2D/3D layer pairing as well as its camera angle.
+    [['building-2d', !threeD], ['building-3d', threeD]].forEach(([layerId, visible]) => {
+      if (map.getLayer(layerId as string)) map.setLayoutProperty(layerId as string, 'visibility', visible ? 'visible' : 'none');
+    });
   };
   const selectedStop = stops.find(s => s.id === selected);
   const visibleCount = selectedStop ? selectedStop.featureIds.length : features.length;
 
   return <main className="viewer-shell">
     <div ref={mapNode} className="map-canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="KOPI SAIGON competitor map" />
-    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); navigate(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><span className="live-pill"><i/> LIVE VIEW</span><div className="map-view-toggle" role="group" aria-label="Map perspective"><button type="button" className={`map-view-button ${!is3D ? 'active' : ''}`} aria-label="Switch to 2D map" aria-pressed={!is3D} onClick={() => setMapMode(false)}><MapIcon size={14}/><span>2D</span></button><button type="button" className={`map-view-button ${is3D ? 'active' : ''}`} aria-label="Switch to 3D map" aria-pressed={is3D} onClick={() => setMapMode(true)}><Box size={14}/><span>3D</span></button></div><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
+    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); navigate(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><div className="map-view-toggle" role="group" aria-label="Map perspective"><button type="button" className={`map-view-button ${!is3D ? 'active' : ''}`} aria-label="Switch to 2D map" aria-pressed={!is3D} onClick={() => setMapMode(false)}><MapIcon size={14}/><span>2D</span></button><button type="button" className={`map-view-button ${is3D ? 'active' : ''}`} aria-label="Switch to 3D map" aria-pressed={is3D} onClick={() => setMapMode(true)}><Box size={14}/><span>3D</span></button></div><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
     <aside className={`navigation ${menuOpen ? 'is-open' : 'is-closed'}`}>
       <div className="nav-heading"><div><span className="eyebrow">COMPETITOR LANDSCAPE</span><h1>{PROJECT_NAME}</h1><p>{loading ? 'Connecting to Atlas…' : `${features.length.toLocaleString()} mapped places and features`}</p></div><button className="icon-button nav-collapse" aria-label="Collapse navigation" onClick={() => setMenuOpen(false)}><ChevronLeft size={18}/></button></div>
       {loading && <div className="state-card"><LoaderCircle className="spin" size={21}/> Loading project from Atlas…</div>}
@@ -379,7 +385,6 @@ export default function KopiSaigonPage() {
       </>}
     </aside>
     {!menuOpen && project && <button className="reopen-nav" onClick={() => setMenuOpen(true)}><MapPinned size={16}/> Explore map <ChevronRight size={16}/></button>}
-    <div className={`map-caption ${menuOpen ? 'with-nav' : ''}`}><span className="caption-dot"/><span className="caption-title">{selectedStop ? selectedStop.title : 'KOPI SAIGON · Competitor overview'}</span><span className="caption-divider"/><span className="caption-count">{visibleCount.toLocaleString()} places</span></div>
     <dialog ref={tableDialogRef} className="poi-table-dialog" aria-labelledby="poi-table-title" onClose={() => setTableOpen(false)}>
       <div className="table-dialog-shell">
         <div className="table-dialog-header"><div><span className="eyebrow">KOPI SAIGON · COMPETITOR LANDSCAPE</span><h2 id="poi-table-title">Places by coffee price tier</h2><p>{tableCount.toLocaleString()} places grouped by High, Mid, and Low tier</p></div><button className="table-close-button" onClick={() => setTableOpen(false)} aria-label="Close places table"><X size={18}/></button></div>

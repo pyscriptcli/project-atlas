@@ -19,8 +19,6 @@ button { color:inherit; cursor:pointer; }
 .brand strong { display:block; font:700 12px 'Century Gothic Atlas',sans-serif; letter-spacing:.015em; }
 .brand small { display:block; margin-top:3px; color:var(--muted); font-size:8px; font-weight:700; letter-spacing:.1em; }
 .top-actions { display:flex; gap:10px; align-items:center; }
-.live-pill { display:flex; align-items:center; gap:7px; padding:7px 9px; color:#b5c5d4; border:1px solid var(--border); border-radius:999px; font-size:8px; font-weight:700; letter-spacing:.12em; }
-.live-pill i { width:7px; height:7px; border-radius:50%; background:#34d399; box-shadow:0 0 10px #34d399aa; }
 .map-view-toggle { flex:0 0 auto; display:flex; gap:3px; padding:4px; border:1px solid rgba(255,255,255,.16); border-radius:12px; background:rgba(9,16,24,.94); box-shadow:0 8px 24px #0007; backdrop-filter:blur(16px); }
 .map-view-button { min-width:58px; height:34px; display:flex; align-items:center; justify-content:center; gap:6px; padding:0 10px; border:1px solid transparent; border-radius:8px; background:transparent; color:#aab7c4; font-size:11px; font-weight:700; }
 .map-view-button:hover { background:#ffffff0b; color:#eaf2f8; }
@@ -69,12 +67,6 @@ button { color:inherit; cursor:pointer; }
 .state-error button { padding:7px 10px; border:1px solid var(--border); border-radius:8px; background:#ffffff0a; }
 .spin { animation:spin 1.3s linear infinite; color:var(--mint); }
 @keyframes spin { to { transform:rotate(360deg); } }
-.map-caption { position:absolute; z-index:2; left:16px; bottom:22px; max-width:calc(100vw - 92px); min-width:0; display:flex; align-items:center; gap:9px; padding:10px 13px; border:1px solid rgba(255,255,255,.15); border-radius:999px; background:rgba(9,16,24,.94); box-shadow:0 6px 20px #0006; color:#e6edf3; font-size:11px; backdrop-filter:blur(12px); }
-.map-caption.with-nav { left:372px; max-width:calc(100vw - 460px); }
-.caption-dot { width:7px; height:7px; flex:0 0 7px; border-radius:50%; background:#22d3ee; }
-.caption-title { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-.caption-divider { width:1px; height:14px; flex:0 0 1px; margin:0 2px; background:#ffffff26; }
-.caption-count { flex:0 0 auto; white-space:nowrap; }
 .reopen-nav { position:absolute; z-index:2; left:16px; top:82px; display:flex; gap:8px; align-items:center; padding:11px 13px; border:1px solid rgba(255,255,255,.2); border-radius:12px; background:rgba(9,16,24,.96); color:#e6edf3; box-shadow:0 6px 20px #0006; font-size:12px; }
 .kopi-popup .maplibregl-popup-content { min-width:210px; max-width:min(280px,calc(100vw - 36px)); padding:15px; border:1px solid #ffffff21; border-radius:12px; background:#101715; color:#eff5ed; box-shadow:0 12px 30px #0006; }
 .kopi-popup .maplibregl-popup-tip { border-top-color:#101715; }
@@ -120,14 +112,13 @@ button { color:inherit; cursor:pointer; }
   .topbar { top:8px; left:10px; right:auto; height:50px; max-width:calc(100vw - 20px); padding:0 10px; border-radius:999px; gap:9px; }
   .topbar { gap:8px; padding:0 8px; }
   .brand { gap:8px; }
-  .brand small, .live-pill { display:none; }
+  .brand small { display:none; }
   .top-actions { gap:6px; }
   .map-view-button { min-width:42px; height:31px; padding:0 6px; }
   .menu-toggle { display:grid; }
   .navigation { left:10px; top:68px; bottom:62px; width:min(340px,calc(100vw - 20px)); }
   .navigation.is-closed { transform:translateX(calc(-100% - 18px)); }
   .nav-collapse { display:none; }
-  .map-caption, .map-caption.with-nav { left:10px; bottom:13px; max-width:calc(100vw - 65px); padding:8px 10px; font-size:10px; }
   .reopen-nav { left:10px; top:68px; }
   .poi-table-dialog { width:calc(100vw - 12px); max-height:calc(100dvh - 12px); border-radius:14px; }
   .table-dialog-shell { max-height:calc(100dvh - 14px); }
