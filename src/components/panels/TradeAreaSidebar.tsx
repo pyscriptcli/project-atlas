@@ -1293,7 +1293,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
         return;
       }
       console.error(e);
-      setToast('Atlas could not load place data just now. Please try the search again in a moment.');
+      setToast(e instanceof Error ? e.message : 'Atlas could not load place data just now. Please try the search again in a moment.');
       return;
     } finally {
       setIsScanning(false);

@@ -248,17 +248,19 @@ export async function robustOverpassFetch(query: string, timeout = 30, signal?: 
       body: JSON.stringify({ query, timeout }),
       signal,
     });
-    if (res.ok) {
-      return await res.json();
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      throw new Error(typeof data?.error === 'string' ? data.error : `OpenStreetMap search failed (HTTP ${res.status}).`);
     }
+    return data;
   } catch (e: any) {
     if (e.name === 'AbortError') {
       console.log('Overpass scan cancelled by user.');
     } else {
       console.error('Overpass fetch failed:', e);
     }
+    throw e instanceof Error ? e : new Error('Could not reach the OpenStreetMap search service. Please try again.');
   }
-  return null;
 }
 
 /**
@@ -276,6 +278,13 @@ export async function scanTradeAreaCoordinates(
 
   if (tagsToQuery.length === 0) return null;
 
+  // Circle radii are calculated geodesically and are usually fractional meters.
+  // Overpass accepts integer radii, and the API proxy validates that format.
+  const queryRadius = Math.round(radius);
+  if (!Number.isFinite(queryRadius) || queryRadius < 1 || queryRadius > 50_000) {
+    throw new Error('Search radius must be between 1 m and 50 km. Adjust the circle size and try again.');
+  }
+
   // 1. Attempt Python FastAPI endpoint with OSMnx geometry fallback
   try {
     const fastApiUrl = process.env.NEXT_PUBLIC_FASTAPI_URL || 'http://localhost:8000';
@@ -291,7 +300,7 @@ export async function scanTradeAreaCoordinates(
       body: JSON.stringify({
         lat,
         lon,
-        radius,
+        radius: queryRadius,
         tags: tagsToQuery,
       }),
       signal: controller.signal,
@@ -310,13 +319,13 @@ export async function scanTradeAreaCoordinates(
 
   // 2. Next.js Overpass mirror proxy failover
   const statements = tagsToQuery
-    .map((tag) => `  nwr[${tag}](around:${radius},${lat},${lon});`)
+    .map((tag) => `  nwr[${tag}](around:${queryRadius},${lat},${lon});`)
     .join('\n');
 
   const ql = `[out:json][timeout:45];(\n${statements}\n);\nout center;`;
 
   const data = await robustOverpassFetch(ql, 45, signal);
-  if (!data || !data.elements) return null;
+  if (!data || !Array.isArray(data.elements)) throw new Error('OpenStreetMap returned an invalid search response. Please try again.');
 
   return processOverpassElements(data.elements, tagsToQuery);
 }
@@ -345,7 +354,7 @@ export async function scanTradeAreaPolygon(
 
   const ql = `[out:json][timeout:30];(\n${statements}\n);\nout center;`;
   const data = await robustOverpassFetch(ql, 30, signal);
-  if (!data || !data.elements) return null;
+  if (!data || !Array.isArray(data.elements)) throw new Error('OpenStreetMap returned an invalid search response. Please try again.');
 
   // Filter with point-in-polygon if polygon coordinates are present
   let elements = data.elements;

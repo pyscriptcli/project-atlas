@@ -71,7 +71,7 @@ function isAllowedStatement(statement: string): { valid: boolean; filterCount: n
   const around = location.match(/^around:(\d{1,6}),(-?\d{1,3}(?:\.\d+)?),(-?\d{1,3}(?:\.\d+)?)$/);
   if (around) {
     const radius = Number(around[1]);
-    if (radius < 100 || radius > 50_000 || !isValidCoordinate(around[2], 90) || !isValidCoordinate(around[3], 180)) {
+    if (radius < 1 || radius > 50_000 || !isValidCoordinate(around[2], 90) || !isValidCoordinate(around[3], 180)) {
       return { valid: false, filterCount: 0 };
     }
     return { valid: true, filterCount: selectors.length };
