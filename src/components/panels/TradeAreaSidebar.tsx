@@ -267,8 +267,12 @@ interface ResultsTableRow {
   researchData: Record<string, unknown>;
 }
 
+type ResultsGroupBy = 'place' | 'name' | 'type' | 'address' | 'searchArea' | `research:${string}`;
+type PoiGroupStyle = { color?: string; shape?: MarkerShape; iconSize?: number };
+
 interface ResultsTableProps {
   rows: ResultsTableRow[];
+  researchColumns: string[];
   total: number;
   maximized: boolean;
   search: string;
@@ -277,20 +281,33 @@ interface ResultsTableProps {
   setSortBy: (value: 'name' | 'type') => void;
   ascending: boolean;
   setAscending: React.Dispatch<React.SetStateAction<boolean>>;
-  groupBy: 'place' | 'type' | 'name' | 'searchArea';
-  setGroupBy: (value: 'place' | 'type' | 'name' | 'searchArea') => void;
+  groupBy: ResultsGroupBy;
+  setGroupBy: (value: ResultsGroupBy) => void;
   placeGroupBy: 'street' | 'city';
   setPlaceGroupBy: (value: 'street' | 'city') => void;
   onToggleMaximize: () => void;
   onLocate: (feature: GISFeature) => void;
   onExportResearchPack: () => void;
   onImportResearchFile: (file: File) => void;
+  onStyleGroup: (features: GISFeature[], updates: PoiGroupStyle) => void;
 }
 
 const formatResearchValue = (value: unknown) => {
   if (value == null || value === '') return '—';
   if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
   return JSON.stringify(value);
+};
+
+const getResultsGroupLabel = (row: ResultsTableRow, groupBy: ResultsGroupBy, placeGroupBy: 'street' | 'city') => {
+  if (groupBy === 'type') return row.type || 'Uncategorized';
+  if (groupBy === 'name') return row.name || 'Unnamed place';
+  if (groupBy === 'address') return row.address || 'Address not listed';
+  if (groupBy === 'searchArea') return row.searchAreaLabels[0] || 'Search area not recorded';
+  if (groupBy.startsWith('research:')) {
+    const value = formatResearchValue(row.researchData[groupBy.slice('research:'.length)]);
+    return value === '—' ? 'Not listed' : value;
+  }
+  return getPoiPlaceGroup(row.feature, row.address, placeGroupBy);
 };
 
 const isSafeResearchValue = (value: unknown, depth = 0): boolean => {
@@ -306,18 +323,11 @@ const isSafeResearchValue = (value: unknown, depth = 0): boolean => {
   return false;
 };
 
-const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maximized, search, setSearch, sortBy, setSortBy, ascending, setAscending, groupBy, setGroupBy, placeGroupBy, setPlaceGroupBy, onToggleMaximize, onLocate, onExportResearchPack, onImportResearchFile }) => {
+const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, researchColumns, total, maximized, search, setSearch, sortBy, setSortBy, ascending, setAscending, groupBy, setGroupBy, placeGroupBy, setPlaceGroupBy, onToggleMaximize, onLocate, onExportResearchPack, onImportResearchFile, onStyleGroup }) => {
   const importInputRef = useRef<HTMLInputElement>(null);
-  const mainRows = rows;
-  const researchColumns = Array.from(new Set(rows.flatMap((row) => Object.keys(row.researchData || {})))).sort((a, b) => a.localeCompare(b));
-  const groupLabel = (row: ResultsTableRow) => {
-    if (groupBy === 'type') return row.type || 'Uncategorized';
-    if (groupBy === 'name') return row.name || 'Unnamed place';
-    if (groupBy === 'searchArea') return row.searchAreaLabels[0] || 'Search area not recorded';
-    return getPoiPlaceGroup(row.feature, row.address, placeGroupBy);
-  };
-  const groups = mainRows.reduce<Array<{ label: string; rows: ResultsTableRow[] }>>((result, row) => {
-    const label = groupLabel(row);
+  const [openGroupStyles, setOpenGroupStyles] = useState<Record<string, boolean>>({});
+  const groups = rows.reduce<Array<{ label: string; rows: ResultsTableRow[] }>>((result, row) => {
+    const label = getResultsGroupLabel(row, groupBy, placeGroupBy);
     const existing = result[result.length - 1];
     if (existing?.label === label) existing.rows.push(row);
     else result.push({ label, rows: [row] });
@@ -330,7 +340,7 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
       <div><h4 className="flex items-center gap-1.5 text-[11px] font-bold text-white"><Table2 className="h-3.5 w-3.5 text-cyan-300" />Places table</h4><p className="mt-0.5 text-[9px] text-zinc-500">{rows.length} of {total} places · Select a row to locate it on the map.</p></div>
       <div className="min-w-0 flex flex-1 flex-wrap items-center justify-end gap-1.5">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Find a place…" aria-label="Search places table" className="w-32 min-w-28 max-w-full flex-1 rounded-lg border border-white/10 bg-black/40 px-2 py-1.5 text-[10px] text-white placeholder-zinc-500 outline-none focus:border-cyan-300/40" />
-        <select aria-label="Group places by" value={groupBy} onChange={(event) => setGroupBy(event.target.value as 'place' | 'type' | 'name' | 'searchArea')} className="max-w-full shrink-0 rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="place">Group: Place</option><option value="type">Group: Type</option><option value="name">Group: Name</option><option value="searchArea">Group: Search Area</option></select>
+        <select aria-label="Group places by" value={groupBy} onChange={(event) => setGroupBy(event.target.value as ResultsGroupBy)} className="max-w-full shrink-0 rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="place">Group: Place</option><option value="name">Group: Name</option><option value="type">Group: Type</option><option value="address">Group: Address</option><option value="searchArea">Group: Search Area</option>{researchColumns.map((column) => <option key={column} value={`research:${column}`}>Group: {column}</option>)}</select>
         {groupBy === 'place' && <select aria-label="Group place locations by" value={placeGroupBy} onChange={(event) => setPlaceGroupBy(event.target.value as 'street' | 'city')} className="shrink-0 rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="street">Street</option><option value="city">City</option></select>}
         <select aria-label="Sort places by" value={sortBy} onChange={(event) => setSortBy(event.target.value as 'name' | 'type')} className="shrink-0 rounded-lg border border-white/10 bg-zinc-950 px-2 py-1.5 text-[9px] text-zinc-200"><option value="name">Name</option><option value="type">Place type</option></select>
         <button type="button" onClick={() => setAscending((value) => !value)} aria-label={ascending ? 'Sort descending' : 'Sort ascending'} title={ascending ? 'Sort descending' : 'Sort ascending'} className="shrink-0 rounded-lg border border-white/10 p-1.5 text-zinc-300 hover:bg-white/10"><ArrowUpDown className="h-3.5 w-3.5" /></button>
@@ -344,8 +354,13 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
       <table className="w-full min-w-[620px] border-collapse text-left text-[10px]">
         <thead className="sticky top-0 z-10 bg-zinc-900 text-[9px] uppercase tracking-wide text-zinc-400"><tr><th className="px-3 py-2">Place</th><th className="px-3 py-2">Type</th><th className="px-3 py-2">Address</th>{researchColumns.map((column) => <th key={column} className="min-w-28 px-3 py-2 normal-case">{column}</th>)}<th className="px-3 py-2 text-center">Actions</th></tr></thead>
         <tbody className="divide-y divide-white/5">
-          {groups.map((group) => <React.Fragment key={`${groupBy}:${group.label}`}>
-            <tr className="bg-white/[0.035]"><td colSpan={4 + researchColumns.length} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-zinc-400">{group.label}<span className="ml-2 font-mono normal-case text-zinc-600">{group.rows.length}</span></td></tr>
+          {groups.map((group) => {
+            const groupKey = `${groupBy}:${group.label}`;
+            const firstFeature = group.rows[0]?.feature;
+            const groupStylesOpen = openGroupStyles[groupKey] ?? false;
+            return <React.Fragment key={groupKey}>
+            <tr className="bg-white/[0.035]"><td colSpan={4 + researchColumns.length} className="px-3 py-1.5 text-[9px] font-bold uppercase tracking-wide text-zinc-400"><div className="flex w-max max-w-full items-center gap-2"><span className="max-w-56 truncate" title={group.label}>{group.label}<span className="ml-2 font-mono normal-case text-zinc-600">{group.rows.length}</span></span><button type="button" onClick={() => setOpenGroupStyles((current) => ({ ...current, [groupKey]: !groupStylesOpen }))} aria-expanded={groupStylesOpen} aria-label={`Style ${group.label} group`} title={`Style ${group.rows.length} places in this group`} className={`shrink-0 rounded-md p-1.5 normal-case ${groupStylesOpen ? 'bg-cyan-300/10 text-cyan-200' : 'text-zinc-400 hover:bg-white/10 hover:text-white'}`}><Palette className="h-3.5 w-3.5" /></button></div></td></tr>
+            {groupStylesOpen && <tr className="bg-zinc-900/80"><td colSpan={4 + researchColumns.length} className="px-3 py-2"><div className="flex flex-wrap items-center gap-3 text-[10px] normal-case text-zinc-300"><span className="font-semibold text-cyan-200">Style {group.rows.length} places</span><label className="flex items-center gap-1.5">Color<input type="color" aria-label={`Color for ${group.label} group`} value={firstFeature?.props.color || '#ffffff'} onChange={(event) => onStyleGroup(group.rows.map((row) => row.feature), { color: event.target.value })} className="h-6 w-7 cursor-pointer rounded bg-transparent" /></label><label className="flex items-center gap-1.5">Icon<select aria-label={`Icon for ${group.label} group`} value={firstFeature?.props.shape || 'modern-pin'} onChange={(event) => onStyleGroup(group.rows.map((row) => row.feature), { shape: event.target.value as MarkerShape })} className="rounded-md border border-white/10 bg-zinc-950 px-2 py-1 text-[10px] text-white"><option value="modern-pin">Pin</option><option value="dots">Dot</option><option value="circle">Circle</option><option value="star">Star</option><option value="square">Square</option><option value="diamond">Diamond</option><option value="heart">Heart</option><option value="shield">Shield</option></select></label><label className="flex min-w-40 flex-1 items-center gap-2">Size<input type="range" min="0.4" max="2" step="0.05" value={firstFeature?.props.iconSize ?? 1} aria-label={`Size for ${group.label} group`} onChange={(event) => onStyleGroup(group.rows.map((row) => row.feature), { iconSize: Number(event.target.value) })} className="min-w-20 flex-1 accent-cyan-300" /><span className="w-9 text-right">{Math.round((firstFeature?.props.iconSize ?? 1) * 100)}%</span></label></div></td></tr>}
             {group.rows.map((row) => <tr key={row.feature.id} onClick={() => onLocate(row.feature)} className="cursor-pointer text-zinc-200 hover:bg-white/[0.06]" title="Locate this place on the map">
               <td className="max-w-72 px-3 py-2 font-medium text-white"><span className="block truncate">{row.name}</span></td>
               <td className="px-3 py-2">{row.type}</td>
@@ -358,7 +373,7 @@ const TradeAreaResultsTable: React.FC<ResultsTableProps> = ({ rows, total, maxim
                 <a href={`https://www.google.com/search?q=${encodeURIComponent(row.name)}`} target="_blank" rel="noopener noreferrer" onClick={(event) => event.stopPropagation()} aria-label={`Search Google for ${row.name}`} title="Google search" className="rounded-md p-1.5 text-zinc-400 hover:bg-white/10 hover:text-cyan-200"><Search className="h-3.5 w-3.5" /></a>
               </div></td>
             </tr>)}
-          </React.Fragment>)}
+          </React.Fragment>; })}
           {rows.length === 0 && <tr><td colSpan={4 + researchColumns.length} className="px-3 py-8 text-center text-[10px] text-zinc-500">No places match this search.</td></tr>}
         </tbody>
       </table>
@@ -481,7 +496,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [resultsTableSearch, setResultsTableSearch] = useState('');
   const [resultsSortBy, setResultsSortBy] = useState<'name' | 'type'>('name');
   const [resultsSortAscending, setResultsSortAscending] = useState(true);
-  const [resultsGroupBy, setResultsGroupBy] = useState<'place' | 'type' | 'name' | 'searchArea'>('type');
+  const [resultsGroupBy, setResultsGroupBy] = useState<ResultsGroupBy>('type');
   const [placeGroupBy, setPlaceGroupBy] = useState<'street' | 'city'>('street');
   const [showExportMenu, setShowExportMenu] = useState<boolean>(false);
   const [boundaryQuery, setBoundaryQuery] = useState('');
@@ -603,6 +618,12 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     return map;
   }, [activeScannedFeatures]);
 
+  const resultsResearchColumns = useMemo(() => Array.from(new Set(activeScannedFeatures.flatMap((feature) => Object.keys(feature.props.researchData || {})))).sort((a, b) => a.localeCompare(b)), [activeScannedFeatures]);
+
+  useEffect(() => {
+    if (resultsGroupBy.startsWith('research:') && !resultsResearchColumns.includes(resultsGroupBy.slice('research:'.length))) setResultsGroupBy('type');
+  }, [resultsGroupBy, resultsResearchColumns]);
+
   const resultTableRows = useMemo(() => {
     const query = resultsTableSearch.trim().toLowerCase();
     const rows = activeScannedFeatures.map((feature) => {
@@ -620,14 +641,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     });
     return rows.filter((row) => !query || [row.name, row.type, row.address, ...row.searchAreaLabels, ...Object.values(row.researchData).map(formatResearchValue)].some((value) => value.toLowerCase().includes(query)))
       .sort((a, b) => {
-        const groupKey = (row: ResultsTableRow) => resultsGroupBy === 'type'
-          ? row.type.toLocaleLowerCase()
-          : resultsGroupBy === 'name'
-            ? row.name.toLocaleLowerCase()
-            : resultsGroupBy === 'searchArea'
-              ? (row.searchAreaLabels[0] || 'Search area not recorded').toLocaleLowerCase()
-              : getPoiPlaceGroup(row.feature, row.address, placeGroupBy).toLocaleLowerCase();
-        const groupComparison = groupKey(a).localeCompare(groupKey(b));
+        const groupComparison = getResultsGroupLabel(a, resultsGroupBy, placeGroupBy).localeCompare(getResultsGroupLabel(b, resultsGroupBy, placeGroupBy));
         if (groupComparison !== 0) return groupComparison;
         const comparison = a[resultsSortBy].localeCompare(b[resultsSortBy]);
         return resultsSortAscending ? comparison : -comparison;
@@ -1430,11 +1444,11 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     setToast(`Applied ${style} style to all scanned POIs.`);
   };
 
-  const handleApplyAmenityStyle = (feats: GISFeature[], updates: { color?: string; shape?: MarkerShape; iconSize?: number }) => {
+  const handleApplyAmenityStyle = (feats: GISFeature[], updates: PoiGroupStyle) => {
     const ids = new Set(feats.map((feature) => feature.id));
     setFeatures(features.map((feature) => {
       if (!ids.has(feature.id)) return feature;
-      return { ...feature, props: { ...feature.props, ...updates, managedBy: 'open-node' } };
+      return { ...feature, props: { ...feature.props, ...updates, iconKey: updates.color !== undefined || updates.shape !== undefined ? undefined : feature.props.iconKey, managedBy: 'open-node' } };
     }), false);
   };
 
@@ -2536,8 +2550,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                     })}
                   </div></>}
                   {resultsView === 'table' && (resultsTableMaximized && typeof document !== 'undefined'
-                    ? createPortal(<div role="dialog" aria-modal="true" aria-label="Places results table" className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-3 sm:p-6"><div className="h-full w-full max-w-7xl"><TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(false)} onLocate={handleFlyToPoi} onExportResearchPack={handleExportResearchPack} onImportResearchFile={handleImportResearchFile} /></div></div>, document.body)
-                    : <TradeAreaResultsTable rows={resultTableRows} total={activeScannedFeatures.length} maximized={false} search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(true)} onLocate={handleFlyToPoi} onExportResearchPack={handleExportResearchPack} onImportResearchFile={handleImportResearchFile} />)}
+                    ? createPortal(<div role="dialog" aria-modal="true" aria-label="Places results table" className="fixed inset-0 z-[1300] flex items-center justify-center bg-black/75 p-3 sm:p-6"><div className="h-full w-full max-w-7xl"><TradeAreaResultsTable rows={resultTableRows} researchColumns={resultsResearchColumns} total={activeScannedFeatures.length} maximized search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(false)} onLocate={handleFlyToPoi} onExportResearchPack={handleExportResearchPack} onImportResearchFile={handleImportResearchFile} onStyleGroup={handleApplyAmenityStyle} /></div></div>, document.body)
+                    : <TradeAreaResultsTable rows={resultTableRows} researchColumns={resultsResearchColumns} total={activeScannedFeatures.length} maximized={false} search={resultsTableSearch} setSearch={setResultsTableSearch} sortBy={resultsSortBy} setSortBy={setResultsSortBy} ascending={resultsSortAscending} setAscending={setResultsSortAscending} groupBy={resultsGroupBy} setGroupBy={setResultsGroupBy} placeGroupBy={placeGroupBy} setPlaceGroupBy={setPlaceGroupBy} onToggleMaximize={() => setResultsTableMaximized(true)} onLocate={handleFlyToPoi} onExportResearchPack={handleExportResearchPack} onImportResearchFile={handleImportResearchFile} onStyleGroup={handleApplyAmenityStyle} />)}
                 </>}
                 <button type="button" onClick={() => setAnalysisExpanded((expanded) => !expanded)} aria-expanded={analysisExpanded} className="w-full flex items-center justify-between rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-left text-[10px] font-semibold text-zinc-200 hover:bg-white/[0.06]">
                   <span className="flex items-center gap-2"><Sparkles className="w-3.5 h-3.5 text-cyan-300" />Spatial analysis &amp; Q&amp;A</span>{analysisExpanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
