@@ -1,22 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getSupabaseAdmin, getSupabaseProjectReader } from '../../../lib/supabaseAdmin';
+import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
 
 export async function GET() {
   try {
-    const db = process.env.SUPABASE_SERVICE_ROLE_KEY ? getSupabaseAdmin() : getSupabaseProjectReader();
-    const { data, error } = await db.from('map_projects').select('*').order('updated_at', { ascending: false });
-    if (error) {
-      console.error('Supabase project list query failed:', { code: error.code, message: error.message });
-      const detail = error.code === '42501'
-        ? 'Supabase denied project reads. Apply migration 202609300002_restore_public_project_reads.sql.'
-        : 'Could not read Atlas projects. Check the Supabase URL, public key, and read policy.';
-      return NextResponse.json({ error: detail }, { status: 503 });
-    }
+    const { data, error } = await getSupabaseAdmin().from('map_projects').select('*').order('updated_at', { ascending: false });
+    if (error) throw error;
     return NextResponse.json(data || []);
-  } catch (error) {
-    console.error('Supabase project list connection failed:', error instanceof Error ? error.message : 'Unknown error');
-    return NextResponse.json({ error: 'Could not connect to Supabase. Check server configuration.' }, { status: 503 });
-  }
+  } catch { return NextResponse.json({ error: 'Project storage is not configured.' }, { status: 503 }); }
 }
 
 export async function POST(request: NextRequest) {
