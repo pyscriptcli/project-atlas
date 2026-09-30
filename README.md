@@ -92,8 +92,6 @@ The FastAPI documentation and interactive OpenAPI interface will be available at
 
 Set `SUPABASE_SERVICE_ROLE_KEY`, `ATLAS_EDITOR_PASSWORD=atlas`, and a long random `ATLAS_SESSION_SECRET` as server-only environment variables (for example, generate the session secret with `openssl rand -base64 32`). The editor login accepts an email in the `@primephilippines.com` domain and checks the shared password on the server. The email is not independently verified; it is an access label for the shared editor credential.
 
-Editor sign-in is currently disabled unless `ATLAS_EDITOR_AUTH_ENABLED=true`. In this open mode, visitors have editor access. Set it to `true` to restore the sign-in gate.
-
 Apply `supabase/migrations/202609300001_published_project_view_links.sql` before enabling the new login. It creates published snapshot storage and removes direct browser access to `map_projects`; project persistence now goes through authenticated server routes. Never prefix service-role or session secrets with `NEXT_PUBLIC_`.
 
 Use the share button in the editor toolbar to publish a stable, view-only link. Overview captures the current map camera; named stops capture additional camera positions and can be reordered. Republish updates the snapshot at the same URL; revoke disables that URL. Viewer routes expose only the published snapshot and have no project save or editing controls.

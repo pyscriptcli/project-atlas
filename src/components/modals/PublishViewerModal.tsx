@@ -56,13 +56,6 @@ export function PublishViewerModal({ open, onClose, projectId, projectName, mapI
     } catch (err) { setMessage(err instanceof Error ? err.message : 'Could not publish.'); }
     finally { setBusy(false); }
   };
-  const preview = () => {
-    if (!mapInstance) { setMessage('Wait for the map to finish loading, then preview again.'); return; }
-    const state = useMapStore.getState();
-    const localPreview = { project_name: projectName, snapshot: { camera: cameraAt(mapInstance), basemap: state.currentBasemap, features: state.features.filter(f => f.props.visible !== 0), custom_groups: state.customGroups, layer_visibilities: state.visibilities }, navigation: stops };
-    localStorage.setItem('atlas_viewer_preview', JSON.stringify(localPreview));
-    window.open('/view/local-preview', '_blank', 'noopener,noreferrer');
-  };
   const revoke = async () => {
     if (!projectId) return;
     setBusy(true);
@@ -83,7 +76,7 @@ export function PublishViewerModal({ open, onClose, projectId, projectName, mapI
       <div className="mb-5 max-h-48 space-y-2 overflow-y-auto">{stops.map((stop, i)=><div key={`${stop.title}-${i}`} className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2"><span className="w-6 text-xs text-slate-500">{i+1}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-medium">{stop.title}</p>{stop.description && <p className="truncate text-xs text-slate-400">{stop.description}</p>}</div><button title="Move up" onClick={()=>moveStop(i,-1)} className="p-1.5 text-slate-400 hover:text-white"><ChevronUp size={16}/></button><button title="Move down" onClick={()=>moveStop(i,1)} className="p-1.5 text-slate-400 hover:text-white"><ChevronDown size={16}/></button><button title="Remove stop" onClick={()=>setStops(stops.filter((_,j)=>j!==i))} className="p-1.5 text-slate-400 hover:text-rose-300"><Trash2 size={15}/></button></div>)}</div>
       {url && <div className="mb-4 flex min-w-0 items-center gap-2 rounded-xl border border-sky-300/20 bg-sky-300/5 p-3"><Link2 size={16} className="shrink-0 text-sky-300"/><a href={url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 truncate text-sm text-sky-200">{url}</a><button onClick={copyLink} title="Copy link" className="shrink-0 rounded-lg p-2 hover:bg-white/10"><Copy size={16}/></button></div>}
       {message && <p role="status" className="mb-3 flex items-center gap-2 text-xs text-slate-300">{message.includes('Published') && <Check size={15} className="text-emerald-300"/>}{message}</p>}
-      <footer className="flex flex-col-reverse justify-between gap-2 sm:flex-row"><div className="flex items-center">{url && <button disabled={busy} onClick={revoke} className="rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-300/10 disabled:opacity-50">Revoke link</button>}</div><div className="flex flex-col-reverse gap-2 sm:flex-row"><button onClick={preview} className="rounded-lg border border-white/15 px-4 py-2.5 text-sm hover:bg-white/10">Preview viewer</button><button disabled={busy || !projectId || projectId.startsWith('local-')} onClick={publish} title={!projectId || projectId.startsWith('local-') ? 'Save this as a cloud project before publishing a share link.' : undefined} className="rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold hover:bg-sky-400 disabled:cursor-not-allowed disabled:opacity-50">{busy ? 'Publishing…' : url ? 'Republish snapshot' : 'Publish snapshot'}</button></div></footer>
+      <footer className="flex flex-col-reverse justify-between gap-2 sm:flex-row"><div>{url && <button disabled={busy} onClick={revoke} className="rounded-lg px-3 py-2 text-sm text-rose-300 hover:bg-rose-300/10 disabled:opacity-50">Revoke link</button>}</div><button disabled={busy} onClick={publish} className="rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-semibold hover:bg-sky-400 disabled:opacity-50">{busy ? 'Publishing…' : url ? 'Republish snapshot' : 'Publish snapshot'}</button></footer>
     </section>
   </div>;
 }

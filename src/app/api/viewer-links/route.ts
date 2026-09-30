@@ -4,7 +4,6 @@ import { verifyEditorSession, editorCookieName } from '../../../lib/editorSessio
 import { getSupabaseAdmin } from '../../../lib/supabaseAdmin';
 
 async function requireEditor(request: NextRequest) {
-  if (process.env.ATLAS_EDITOR_AUTH_ENABLED !== 'true') return true;
   return verifyEditorSession(request.cookies.get(editorCookieName)?.value);
 }
 

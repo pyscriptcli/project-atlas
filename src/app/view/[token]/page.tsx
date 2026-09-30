@@ -18,17 +18,6 @@ export default function ViewerPage() {
   const { setFeatures, setBasemap, setVisibility } = useMapStore();
 
   useEffect(() => {
-    if (token === 'local-preview') {
-      try {
-        const preview = JSON.parse(localStorage.getItem('atlas_viewer_preview') || 'null');
-        if (!preview?.snapshot) throw new Error('Create a preview from the editor first.');
-        setData(preview);
-        useMapStore.getState().setFeatures((preview.snapshot.features || []).filter((f: any) => f.props?.visible !== 0), false);
-        if (preview.snapshot.basemap) useMapStore.getState().setBasemap(preview.snapshot.basemap);
-        Object.entries(preview.snapshot.layer_visibilities || {}).forEach(([key, value]) => setVisibility(key, Boolean(value)));
-      } catch (e) { setError(e instanceof Error ? e.message : 'Local preview is unavailable.'); }
-      return;
-    }
     fetch(`/api/public-view/${encodeURIComponent(token)}`, { cache: 'no-store' }).then(async r => {
       const body = await r.json(); if (!r.ok) throw new Error(body.error || 'This viewer link is unavailable.');
       setData(body);
