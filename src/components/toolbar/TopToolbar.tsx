@@ -27,14 +27,11 @@ import {
   PenTool,
   Check,
   Store,
-  Share2,
-  LogOut,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
 import { exportMapToPNG } from '../../gis/importExport';
 import { SHAPE_OPTIONS, ICON_SVGS } from '../../gis/markers';
-import { PublishViewerModal } from '../modals/PublishViewerModal';
 
 interface TopToolbarProps {
   mapInstance: any;
@@ -63,7 +60,6 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
 
   // Active flyout: 'draw' | 'studio' | null (Data tools are direct individual buttons now)
   const [openFolder, setOpenFolder] = useState<'draw' | 'studio' | null>(null);
-  const [viewerModalOpen, setViewerModalOpen] = useState(false);
   const toolbarRef = useRef<HTMLDivElement | null>(null);
 
   // Close flyouts on click outside
@@ -170,16 +166,6 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
           >
             <Save className="w-3.5 h-3.5 text-zinc-300" />
           </button>
-          <button
-            onClick={() => { setViewerModalOpen(true); setOpenFolder(null); }}
-            title="Publish view-only link"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
-          ><Share2 className="w-3.5 h-3.5" /></button>
-          <button
-            onClick={async () => { await fetch('/api/auth/login', { method: 'DELETE' }); window.location.assign('/login'); }}
-            title="Sign out"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
-          ><LogOut className="w-3.5 h-3.5" /></button>
         </div>
 
         {/* =========================================================================
@@ -608,7 +594,6 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
           />
         </div>
       )}
-      <PublishViewerModal open={viewerModalOpen} onClose={() => setViewerModalOpen(false)} projectId={currentProjectId} projectName={currentProjectName} mapInstance={mapInstance} />
     </>
   );
 };

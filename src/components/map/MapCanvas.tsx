@@ -16,11 +16,9 @@ import { GISFeature } from '../../types/gis';
 
 interface MapCanvasProps {
   onMapReady: (map: maplibregl.Map) => void;
-  readOnly?: boolean;
-  initialView?: { center: [number, number]; zoom: number; pitch?: number; bearing?: number };
 }
 
-export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady, readOnly = false, initialView }) => {
+export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
 
@@ -105,22 +103,19 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady, readOnly = fal
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
       style: initialStyle,
-      center: initialView?.center || [120.9842, 14.5995],
-      zoom: initialView?.zoom ?? 14,
-      pitch: initialView?.pitch ?? 60,
-      bearing: initialView?.bearing ?? -15,
+      center: [120.9842, 14.5995],
+      zoom: 14,
+      pitch: 60,
+      bearing: -15,
       attributionControl: false,
       fadeDuration: 0,
       canvasContextAttributes: { preserveDrawingBuffer: true },
     } as any);
 
     mapRef.current = map;
-    if (typeof window !== 'undefined' && !readOnly) {
+    if (typeof window !== 'undefined') {
       (window as any).__map = map;
       (window as any).__store = useMapStore;
-    } else if (typeof window !== 'undefined') {
-      delete (window as any).__map;
-      delete (window as any).__store;
     }
     map.getCanvas().addEventListener('contextmenu', (e) => e.preventDefault());
 
@@ -807,7 +802,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady, readOnly = fal
   useEffect(() => {
     const map = mapRef.current;
     if (!map) return;
-    if (readOnly) return;
 
     const handleMouseMove = (e: maplibregl.MapMouseEvent) => {
       const ll: [number, number] = [e.lngLat.lng, e.lngLat.lat];
@@ -1323,7 +1317,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady, readOnly = fal
     routeMode,
     routeColor,
     selectedBuildingArchetype,
-    readOnly,
   ]);
 
   return <div ref={mapContainerRef} className="absolute inset-0 w-full h-full" />;

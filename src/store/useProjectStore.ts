@@ -1,13 +1,12 @@
 import { create } from 'zustand';
+import { createClient } from '@supabase/supabase-js';
 import { MapProject } from '../types/gis';
 import { useMapStore } from './useMapStore';
 
-async function projectRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
-  const result = await response.json().catch(() => null);
-  if (!response.ok) throw new Error(result?.error || 'Project request failed');
-  return result as T;
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://cyczyaswxkpdcremqnkn.supabase.co';
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'sb_publishable_pUppHGjwmT1mLlhWGZH6Og_4GcCLCPR';
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
 
 interface ProjectState {
   projects: MapProject[];
@@ -34,7 +33,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   fetchProjects: async () => {
     set({ isLoading: true, error: null });
     try {
-      const projects = await projectRequest<MapProject[]>('/api/projects');
+      const { data, error } = await supabase
+        .from('map_projects')
+        .select('*')
+        .order('updated_at', { ascending: false });
+
+      if (error) throw error;
+      const projects = (data || []) as MapProject[];
       set({ projects, isLoading: false });
 
       if (!get().currentProjectId && projects.length > 0) {
@@ -61,7 +66,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     };
 
     try {
-      const created = await projectRequest<MapProject>('/api/projects', { method: 'POST', body: JSON.stringify(payload) });
+      const { data, error } = await supabase
+        .from('map_projects')
+        .insert([payload])
+        .select();
+
+      if (error) throw error;
+      const created = (data && data[0]) as MapProject;
       if (created) {
         set((state) => ({
           projects: [created, ...state.projects],
@@ -149,7 +160,12 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     };
 
     try {
-      await projectRequest('/api/projects', { method: 'PATCH', body: JSON.stringify({ id: currentProjectId, payload }) });
+      const { error } = await supabase
+        .from('map_projects')
+        .update(payload)
+        .eq('id', currentProjectId);
+
+      if (error) throw error;
 
       useMapStore.getState().setSaveStatus('saved');
       useMapStore.getState().setToast('Project Saved!');
@@ -171,7 +187,10 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   updateProjectName: async (id: string, newName: string) => {
     const nowIso = new Date().toISOString();
     try {
-      await projectRequest('/api/projects', { method: 'PATCH', body: JSON.stringify({ id, payload: { name: newName, updated_at: nowIso } }) });
+      await supabase
+        .from('map_projects')
+        .update({ name: newName, updated_at: nowIso })
+        .eq('id', id);
 
       set((state) => ({
         currentProjectName: state.currentProjectId === id ? newName : state.currentProjectName,
@@ -187,7 +206,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
 
   deleteProject: async (id: string) => {
     try {
-      await projectRequest(`/api/projects?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
+      await supabase.from('map_projects').delete().eq('id', id);
       set((state) => ({
         projects: state.projects.filter((p) => p.id !== id),
       }));
