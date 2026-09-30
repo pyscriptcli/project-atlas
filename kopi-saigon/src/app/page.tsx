@@ -38,6 +38,23 @@ function positions(geometry: Geometry): number[][] {
   return out;
 }
 
+function formatResearchPrice(value: unknown, currency: 'PHP' | 'MYR'): string | null {
+  if (typeof value !== 'string' && typeof value !== 'number') return null;
+  const raw = String(value).trim();
+  if (!raw || /^(unknown|unclear|not available|n\/?a|—|-)$/i.test(raw)) return null;
+  const withoutCurrency = raw.replace(currency === 'PHP' ? /(?:\bPHP\b|₱)\s*/gi : /(?:\bMYR\b|\bRM\b)\s*/gi, '').trim();
+  const range = withoutCurrency.replace(/(\d)\s*[-–—]\s*(?=\d)/g, '$1–');
+  return range ? `${currency} ${range}` : null;
+}
+
+function getPriceLabel(feature: AtlasFeature): string {
+  const research = feature.props?.researchData;
+  if (!research || typeof research !== 'object') return 'Price not available';
+  const php = formatResearchPrice(research.priceRangePhp ?? research.priceRangePHP, 'PHP');
+  const myr = formatResearchPrice(research.priceRangeMyr ?? research.priceRangeMYR, 'MYR');
+  return php || myr ? `${php || 'PHP —'} / ${myr || 'MYR —'}` : 'Price not available';
+}
+
 function featureCollection(features: AtlasFeature[], selectedIds?: Set<number>): FeatureCollection<Geometry> {
   return {
     type: 'FeatureCollection',
@@ -49,6 +66,7 @@ function featureCollection(features: AtlasFeature[], selectedIds?: Set<number>):
         color: f.props?.color || f.props?.fillColor || '#39c6be',
         label: f.props?.showLabel === false ? '' : (f.name || ''),
         category: f.props?.amenityGroupLabel || f.props?.category || f.props?.poiType || f.kind,
+        priceLabel: getPriceLabel(f),
         selected: !selectedIds || selectedIds.has(f.id),
       },
     })) as GeoFeature<Geometry>[],
@@ -229,8 +247,31 @@ export default function KopiSaigonPage() {
     });
     map.on('click', 'kopi-poi-dots', e => {
       const f = e.features?.[0]; if (!f || !e.lngLat) return;
-      const name = String(f.properties?.name || 'Place');
-      new maplibregl.Popup({ closeButton: true, offset: 12, className: 'kopi-popup' }).setLngLat(e.lngLat).setHTML(`<strong>${name.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c))}</strong>`).addTo(map);
+      const name = String(f.properties?.name || 'Unnamed place');
+      const price = String(f.properties?.priceLabel || 'Price not available');
+      const coordinates = f.geometry.type === 'Point' ? f.geometry.coordinates : [e.lngLat.lng, e.lngLat.lat];
+      const mapsUrl = new URL('https://www.google.com/maps/search/');
+      mapsUrl.searchParams.set('api', '1');
+      mapsUrl.searchParams.set('query', `${coordinates[1]},${coordinates[0]}`);
+      const card = document.createElement('div');
+      card.className = 'poi-card';
+      const heading = document.createElement('strong');
+      heading.className = 'poi-card-name';
+      heading.textContent = name;
+      const priceLabel = document.createElement('span');
+      priceLabel.className = 'poi-card-kicker';
+      priceLabel.textContent = 'COFFEE PRICE';
+      const priceValue = document.createElement('span');
+      priceValue.className = 'poi-card-price';
+      priceValue.textContent = price;
+      const mapsLink = document.createElement('a');
+      mapsLink.className = 'poi-card-link';
+      mapsLink.href = mapsUrl.toString();
+      mapsLink.target = '_blank';
+      mapsLink.rel = 'noopener noreferrer';
+      mapsLink.textContent = 'View in Google Maps ↗';
+      card.append(heading, priceLabel, priceValue, mapsLink);
+      new maplibregl.Popup({ closeButton: true, offset: 12, className: 'kopi-popup' }).setLngLat(e.lngLat).setDOMContent(card).addTo(map);
     });
     map.on('mouseenter', 'kopi-poi-dots', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'kopi-poi-dots', () => { map.getCanvas().style.cursor = ''; });

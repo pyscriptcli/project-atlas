@@ -68,9 +68,15 @@ button { color:inherit; cursor:pointer; }
 .caption-divider { width:1px; height:14px; flex:0 0 1px; margin:0 2px; background:#ffffff26; }
 .caption-count { flex:0 0 auto; white-space:nowrap; }
 .reopen-nav { position:absolute; z-index:2; left:16px; top:82px; display:flex; gap:8px; align-items:center; padding:11px 13px; border:1px solid rgba(255,255,255,.2); border-radius:12px; background:rgba(9,16,24,.96); color:#e6edf3; box-shadow:0 6px 20px #0006; font-size:12px; }
-.kopi-popup .maplibregl-popup-content { border:1px solid #ffffff21; border-radius:12px; background:#101715; color:#eff5ed; box-shadow:0 12px 30px #0006; }
+.kopi-popup .maplibregl-popup-content { min-width:210px; max-width:min(280px,calc(100vw - 36px)); padding:15px; border:1px solid #ffffff21; border-radius:12px; background:#101715; color:#eff5ed; box-shadow:0 12px 30px #0006; }
 .kopi-popup .maplibregl-popup-tip { border-top-color:#101715; }
 .kopi-popup .maplibregl-popup-close-button { color:#dce6db; }
+.poi-card { display:flex; flex-direction:column; gap:7px; padding-right:12px; }
+.poi-card-name { font-size:14px; line-height:1.35; overflow-wrap:anywhere; }
+.poi-card-kicker { margin-top:4px; color:#92a5b1; font-size:9px; font-weight:700; letter-spacing:.13em; }
+.poi-card-price { color:#f0f6fc; font-size:12px; line-height:1.5; overflow-wrap:anywhere; }
+.poi-card-link { display:inline-flex; align-items:center; width:fit-content; margin-top:5px; padding:7px 10px; border:1px solid #38bdf84d; border-radius:8px; background:#38bdf817; color:#8be3ff; font-size:11px; font-weight:700; text-decoration:none; }
+.poi-card-link:hover, .poi-card-link:focus-visible { background:#38bdf82b; color:#d4f5ff; }
 @media (max-width:700px) {
   .topbar { top:8px; left:10px; right:auto; height:50px; max-width:calc(100vw - 20px); padding:0 10px; border-radius:999px; gap:9px; }
   .menu-toggle { display:grid; }
