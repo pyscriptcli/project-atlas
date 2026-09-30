@@ -1,7 +1,7 @@
 'use client';
 
 import maplibregl, { LngLatBounds, Map as MapLibreMap } from 'maplibre-gl';
-import { Box, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, Flame, LoaderCircle, Map as MapIcon, MapPin, MapPinned, Network, RotateCcw, Table2, X } from 'lucide-react';
+import { Box, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, Flame, LoaderCircle, Map as MapIcon, MapPin, MapPinned, Network, Table2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature as GeoFeature, FeatureCollection, Geometry } from 'geojson';
 import { ALL_STYLES, VIS_MAP } from '../gis/map';
@@ -15,9 +15,9 @@ type DisplayMode = 'pins' | 'heatmap' | 'clusters';
 type FocusArea = { id: string; name: string; bounds: [number, number, number, number]; match: (feature: AtlasFeature) => boolean };
 const TIER_COLORS: Record<PriceTier, string> = { high: '#ef4444', mid: '#facc15', low: '#22c55e' };
 const FOCUS_AREAS: FocusArea[] = [
-  { id: 'scout', name: 'Scout Area', bounds: [121.018, 14.625, 121.047, 14.651], match: feature => areaMatches(feature, ['scout area', 'scout neighborhood', 'scout']) },
-  { id: 'maginhawa', name: 'Maginhawa', bounds: [121.055, 14.635, 121.084, 14.666], match: feature => areaMatches(feature, ['maginhawa']) },
-  { id: 'katipunan', name: 'Katipunan', bounds: [121.064, 14.625, 121.096, 14.658], match: feature => areaMatches(feature, ['katipunan']) },
+  { id: 'scout', name: 'Scout Area', bounds: [121.018, 14.625, 121.047, 14.651], match: feature => areaMatches(feature, ['scout area', 'scout neighborhood', 'scout'], ['maginhawa', 'katipunan']) },
+  { id: 'maginhawa', name: 'Maginhawa', bounds: [121.054, 14.635, 121.0739, 14.668], match: feature => areaMatches(feature, ['maginhawa'], ['katipunan', 'scout']) },
+  { id: 'katipunan', name: 'Katipunan', bounds: [121.0741, 14.622, 121.102, 14.661], match: feature => areaMatches(feature, ['katipunan'], ['maginhawa', 'scout']) },
 ];
 const PROJECT_NAME = 'KOPI SAIGON';
 const PROJECT_ID = 'c5e014fa-2c16-4ad5-8f00-5d525ba954d7';
@@ -112,10 +112,11 @@ function getLocationLabel(feature: AtlasFeature): string {
   return String(address || '').trim() || coordinates || feature.name || 'Location unavailable';
 }
 
-function areaMatches(feature: AtlasFeature, terms: string[]): boolean {
+function areaMatches(feature: AtlasFeature, terms: string[], excludedTerms: string[] = []): boolean {
   const tags = feature.props?.osmTags || {};
   const searchable = [feature.name, ...Object.values(tags), feature.props?.address, feature.props?.location]
     .filter(value => typeof value === 'string').join(' ').toLowerCase();
+  if (excludedTerms.some(term => searchable.includes(term))) return false;
   if (terms.some(term => searchable.includes(term))) return true;
   const point = feature.geometry.type === 'Point' ? feature.geometry.coordinates : null;
   if (!point || !point.every(Number.isFinite)) return false;
@@ -444,6 +445,14 @@ export default function KopiSaigonPage() {
     refreshMap(stop, focusAreaRef.current);
     setMenuOpen(true);
   };
+  const showAllPlaces = () => {
+    selectedRef.current = 'overview';
+    focusAreaRef.current = null;
+    setSelected('overview');
+    setFocusArea(null);
+    refreshMap(undefined, null);
+    setMenuOpen(true);
+  };
   const toggleArea = (area: FocusArea) => {
     const nextArea = focusAreaRef.current?.id === area.id ? null : area;
     focusAreaRef.current = nextArea;
@@ -463,31 +472,24 @@ export default function KopiSaigonPage() {
     map.easeTo({ pitch: threeD ? 60 : 0, bearing: threeD ? -15 : 0, duration: 800 });
     applyPerspectiveLayers(map, threeD);
   };
-  const selectedStop = stops.find(s => s.id === selected);
-  const visibleCount = focusArea
-    ? features.filter(feature => feature.kind === 'marker' && focusArea.match(feature) && (!selectedStop || selectedStop.match(feature))).length
-    : selectedStop ? selectedStop.featureIds.length : features.length;
-
   return <main className="viewer-shell">
     <div ref={mapNode} className="map-canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="KOPI SAIGON competitor map" />
-    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); navigate(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><div className="map-view-toggle" role="group" aria-label="Map perspective"><button type="button" className={`map-view-button ${!is3D ? 'active' : ''}`} aria-label="Switch to 2D map" aria-pressed={!is3D} onClick={() => setMapMode(false)}><MapIcon size={14}/><span>2D</span></button><button type="button" className={`map-view-button ${is3D ? 'active' : ''}`} aria-label="Switch to 3D map" aria-pressed={is3D} onClick={() => setMapMode(true)}><Box size={14}/><span>3D</span></button></div><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
+    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); showAllPlaces(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><div className="map-view-toggle" role="group" aria-label="Map perspective"><button type="button" className={`map-view-button ${!is3D ? 'active' : ''}`} aria-label="Switch to 2D map" aria-pressed={!is3D} onClick={() => setMapMode(false)}><MapIcon size={14}/><span>2D</span></button><button type="button" className={`map-view-button ${is3D ? 'active' : ''}`} aria-label="Switch to 3D map" aria-pressed={is3D} onClick={() => setMapMode(true)}><Box size={14}/><span>3D</span></button></div><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
     <aside className={`navigation ${menuOpen ? 'is-open' : 'is-closed'}`}>
       <div className="nav-heading"><div><span className="eyebrow">COFFEE COMPETITOR MAP</span><h1>{PROJECT_NAME}</h1><p>{loading ? 'Loading places…' : `${features.length.toLocaleString()} places on the map`}</p></div><button className="icon-button nav-collapse" aria-label="Hide menu" onClick={() => setMenuOpen(false)}><ChevronLeft size={18}/></button></div>
       {loading && <div className="state-card"><LoaderCircle className="spin" size={21}/> Loading project from Atlas…</div>}
       {error && <div className="state-card state-error"><strong>Map unavailable</strong><p>{error}</p><button onClick={() => location.reload()}>Try again</button></div>}
       {project && <>
-        <button className={`nav-item overview-item ${selected === 'overview' ? 'active' : ''}`} onClick={() => navigate()}><span className="nav-icon"><Compass size={17}/></span><span><b>All places</b><small>Clear price filter</small></span><span className="nav-count">{features.length}</span></button>
         <div className="display-section"><span className="eyebrow">MAP DISPLAY</span><div className="display-toggle" role="group" aria-label="POI map display">{([
           { id: 'pins', name: 'Pins', icon: MapPin },
           { id: 'heatmap', name: 'Heatmap', icon: Flame },
           { id: 'clusters', name: 'Clusters', icon: Network },
         ] as const).map(option => <button key={option.id} type="button" className={`display-button ${displayMode === option.id ? 'active' : ''}`} aria-pressed={displayMode === option.id} onClick={() => chooseDisplayMode(option.id)}><option.icon size={14}/><span>{option.name}</span></button>)}</div></div>
-        <div className="nav-section area-section"><span className="eyebrow">EXPLORE AN AREA</span><p className="section-hint">Zoom to an area and highlight nearby cafés.</p>{FOCUS_AREAS.map(area => {
+        <div className="nav-section area-section"><div className="area-heading-row"><span className="eyebrow">EXPLORE AN AREA</span><button type="button" className={`all-places-compact ${selected === 'overview' && !focusArea ? 'active' : ''}`} aria-pressed={selected === 'overview' && !focusArea} onClick={showAllPlaces}><Compass size={14}/><span>All places</span><small>{features.length}</small></button></div><p className="section-hint">Zoom to an area and highlight nearby cafés.</p>{FOCUS_AREAS.map(area => {
           const areaCount = features.filter(feature => feature.kind === 'marker' && area.match(feature)).length;
           return <button key={area.id} className={`area-button ${focusArea?.id === area.id ? 'active' : ''}`} aria-pressed={focusArea?.id === area.id} onClick={() => toggleArea(area)}><span className="area-button-icon"><MapPinned size={16}/></span><span><b>{area.name}</b><small>{areaCount} places</small></span><span className="area-check">{focusArea?.id === area.id ? 'On' : 'View'}</span></button>;
         })}</div>
         <div className="nav-section tier-section"><span className="eyebrow">FILTER BY PRICE</span>{stops.map(stop => <button key={stop.id} className={`tier-button ${selected === stop.id ? 'active' : ''}`} aria-pressed={selected === stop.id} onClick={() => navigate(stop)}><span className={`tier-dot tier-${stop.id.slice(5)}`} /><span><b>{stop.title}</b><small>{stop.featureIds.length} cafés</small></span><span className="nav-count">{stop.featureIds.length}</span></button>)}<button className="open-table-button" onClick={() => setTableOpen(true)}><Table2 size={16}/><span>Open price table</span><ChevronRight size={15}/></button></div>
-        <div className="nav-foot"><div className="active-view"><span className="eyebrow">SHOWING</span><b>{focusArea?.name || selectedStop?.title || 'All places'}</b><small>{visibleCount.toLocaleString()} places</small></div><button className="reset-view-button" onClick={() => { selectedRef.current = 'overview'; focusAreaRef.current = null; setSelected('overview'); setFocusArea(null); refreshMap(undefined, null); }}><RotateCcw size={15}/><span>Reset map</span></button></div>
       </>}
     </aside>
     {!menuOpen && project && <button className="reopen-nav" onClick={() => setMenuOpen(true)}><MapPinned size={16}/> Explore map <ChevronRight size={16}/></button>}

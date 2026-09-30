@@ -41,7 +41,6 @@ button { color:inherit; cursor:pointer; }
 .nav-item>span:nth-child(2) { min-width:0; flex:1; }
 .nav-item b { display:block; overflow:hidden; color:#e6ede6; font-size:12px; font-weight:600; text-overflow:ellipsis; white-space:nowrap; }
 .nav-item small { display:block; margin-top:3px; overflow:hidden; color:#829187; font-size:10px; text-overflow:ellipsis; white-space:nowrap; }
-.overview-item { margin-top:8px; }
 .nav-count { min-width:24px; color:#a8b9ac; text-align:right; font-size:10px; font-variant-numeric:tabular-nums; }
 .display-section { flex:0 0 auto; padding:11px 8px 12px; border-top:1px solid #ffffff0b; }
 .display-section>.eyebrow { display:block; padding:0 1px 8px; }
@@ -78,12 +77,11 @@ button { color:inherit; cursor:pointer; }
 .tier-button:hover { background:#ffffff08; }
 .tier-button.active { border-color:#ffffff35; background:#ffffff0a; }
 .tier-button>span:nth-child(2) { flex:1; min-width:0; }
-.nav-foot { flex:0 0 auto; display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:auto; padding:11px 9px 2px; border-top:1px solid var(--border); }
-.active-view { min-width:0; display:flex; flex-direction:column; gap:4px; }
-.active-view b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:12px; }
-.active-view small { color:var(--muted); font-size:10px; }
-.reset-view-button { display:flex; align-items:center; gap:6px; padding:8px 10px; border:1px solid var(--border); border-radius:9px; background:#ffffff07; color:#c9d5e1; font-size:10px; font-weight:650; }
-.reset-view-button:hover { background:#ffffff12; }
+.area-heading-row { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:0 6px 2px 9px; }
+.all-places-compact { flex:0 0 auto; display:flex; align-items:center; gap:6px; padding:6px 8px; border:1px solid #ffffff1c; border-radius:8px; background:#ffffff05; color:#b9c8d6; font-size:10px; font-weight:650; }
+.all-places-compact small { color:#95a5b5; font-size:9px; }
+.all-places-compact:hover { background:#ffffff0c; }
+.all-places-compact.active { border-color:#38bdf84d; background:#38bdf812; color:#d8f7ff; }
 .state-card { display:flex; align-items:center; gap:10px; padding:13px; border:1px solid var(--border); border-radius:12px; color:#c3d0c6; font-size:12px; }
 .state-error { display:block; border-color:#da816533; background:#d34e2810; }
 .state-error p { color:#acb8ad; line-height:1.5; }
