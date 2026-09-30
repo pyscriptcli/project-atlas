@@ -20,7 +20,7 @@ function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId
   ['kopi-areas-fill', 'kopi-areas-line', 'kopi-poi-dots', 'kopi-poi-labels'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
   if (map.getSource('kopi-features')) map.removeSource('kopi-features');
   const active = makeStops(features).find(stop => stop.id === selectedId);
-  map.addSource('kopi-features', { type: 'geojson', data: featureCollection(features, active ? new Set(active.featureIds) : undefined) });
+  map.addSource('kopi-features', { type: 'geojson', data: featureCollection(features, active?.match) });
   map.addLayer({ id: 'kopi-areas-fill', type: 'fill', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'selected'], 0.16, 0.035] } });
   map.addLayer({ id: 'kopi-areas-line', type: 'line', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon', 'LineString', 'MultiLineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'selected'], 2.2, 1], 'line-opacity': ['case', ['get', 'selected'], 0.9, 0.24] } });
   map.addLayer({ id: 'kopi-poi-dots', type: 'circle', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 15, 7], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#f7f8fa', 'circle-stroke-width': 1.5, 'circle-opacity': ['case', ['get', 'selected'], 0.96, 0.18] } });
@@ -75,12 +75,12 @@ function getGoogleMapsUrl(feature: AtlasFeature): string {
   return url.toString();
 }
 
-function featureCollection(features: AtlasFeature[], selectedIds?: Set<number>): FeatureCollection<Geometry> {
+function featureCollection(features: AtlasFeature[], selectedPoi?: (feature: AtlasFeature) => boolean): FeatureCollection<Geometry> {
   return {
     type: 'FeatureCollection',
-    // Tier navigation filters POI markers out of the source so unselected
-    // price tiers cannot remain visible or interactive on the map.
-    features: features.filter(f => f?.geometry && f.props?.visible !== 0 && (!selectedIds || f.kind !== 'marker' || selectedIds.has(f.id))).map(f => ({
+    // Tier navigation filters POIs by feature data, not numeric feature IDs.
+    // Imported Atlas IDs can collide when markers are created in quick scans.
+    features: features.filter(f => f?.geometry && f.props?.visible !== 0 && (!selectedPoi || f.kind !== 'marker' || selectedPoi(f))).map(f => ({
       type: 'Feature', id: f.id,
       geometry: f.geometry,
       properties: {
@@ -89,7 +89,7 @@ function featureCollection(features: AtlasFeature[], selectedIds?: Set<number>):
         label: f.props?.showLabel === false ? '' : (f.name || ''),
         category: f.props?.amenityGroupLabel || f.props?.category || f.props?.poiType || f.kind,
         priceLabel: getPriceLabel(f),
-        selected: !selectedIds || selectedIds.has(f.id),
+        selected: !selectedPoi || selectedPoi(f),
       },
     })) as GeoFeature<Geometry>[],
   };
@@ -128,12 +128,12 @@ function makeStops(features: AtlasFeature[]): Stop[] {
   const places = features.filter(feature => feature.kind === 'marker' && feature.geometry?.type === 'Point');
   const ranked = places.filter(feature => getExplicitPriceTier(feature) == null && getPricePhp(feature) != null)
     .sort((a, b) => (getPricePhp(a) || 0) - (getPricePhp(b) || 0));
-  const inferred = new Map<number, PriceTier>();
+  const inferred = new Map<AtlasFeature, PriceTier>();
   ranked.forEach((feature, index) => {
     const percentile = (index + 0.5) / ranked.length;
-    inferred.set(feature.id, percentile < 1 / 3 ? 'low' : percentile < 2 / 3 ? 'mid' : 'high');
+    inferred.set(feature, percentile < 1 / 3 ? 'low' : percentile < 2 / 3 ? 'mid' : 'high');
   });
-  const tierFor = (feature: AtlasFeature): PriceTier | null => getExplicitPriceTier(feature) || inferred.get(feature.id) || null;
+  const tierFor = (feature: AtlasFeature): PriceTier | null => getExplicitPriceTier(feature) || inferred.get(feature) || null;
   return (['high', 'mid', 'low'] as const).map(tier => {
     const matching = places.filter(feature => tierFor(feature) === tier);
     const title = `${tier[0].toUpperCase()}${tier.slice(1)} tier`;
@@ -185,7 +185,7 @@ export default function KopiSaigonPage() {
   const refreshMap = useCallback((focus?: Stop) => {
     const map = mapRef.current;
     if (!map || !sourceReady.current) return;
-    const chosen = focus ? new Set(focus.featureIds) : undefined;
+    const chosen = focus?.match;
     const source = map.getSource('kopi-features') as maplibregl.GeoJSONSource | undefined;
     source?.setData(featureCollection(features, chosen));
     const targetFeatures = focus ? features.filter(f => focus.match(f)) : features;
@@ -330,7 +330,7 @@ export default function KopiSaigonPage() {
     const stop = makeStops(features).find(item => item.id === selectedRef.current);
     const updateSource = () => {
       const source = map.getSource('kopi-features') as maplibregl.GeoJSONSource | undefined;
-      source?.setData(featureCollection(features, stop ? new Set(stop.featureIds) : undefined));
+      source?.setData(featureCollection(features, stop?.match));
     };
     const desiredStyle = project.basemap || 'Midnight Blue';
     const editorCamera = JSON.stringify([project.center, project.zoom, project.pitch, project.bearing]);
