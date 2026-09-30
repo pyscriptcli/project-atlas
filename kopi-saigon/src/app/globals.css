@@ -6,13 +6,14 @@ button,a { font:inherit; }
 button { color:inherit; cursor:pointer; }
 .viewer-shell { position:relative; width:100vw; height:100dvh; overflow:hidden; background:var(--bg); }
 .map-canvas { position:absolute; inset:0; }
+.map-canvas.maplibregl-map { position:absolute !important; inset:0 !important; width:100% !important; height:100% !important; }
 .map-canvas .maplibregl-canvas { outline:none; }
 .map-canvas .maplibregl-ctrl-group { border:1px solid var(--border); border-radius:12px; overflow:hidden; background:rgba(9,16,24,.96); box-shadow:0 10px 34px #0008; }
 .map-canvas .maplibregl-ctrl button { background-color:transparent; }
 .map-canvas .maplibregl-ctrl button span { filter:invert(1); }
 .map-canvas .maplibregl-ctrl-attrib { background:rgba(9,16,24,.9); color:#bac6bd; border-radius:6px 0 0 0; }
 .map-canvas .maplibregl-ctrl-attrib a { color:#7dd3fc; }
-.topbar { position:absolute; z-index:3; top:12px; left:50%; transform:translateX(-50%); max-width:calc(100vw - 24px); height:56px; padding:0 13px; display:flex; align-items:center; justify-content:space-between; gap:15px; border:1px solid rgba(255,255,255,.15); border-radius:999px; background:rgba(0,0,0,.9); box-shadow:0 10px 32px #0008; backdrop-filter:blur(20px); }
+.topbar { position:absolute; z-index:3; top:12px; left:16px; max-width:calc(100vw - 32px); height:56px; padding:0 13px; display:flex; align-items:center; justify-content:space-between; gap:15px; border:1px solid rgba(255,255,255,.15); border-radius:999px; background:rgba(0,0,0,.9); box-shadow:0 10px 32px #0008; backdrop-filter:blur(20px); }
 .brand { display:flex; align-items:center; gap:11px; color:inherit; text-decoration:none; }
 .brand-mark { display:grid; width:34px; height:34px; place-items:center; border-radius:50%; color:var(--mint); background:#38bdf814; border:1px solid #38bdf82b; }
 .brand strong { display:block; font:700 12px 'Century Gothic Atlas',sans-serif; letter-spacing:.015em; }
@@ -42,6 +43,11 @@ button { color:inherit; cursor:pointer; }
 .nav-section { min-height:0; overflow-y:auto; padding:11px 1px 3px; border-top:1px solid #ffffff0b; }
 .nav-section>.eyebrow { display:block; padding:0 9px 5px; }
 .nav-section .nav-item { min-height:49px; }
+.tier-section { padding-top:16px; }
+.tier-dot { width:9px; height:9px; flex:0 0 9px; margin:0 10px; border-radius:50%; background:#94a3b8; box-shadow:0 0 0 4px #ffffff08; }
+.tier-dot.tier-high { background:#fb7185; box-shadow:0 0 0 4px #fb71851b; }
+.tier-dot.tier-mid { background:#fbbf24; box-shadow:0 0 0 4px #fbbf241b; }
+.tier-dot.tier-low { background:#34d399; box-shadow:0 0 0 4px #34d3991b; }
 .nav-chevron { color:#728077; }
 .nav-foot { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:auto; padding:11px 9px 2px; border-top:1px solid var(--border); }
 .active-view { min-width:0; display:flex; flex-direction:column; gap:4px; }
@@ -58,7 +64,7 @@ button { color:inherit; cursor:pointer; }
 .map-caption { position:absolute; left:372px; bottom:22px; display:flex; align-items:center; gap:9px; padding:10px 13px; border:1px solid rgba(255,255,255,.15); border-radius:999px; background:rgba(9,16,24,.94); box-shadow:0 6px 20px #0006; color:#e6edf3; font-size:11px; backdrop-filter:blur(12px); }
 .caption-dot { width:7px; height:7px; border-radius:50%; background:#22d3ee; }
 .caption-divider { width:1px; height:14px; margin:0 2px; background:#ffffff26; }
-.atlas-credit { position:absolute; right:18px; top:82px; display:flex; gap:6px; align-items:center; padding:7px 9px; border:1px solid rgba(255,255,255,.15); border-radius:999px; background:rgba(9,16,24,.92); color:#cbd5e1; font-size:10px; text-decoration:none; backdrop-filter:blur(12px); }
+.atlas-credit { position:absolute; right:18px; top:82px; display:flex; gap:6px; align-items:center; padding:7px 9px; border:1px solid rgba(255,255,255,.15); border-radius:999px; background:rgba(9,16,24,.92); color:#cbd5e1; font-size:10px; user-select:none; backdrop-filter:blur(12px); }
 .map-hint { position:absolute; right:18px; bottom:22px; display:flex; align-items:center; gap:9px; color:#aab7c4; font-size:10px; }
 .map-hint button { width:30px;height:30px; display:grid; place-items:center; border:1px solid rgba(255,255,255,.18); border-radius:9px; background:rgba(9,16,24,.94); color:#cbd5e1; }
 .reopen-nav { position:absolute; z-index:2; left:16px; top:82px; display:flex; gap:8px; align-items:center; padding:11px 13px; border:1px solid rgba(255,255,255,.2); border-radius:12px; background:rgba(9,16,24,.96); color:#e6edf3; box-shadow:0 6px 20px #0006; font-size:12px; }
@@ -66,7 +72,7 @@ button { color:inherit; cursor:pointer; }
 .kopi-popup .maplibregl-popup-tip { border-top-color:#101715; }
 .kopi-popup .maplibregl-popup-close-button { color:#dce6db; }
 @media (max-width:700px) {
-  .topbar { top:8px; left:50%; right:auto; height:50px; padding:0 10px; border-radius:999px; gap:9px; }
+  .topbar { top:8px; left:10px; right:auto; height:50px; max-width:calc(100vw - 20px); padding:0 10px; border-radius:999px; gap:9px; }
   .menu-toggle { display:grid; }
   .navigation { left:10px; top:68px; bottom:62px; width:min(340px,calc(100vw - 20px)); }
   .navigation.is-closed { transform:translateX(calc(-100% - 18px)); }

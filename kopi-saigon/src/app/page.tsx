@@ -1,7 +1,7 @@
 'use client';
 
 import maplibregl, { LngLatBounds, Map as MapLibreMap } from 'maplibre-gl';
-import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, LoaderCircle, MapPinned, RotateCcw } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Coffee, Compass, LoaderCircle, MapPinned, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature as GeoFeature, FeatureCollection, Geometry } from 'geojson';
 import { ALL_STYLES, VIS_MAP } from '../gis/map';
@@ -10,12 +10,15 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 type AtlasFeature = { id: number; name: string; kind: string; geometry: Geometry; props?: Record<string, any> };
 type AtlasProject = { id: string; name: string; basemap?: string; center?: [number, number]; zoom?: number; pitch?: number; bearing?: number; features?: AtlasFeature[]; layer_visibilities?: Record<string, boolean>; updated_at?: string };
 type Stop = { id: string; title: string; subtitle: string; featureIds: number[]; match: (f: AtlasFeature) => boolean };
+type PriceTier = 'high' | 'mid' | 'low';
 const PROJECT_NAME = 'KOPI SAIGON';
 const PROJECT_ID = 'c5e014fa-2c16-4ad5-8f00-5d525ba954d7';
 const DEFAULT_SUPABASE_URL = 'https://cyczyaswxkpdcremqnkn.supabase.co';
 const DEFAULT_SUPABASE_KEY = 'sb_publishable_pUppHGjwmT1mLlhWGZH6Og_4GcCLCPR';
 
 function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId: string) {
+  ['kopi-areas-fill', 'kopi-areas-line', 'kopi-poi-dots', 'kopi-poi-labels'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+  if (map.getSource('kopi-features')) map.removeSource('kopi-features');
   const active = makeStops(features).find(stop => stop.id === selectedId);
   map.addSource('kopi-features', { type: 'geojson', data: featureCollection(features, active ? new Set(active.featureIds) : undefined) });
   map.addLayer({ id: 'kopi-areas-fill', type: 'fill', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'selected'], 0.16, 0.035] } });
@@ -52,28 +55,63 @@ function featureCollection(features: AtlasFeature[], selectedIds?: Set<number>):
   };
 }
 
-function makeStops(features: AtlasFeature[]): Stop[] {
-  const stops: Stop[] = [];
-  const areas = new Map<string, number[]>();
-  const types = new Map<string, number[]>();
-  for (const f of features) {
-    for (const label of (f.props?.searchAreaLabels || []) as string[]) {
-      const name = String(label).trim();
-      if (name) areas.set(name, [...(areas.get(name) || []), f.id]);
-    }
-    if (f.kind === 'marker' && f.geometry?.type === 'Point') {
-      const name = String(f.props?.amenityGroupLabel || f.props?.category || f.props?.poiType || 'Other places').trim();
-      types.set(name, [...(types.get(name) || []), f.id]);
-    }
+function getPricePhp(feature: AtlasFeature): number | null {
+  const research = feature.props?.researchData;
+  if (!research || typeof research !== 'object') return null;
+  const rawRange = research.priceRangePhp ?? research.priceRangePHP;
+  if (rawRange != null) {
+    const values = String(rawRange).match(/\d+(?:[,.]\d+)?/g)?.map(value => Number(value.replace(',', ''))).filter(Number.isFinite) || [];
+    if (values.length) return values.reduce((sum, value) => sum + value, 0) / values.length;
   }
-  for (const [title, ids] of [...areas.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    stops.push({ id: `area:${title}`, title, subtitle: `${ids.length} places in this search area`, featureIds: [...new Set(ids)], match: f => (f.props?.searchAreaLabels || []).includes(title) });
+  const menuPrices = research.menuPrices;
+  if (Array.isArray(menuPrices)) {
+    const values = menuPrices.flatMap((entry: any) => {
+      if (!entry || typeof entry !== 'object' || !/^(PHP|₱|P)$/i.test(String(entry.currency || ''))) return [];
+      const match = String(entry.amount ?? entry.price ?? '').match(/\d+(?:[,.]\d+)?/);
+      return match ? [Number(match[0].replace(',', ''))] : [];
+    }).filter(Number.isFinite);
+    if (values.length) return values.reduce((sum: number, value: number) => sum + value, 0) / values.length;
   }
-  for (const [title, ids] of [...types.entries()].sort((a, b) => a[0].localeCompare(b[0]))) {
-    stops.push({ id: `type:${title}`, title, subtitle: `${ids.length} mapped places`, featureIds: [...new Set(ids)], match: f => f.kind === 'marker' && String(f.props?.amenityGroupLabel || f.props?.category || f.props?.poiType || 'Other places') === title });
-  }
-  return stops;
+  return null;
 }
+
+function getExplicitPriceTier(feature: AtlasFeature): PriceTier | null {
+  const research = feature.props?.researchData;
+  const value = String(research?.priceTier ?? research?.priceLevel ?? '').trim().toLowerCase();
+  if (value === 'high' || value === 'premium' || value === 'expensive') return 'high';
+  if (value === 'mid' || value === 'medium' || value === 'moderate') return 'mid';
+  if (value === 'low' || value === 'budget' || value === 'affordable') return 'low';
+  return null;
+}
+
+function makeStops(features: AtlasFeature[]): Stop[] {
+  const places = features.filter(feature => feature.kind === 'marker' && feature.geometry?.type === 'Point');
+  const ranked = places.filter(feature => getExplicitPriceTier(feature) == null && getPricePhp(feature) != null)
+    .sort((a, b) => (getPricePhp(a) || 0) - (getPricePhp(b) || 0));
+  const inferred = new Map<number, PriceTier>();
+  ranked.forEach((feature, index) => {
+    const percentile = (index + 0.5) / ranked.length;
+    inferred.set(feature.id, percentile < 1 / 3 ? 'low' : percentile < 2 / 3 ? 'mid' : 'high');
+  });
+  const tierFor = (feature: AtlasFeature): PriceTier | null => getExplicitPriceTier(feature) || inferred.get(feature.id) || null;
+  return (['high', 'mid', 'low'] as const).map(tier => {
+    const matching = places.filter(feature => tierFor(feature) === tier);
+    const title = `${tier[0].toUpperCase()}${tier.slice(1)} tier`;
+    return {
+      id: `tier:${tier}`, title, subtitle: `${matching.length} places · ${tier} recorded coffee prices`,
+      featureIds: matching.map(feature => feature.id), match: feature => tierFor(feature) === tier,
+    };
+  });
+}
+
+const FALLBACK_OSM_STYLE = {
+  version: 8 as const,
+  sources: { fallback: { type: 'raster' as const, tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, maxzoom: 19 } },
+  layers: [
+    { id: 'fallback-background', type: 'background' as const, paint: { 'background-color': '#e9e7df' } },
+    { id: 'fallback-osm', type: 'raster' as const, source: 'fallback' },
+  ],
+};
 
 export default function KopiSaigonPage() {
   const mapNode = useRef<HTMLDivElement>(null);
@@ -145,6 +183,27 @@ export default function KopiSaigonPage() {
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'bottom-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
+    let fallbackApplied = false;
+    const switchToOsmFallback = () => {
+      if (fallbackApplied) return;
+      fallbackApplied = true;
+      sourceReady.current = false;
+      map.once('style.load', () => {
+        addProjectLayers(map, features, selectedRef.current);
+        Object.entries(VIS_MAP).forEach(([key, layerIds]) => {
+          const visible = project.layer_visibilities?.[key] !== false;
+          layerIds.forEach(layerId => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none'); });
+        });
+        sourceReady.current = true;
+        const visibleSource = map.getSource('kopi-features') as maplibregl.GeoJSONSource | undefined;
+        visibleSource?.setData(featureCollection(features));
+      });
+      map.setStyle(FALLBACK_OSM_STYLE as any);
+    };
+    map.on('error', event => {
+      console.error('KOPI SAIGON map error:', event.error);
+      switchToOsmFallback();
+    });
     map.on('load', () => {
       addProjectLayers(map, features, selectedRef.current);
       Object.entries(VIS_MAP).forEach(([key, layerIds]) => {
@@ -152,6 +211,17 @@ export default function KopiSaigonPage() {
         layerIds.forEach(layerId => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none'); });
       });
       sourceReady.current = true;
+      const coordinates = features.flatMap(feature => positions(feature.geometry));
+      if (coordinates.length) {
+        const bounds = new LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]);
+        coordinates.slice(1).forEach(point => bounds.extend(point as [number, number]));
+        map.fitBounds(bounds, { padding: { top: 100, bottom: 90, left: menuOpen ? 390 : 90, right: 90 }, maxZoom: 15.5, duration: 0 });
+      }
+      map.once('idle', () => {
+        const basemapLayers = ['landcover', 'landuse', 'park', 'water', 'rd_major', 'rd_secondary', 'label_city']
+          .filter(layerId => map.getLayer(layerId));
+        if (basemapLayers.length && map.queryRenderedFeatures({ layers: basemapLayers }).length === 0) switchToOsmFallback();
+      });
     });
     map.on('click', 'kopi-poi-dots', e => {
       const f = e.features?.[0]; if (!f || !e.lngLat) return;
@@ -196,22 +266,21 @@ export default function KopiSaigonPage() {
   const visibleCount = selectedStop ? selectedStop.featureIds.length : features.length;
 
   return <main className="viewer-shell">
-    <div ref={mapNode} className="map-canvas" aria-label="KOPI SAIGON competitor map" />
+    <div ref={mapNode} className="map-canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="KOPI SAIGON competitor map" />
     <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); navigate(); }}><span className="brand-mark"><Coffee size={19}/></span><span><strong>KOPI SAIGON</strong><small>COMPETITOR LANDSCAPE</small></span></a><div className="top-actions"><span className="live-pill"><i/> LIVE VIEW</span><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
     <aside className={`navigation ${menuOpen ? 'is-open' : 'is-closed'}`}>
       <div className="nav-heading"><div><span className="eyebrow">ATLAS PRESENTATION</span><h1>{project?.name || PROJECT_NAME}</h1><p>{loading ? 'Connecting to Atlas…' : `${features.length.toLocaleString()} mapped places and features`}</p></div><button className="icon-button nav-collapse" aria-label="Collapse navigation" onClick={() => setMenuOpen(false)}><ChevronLeft size={18}/></button></div>
       {loading && <div className="state-card"><LoaderCircle className="spin" size={21}/> Loading project from Atlas…</div>}
       {error && <div className="state-card state-error"><strong>Map unavailable</strong><p>{error}</p><button onClick={() => location.reload()}>Try again</button></div>}
       {project && <>
-        <button className={`nav-item overview-item ${selected === 'overview' ? 'active' : ''}`} onClick={() => navigate()}><span className="nav-icon"><Compass size={17}/></span><span><b>Overview</b><small>Full competitor map</small></span><span className="nav-count">{features.length}</span></button>
-        {stops.some(s => s.id.startsWith('area:')) && <div className="nav-section"><span className="eyebrow">SEARCH AREAS</span>{stops.filter(s => s.id.startsWith('area:')).map(stop => <button key={stop.id} className={`nav-item ${selected === stop.id ? 'active' : ''}`} onClick={() => navigate(stop)}><span className="nav-icon"><MapPinned size={16}/></span><span><b>{stop.title}</b><small>{stop.subtitle}</small></span><ChevronRight className="nav-chevron" size={15}/></button>)}</div>}
-        {stops.some(s => s.id.startsWith('type:')) && <div className="nav-section"><span className="eyebrow">PLACE TYPES</span>{stops.filter(s => s.id.startsWith('type:')).map(stop => <button key={stop.id} className={`nav-item ${selected === stop.id ? 'active' : ''}`} onClick={() => navigate(stop)}><span className="nav-icon"><Coffee size={16}/></span><span><b>{stop.title}</b><small>{stop.subtitle}</small></span><ChevronRight className="nav-chevron" size={15}/></button>)}</div>}
+        <button className={`nav-item overview-item ${selected === 'overview' ? 'active' : ''}`} onClick={() => navigate()}><span className="nav-icon"><Compass size={17}/></span><span><b>All places</b><small>Full competitor map</small></span><span className="nav-count">{features.length}</span></button>
+        <div className="nav-section tier-section"><span className="eyebrow">COFFEE PRICE TIERS</span>{stops.map(stop => <button key={stop.id} className={`nav-item ${selected === stop.id ? 'active' : ''}`} onClick={() => navigate(stop)}><span className={`tier-dot tier-${stop.id.slice(5)}`} /><span><b>{stop.title}</b><small>{stop.subtitle}</small></span><span className="nav-count">{stop.featureIds.length}</span></button>)}</div>
         <div className="nav-foot"><div className="active-view"><span className="eyebrow">CURRENT VIEW</span><b>{selectedStop?.title || 'Overview'}</b><small>{visibleCount.toLocaleString()} places and features</small></div><div className="stepper"><button aria-label="Previous view" onClick={() => { const i = selected === 'overview' ? 0 : stops.findIndex(s => s.id === selected); navigate(i > 0 ? stops[i - 1] : undefined); }}><ArrowUp size={16}/></button><button aria-label="Next view" onClick={() => { const i = selected === 'overview' ? -1 : stops.findIndex(s => s.id === selected); navigate(stops[Math.min(stops.length - 1, i + 1)]); }}><ArrowDown size={16}/></button><button aria-label="Reset map view" onClick={() => navigate()}><RotateCcw size={16}/></button></div></div>
       </>}
     </aside>
     {!menuOpen && project && <button className="reopen-nav" onClick={() => setMenuOpen(true)}><MapPinned size={16}/> Explore map <ChevronRight size={16}/></button>}
     <div className="map-caption"><span className="caption-dot"/><span>{selectedStop ? selectedStop.title : 'KOPI SAIGON · Competitor overview'}</span><span className="caption-divider"/><span>{visibleCount.toLocaleString()} places</span></div>
-    <a className="atlas-credit" href="https://project-atlas-next.vercel.app" target="_blank" rel="noreferrer">Powered by Atlas <ExternalLink size={12}/></a>
+    <div className="atlas-credit" aria-label="Powered by Atlas">Powered by Atlas</div>
     <div className="map-hint"><span>Click any point to see its name</span><button onClick={() => navigate()} aria-label="Show all map features"><RotateCcw size={15}/></button></div>
   </main>;
 }
