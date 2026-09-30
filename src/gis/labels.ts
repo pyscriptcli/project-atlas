@@ -5,13 +5,7 @@ export function computeLabelFeature(f: GISFeature): any | null {
   if (!f.props.showLabel || f.props.visible === 0) return null;
 
   let labelText = f.name;
-  if (f.kind === 'route' && f.props.metadata) {
-    const dist = f.props.metadata.distance;
-    const dur = f.props.metadata.duration;
-    const distStr = dist > 1000 ? `${(dist / 1000).toFixed(2)} km` : `${Math.round(dist)} m`;
-    const durStr = dur > 3600 ? `${(dur / 3600).toFixed(1)} hr` : `${Math.round(dur / 60)} min`;
-    labelText = `${distStr} · ${durStr}`;
-  } else if (f.props.attributes && f.props.attributes.label_text) {
+  if (f.kind !== 'route' && f.props.attributes && f.props.attributes.label_text) {
     labelText = f.props.attributes.label_text;
   }
   if (!labelText) return null;

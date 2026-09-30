@@ -413,7 +413,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   const [activeWorkflowStep, setActiveWorkflowStep] = useState<1 | 2 | 3>(1);
 
   // Start with a map boundary; coordinates remain available for precise targeting.
-  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'isochrone' | 'street'>('shape');
+  const [areaMode, setAreaMode] = useState<'coords' | 'circle' | 'shape' | 'polygon' | 'isochrone' | 'street'>('shape');
   const [areaDetailsOpen, setAreaDetailsOpen] = useState(true);
   const [coordsInput, setCoordsInput] = useState<string>('14.5995, 120.9842');
   const [radiusMeters, setRadiusMeters] = useState<number>(1000);
@@ -431,7 +431,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   // Selected Drawn shapes
   const [selectedCircleIds, setSelectedCircleIds] = useState<number[]>([]);
-  const [selectedShapeIds, setSelectedShapeIds] = useState<number[]>([]);
+  const [selectedBoundaryIds, setSelectedBoundaryIds] = useState<number[]>([]);
+  const [selectedPolygonIds, setSelectedPolygonIds] = useState<number[]>([]);
   const [selectedStreetRouteIds, setSelectedStreetRouteIds] = useState<number[]>([]);
   const [streetCorridorWidthMeters, setStreetCorridorWidthMeters] = useState(1000);
   const streetRouteDrawPendingRef = useRef(false);
@@ -503,6 +504,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   // Drawn circles and shapes on MapLibre
   const drawnCircles = useMemo(() => features.filter((f) => f.kind === 'circle'), [features]);
   const drawnShapes = useMemo(() => features.filter((f) => ['polygon', 'rectangle'].includes(f.kind)), [features]);
+  const drawnBoundaries = useMemo(() => drawnShapes.filter((feature) => feature.props.attributes?.source === 'OpenStreetMap Nominatim'), [drawnShapes]);
+  const drawnPolygons = useMemo(() => drawnShapes.filter((feature) => feature.props.attributes?.source !== 'OpenStreetMap Nominatim'), [drawnShapes]);
   const drawnStreetRoutes = useMemo(() => features.filter((f) => f.kind === 'route' && f.geometry.type === 'LineString'), [features]);
   const selectedStreetRoutes = useMemo(() => drawnStreetRoutes.filter((route) => selectedStreetRouteIds.includes(route.id)), [drawnStreetRoutes, selectedStreetRouteIds]);
   const drawnShapeCountRef = useRef<number | null>(null);
@@ -510,14 +513,23 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
 
   useEffect(() => {
     if (drawnShapeCountRef.current !== null && drawnShapes.length > drawnShapeCountRef.current) {
-      setSelectedShapeIds((current) => Array.from(new Set([...current, drawnShapes[drawnShapes.length - 1].id])));
+      const addedShape = drawnShapes[drawnShapes.length - 1];
+      if (addedShape.props.attributes?.source === 'OpenStreetMap Nominatim') {
+        setSelectedBoundaryIds((current) => current.includes(addedShape.id) || current.length >= MAX_SEARCH_AREAS ? current : [...current, addedShape.id]);
+      } else {
+        setSelectedPolygonIds((current) => current.includes(addedShape.id) || current.length >= MAX_SEARCH_AREAS ? current : [...current, addedShape.id]);
+      }
     }
-    setSelectedShapeIds((current) => {
-      const valid = current.filter((id) => drawnShapes.some((feature) => feature.id === id));
+    setSelectedBoundaryIds((current) => {
+      const valid = current.filter((id) => drawnBoundaries.some((feature) => feature.id === id));
+      return valid.length === current.length ? current : valid;
+    });
+    setSelectedPolygonIds((current) => {
+      const valid = current.filter((id) => drawnPolygons.some((feature) => feature.id === id));
       return valid.length === current.length ? current : valid;
     });
     drawnShapeCountRef.current = drawnShapes.length;
-  }, [drawnShapes]);
+  }, [drawnShapes, drawnBoundaries, drawnPolygons]);
 
   useEffect(() => {
     if (drawnCircleCountRef.current !== null && drawnCircles.length > drawnCircleCountRef.current) {
@@ -699,7 +711,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
   };
 
   const addSearchedBoundary = (item: any) => {
-    if (selectedShapeIds.length >= MAX_SEARCH_AREAS) {
+    if (selectedBoundaryIds.length >= MAX_SEARCH_AREAS) {
       setToast(`You can search up to ${MAX_SEARCH_AREAS} boundaries at once.`);
       return;
     }
@@ -713,7 +725,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       },
     };
     addFeature(feature);
-    setSelectedShapeIds((current) => current.includes(id) ? current : [...current, id]);
+    setSelectedBoundaryIds((current) => current.includes(id) ? current : [...current, id]);
     setBoundaryQuery(String(item.display_name || name));
     setBoundaryResults([]);
     if (item.boundingbox && mapInstance) {
@@ -859,7 +871,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
     if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} area`;
     if (areaMode === 'street') return `within a ${(streetCorridorWidthMeters / 1000).toFixed(streetCorridorWidthMeters % 1000 ? 1 : 0)} km-wide corridor along ${selectedStreetRoutes.length} selected street route${selectedStreetRoutes.length === 1 ? '' : 's'}`;
-    if (areaMode === 'shape') return `within ${selectedShapeIds.length} selected map ${selectedShapeIds.length === 1 ? 'boundary' : 'boundaries'}`;
+    if (areaMode === 'shape') return `within ${selectedBoundaryIds.length} selected map ${selectedBoundaryIds.length === 1 ? 'boundary' : 'boundaries'}`;
+    if (areaMode === 'polygon') return `within ${selectedPolygonIds.length} selected polygon${selectedPolygonIds.length === 1 ? '' : 's'}`;
     return `within ${selectedCircleIds.length} selected map circle${selectedCircleIds.length === 1 ? '' : 's'}`;
   };
 
@@ -867,14 +880,17 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     if (areaMode === 'coords') return `${parseCoordsList()?.length || 0} location${parseCoordsList()?.length === 1 ? '' : 's'} · ${(radiusMeters / 1000).toFixed(1)} km radius`;
     if (areaMode === 'isochrone') return `${isochroneMinutes}-minute ${isochroneProfile} reach`;
     if (areaMode === 'street') return `${selectedStreetRoutes.length} street route${selectedStreetRoutes.length === 1 ? '' : 's'} · ${(streetCorridorWidthMeters / 1000).toFixed(streetCorridorWidthMeters % 1000 ? 1 : 0)} km wide`;
-    if (areaMode === 'shape') return `${selectedShapeIds.length} ${selectedShapeIds.length === 1 ? 'boundary' : 'boundaries'} selected`;
+    if (areaMode === 'shape') return `${selectedBoundaryIds.length} ${selectedBoundaryIds.length === 1 ? 'boundary' : 'boundaries'} selected`;
+    if (areaMode === 'polygon') return `${selectedPolygonIds.length} ${selectedPolygonIds.length === 1 ? 'polygon' : 'polygons'} selected`;
     return `${selectedCircleIds.length} circle${selectedCircleIds.length === 1 ? '' : 's'} selected`;
   };
 
   const isSearchAreaReady = areaMode === 'coords'
     ? Boolean(parseCoordsList()?.length && (parseCoordsList()?.length || 0) <= MAX_SEARCH_AREAS)
     : areaMode === 'shape'
-      ? selectedShapeIds.length > 0 && selectedShapeIds.length <= MAX_SEARCH_AREAS && selectedShapeIds.every((id) => drawnShapes.some((feature) => feature.id === id))
+      ? selectedBoundaryIds.length > 0 && selectedBoundaryIds.length <= MAX_SEARCH_AREAS && selectedBoundaryIds.every((id) => drawnBoundaries.some((feature) => feature.id === id))
+      : areaMode === 'polygon'
+        ? selectedPolygonIds.length > 0 && selectedPolygonIds.length <= MAX_SEARCH_AREAS && selectedPolygonIds.every((id) => drawnPolygons.some((feature) => feature.id === id))
       : areaMode === 'isochrone'
         ? Boolean(features.some((feature) => feature.id === activeIsochroneFeatureId))
         : areaMode === 'street'
@@ -895,7 +911,8 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     if (areaMode === 'coords') return `within ${(radiusMeters / 1000).toFixed(1)} km of ${parseCoordsList()?.length || 0} selected map location(s)`;
     if (areaMode === 'isochrone') return `within the selected ${isochroneMinutes}-minute ${isochroneProfile} travel area`;
     if (areaMode === 'street') return `within a ${(streetCorridorWidthMeters / 1000).toFixed(streetCorridorWidthMeters % 1000 ? 1 : 0)} km-wide corridor along ${selectedStreetRoutes.length} street route(s)`;
-    if (areaMode === 'shape') return `within ${selectedShapeIds.length} selected map boundary/boundaries`;
+    if (areaMode === 'shape') return `within ${selectedBoundaryIds.length} selected map boundary/boundaries`;
+    if (areaMode === 'polygon') return `within ${selectedPolygonIds.length} selected drawn polygon(s)`;
     return `within ${selectedCircleIds.length} selected map circle(s)`;
   };
 
@@ -1192,9 +1209,16 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
       }
       searchAreas.push({ kind: 'polygon', feature: activeIso, label: activeIso.name });
     } else if (areaMode === 'shape') {
-      const targets = selectedShapeIds.map((id) => drawnShapes.find((feature) => feature.id === id)).filter((feature): feature is GISFeature => Boolean(feature));
-      if (!targets.length || targets.length !== selectedShapeIds.length) {
-        setToast('Select one or more drawn boundaries before searching.');
+      const targets = selectedBoundaryIds.map((id) => drawnBoundaries.find((feature) => feature.id === id)).filter((feature): feature is GISFeature => Boolean(feature));
+      if (!targets.length || targets.length !== selectedBoundaryIds.length) {
+        setToast('Select one or more searched boundaries before searching.');
+        return;
+      }
+      targets.forEach((feature) => searchAreas.push({ kind: 'polygon', feature, label: feature.name }));
+    } else if (areaMode === 'polygon') {
+      const targets = selectedPolygonIds.map((id) => drawnPolygons.find((feature) => feature.id === id)).filter((feature): feature is GISFeature => Boolean(feature));
+      if (!targets.length || targets.length !== selectedPolygonIds.length) {
+        setToast('Draw and select one or more polygons before searching.');
         return;
       }
       targets.forEach((feature) => searchAreas.push({ kind: 'polygon', feature, label: feature.name }));
@@ -1928,7 +1952,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   <button
                     type="button"
                     onClick={() => setAreaMode('coords')}
-                    className={`order-3 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`order-4 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'coords'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
@@ -1939,7 +1963,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   <button
                     type="button"
                     onClick={() => setAreaMode('circle')}
-                    className={`order-2 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                    className={`order-3 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
                       areaMode === 'circle'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
@@ -1960,15 +1984,14 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                   </button>
                   <button
                     type="button"
-                    onClick={() => setAreaMode('isochrone')}
-                    className={`order-4 px-2 py-0.5 rounded-lg text-[10px] font-bold transition flex items-center gap-1 ${
-                      areaMode === 'isochrone'
+                    onClick={() => setAreaMode('polygon')}
+                    className={`order-2 px-2 py-0.5 rounded-lg text-[10px] font-bold transition ${
+                      areaMode === 'polygon'
                         ? 'bg-white text-black shadow-sm'
                         : 'text-zinc-400 hover:text-white'
                     }`}
                   >
-                    <Clock className="w-3 h-3" />
-                    <span>Travel time</span>
+                    Polygon
                   </button>
                   <button
                     type="button"
@@ -2074,10 +2097,10 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                 </div>
               )}
 
-              {/* Polygon Mode */}
+              {/* Search registered OpenStreetMap boundaries */}
               {areaMode === 'shape' && (
                 <div className="space-y-2 pt-1">
-                  <p className={`text-[9px] ${selectedShapeIds.length > MAX_SEARCH_AREAS ? 'text-amber-300' : 'text-zinc-500'}`}>{selectedShapeIds.length > MAX_SEARCH_AREAS ? `Limit each search to ${MAX_SEARCH_AREAS} boundaries.` : `Select up to ${MAX_SEARCH_AREAS} boundaries to search together.`}</p>
+                  <p className={`text-[9px] ${selectedBoundaryIds.length > MAX_SEARCH_AREAS ? 'text-amber-300' : 'text-zinc-500'}`}>{selectedBoundaryIds.length > MAX_SEARCH_AREAS ? `Limit each search to ${MAX_SEARCH_AREAS} boundaries.` : `Select one boundary or combine up to ${MAX_SEARCH_AREAS} boundaries.`}</p>
                   <div className="space-y-1.5">
                     <label className="text-[9px] font-semibold uppercase tracking-wide text-zinc-400">Search OpenStreetMap boundaries</label>
                     <form onSubmit={(event) => { event.preventDefault(); void searchBoundaries(); }} className="flex gap-1.5">
@@ -2089,17 +2112,22 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                         <span className="block truncate text-[10px] font-medium text-zinc-100">{item.display_name}</span><span className="text-[9px] capitalize text-zinc-500">{item.type || item.class || 'boundary'}</span>
                       </button>)}
                     </div>}
-                    <p className="text-[9px] text-zinc-500">Choose a result to add it to the map and select it for this search. Or draw your own boundary below.</p>
+                    <p className="text-[9px] text-zinc-500">Choose a result to add it to the map, then check one or more boundaries below.</p>
                   </div>
                   <div className="max-h-36 space-y-1 overflow-y-auto">
-                    {drawnShapes.length ? drawnShapes.map((shape) => <label key={shape.id} className="flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200"><input type="checkbox" checked={selectedShapeIds.includes(shape.id)} onChange={(event) => setSelectedShapeIds((current) => event.target.checked ? [...current, shape.id] : current.filter((id) => id !== shape.id))} className="accent-cyan-300" /><span className="min-w-0 flex-1 truncate">{shape.name}</span><span className="text-zinc-500">{shape.kind}</span></label>) : <p className="px-1 py-2 text-[10px] text-zinc-500">Draw boundaries on the map, then select the areas to include.</p>}
+                    {drawnBoundaries.length ? drawnBoundaries.map((shape) => <label key={shape.id} className="flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200"><input type="checkbox" checked={selectedBoundaryIds.includes(shape.id)} disabled={!selectedBoundaryIds.includes(shape.id) && selectedBoundaryIds.length >= MAX_SEARCH_AREAS} onChange={(event) => setSelectedBoundaryIds((current) => event.target.checked ? [...current, shape.id] : current.filter((id) => id !== shape.id))} className="accent-cyan-300" /><span className="min-w-0 flex-1 truncate">{shape.name}</span></label>) : <p className="px-1 py-2 text-[10px] text-zinc-500">Search for a boundary above to add it here.</p>}
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => { setActiveTool('polygon'); setToast('Draw a boundary on the map. Atlas will use it as the search area.'); }}
-                    className="w-full py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl text-xs font-semibold border border-white/15 transition"
-                  >
-                    {drawnShapes.length ? 'Draw another boundary' : 'Draw boundary on map'}
+                </div>
+              )}
+
+              {areaMode === 'polygon' && (
+                <div className="space-y-2 pt-1">
+                  <p className={`text-[9px] ${selectedPolygonIds.length > MAX_SEARCH_AREAS ? 'text-amber-300' : 'text-zinc-500'}`}>{selectedPolygonIds.length > MAX_SEARCH_AREAS ? `Limit each search to ${MAX_SEARCH_AREAS} polygons.` : `Select one polygon or combine up to ${MAX_SEARCH_AREAS} polygons.`}</p>
+                  <div className="max-h-36 space-y-1 overflow-y-auto">
+                    {drawnPolygons.length ? drawnPolygons.map((shape) => <label key={shape.id} className="flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200"><input type="checkbox" checked={selectedPolygonIds.includes(shape.id)} disabled={!selectedPolygonIds.includes(shape.id) && selectedPolygonIds.length >= MAX_SEARCH_AREAS} onChange={(event) => setSelectedPolygonIds((current) => event.target.checked ? [...current, shape.id] : current.filter((id) => id !== shape.id))} className="accent-cyan-300" /><span className="min-w-0 flex-1 truncate">{shape.name}</span></label>) : <p className="px-1 py-2 text-[10px] text-zinc-500">Draw custom polygons on the map, then select one or more here.</p>}
+                  </div>
+                  <button type="button" onClick={() => { setActiveTool('polygon'); setToast('Draw a polygon on the map. Atlas will use it as the search area.'); }} className="w-full rounded-xl border border-white/15 bg-white/10 py-2 text-xs font-semibold text-white transition hover:bg-white/20">
+                    {drawnPolygons.length ? 'Draw another polygon' : 'Draw polygon on map'}
                   </button>
                 </div>
               )}
@@ -2125,7 +2153,6 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
                       return <label key={route.id} className={`flex items-center gap-2 rounded-lg border border-white/5 bg-black/30 px-2.5 py-2 text-[10px] text-zinc-200 ${disabled ? 'opacity-40' : ''}`}>
                         <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => setSelectedStreetRouteIds((current) => event.target.checked ? [...current, route.id].slice(-MAX_SEARCH_AREAS) : current.filter((id) => id !== route.id))} className="accent-cyan-300" />
                         <span className="min-w-0 flex-1 truncate">{route.name}</span>
-                        <span className="text-zinc-500">{route.props.description || route.props.metadata?.distance || 'Route'}</span>
                       </label>;
                     }) : <p className="px-1 py-2 text-[10px] text-zinc-500">Draw a route to select it as the street search area.</p>}
                   </div>
