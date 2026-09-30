@@ -16,6 +16,7 @@ export const WorkspaceLauncherModal: React.FC = () => {
     deleteProject,
     updateProjectName,
     isLoading,
+    error,
   } = useProjectStore();
 
   const [activeTab, setActiveTab] = useState<'existing' | 'new'>('existing');
@@ -99,7 +100,12 @@ export const WorkspaceLauncherModal: React.FC = () => {
               </div>
             ) : projects.length === 0 ? (
               <div className="py-8 text-center text-gray-500">
-                No saved workspaces yet. Create your first one above!
+                {error ? (
+                  <div className="mx-auto max-w-sm space-y-3">
+                    <p className="text-rose-300">{error}</p>
+                    <button onClick={fetchProjects} className="rounded-lg border border-white/15 px-3 py-2 text-white hover:bg-white/10">Retry</button>
+                  </div>
+                ) : 'No saved workspaces yet. Create your first one above!'}
               </div>
             ) : (
               projects.map((p) => {

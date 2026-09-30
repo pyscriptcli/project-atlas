@@ -94,7 +94,7 @@ Set `SUPABASE_SERVICE_ROLE_KEY`, `ATLAS_EDITOR_PASSWORD=atlas`, and a long rando
 
 Editor sign-in is currently disabled unless `ATLAS_EDITOR_AUTH_ENABLED=true`. In this open mode, visitors have editor access. Set it to `true` to restore the sign-in gate.
 
-Apply `supabase/migrations/202609300001_published_project_view_links.sql` before enabling the new login. It creates published snapshot storage and removes direct browser access to `map_projects`; project persistence now goes through authenticated server routes. Never prefix service-role or session secrets with `NEXT_PUBLIC_`.
+Apply `supabase/migrations/202609300001_published_project_view_links.sql` and `supabase/migrations/202609300002_restore_public_project_reads.sql`. The first creates published snapshot storage and removes browser writes; the second restores the existing read-only project list used by Atlas previews. Project writes go through server routes. Never prefix service-role or session secrets with `NEXT_PUBLIC_`.
 
 Use the share button in the editor toolbar to publish a stable, view-only link. Overview captures the current map camera; named stops capture additional camera positions and can be reordered. Republish updates the snapshot at the same URL; revoke disables that URL. Viewer routes expose only the published snapshot and have no project save or editing controls.
 - **Keyboard Shortcuts**:

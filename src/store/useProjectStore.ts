@@ -3,7 +3,7 @@ import { MapProject } from '../types/gis';
 import { useMapStore } from './useMapStore';
 
 async function projectRequest<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, { ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
+  const response = await fetch(url, { cache: 'no-store', ...init, headers: { 'Content-Type': 'application/json', ...init?.headers } });
   const result = await response.json().catch(() => null);
   if (!response.ok) throw new Error(result?.error || 'Project request failed');
   return result as T;
