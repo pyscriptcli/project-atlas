@@ -211,7 +211,9 @@ export default function KopiSaigonPage() {
       if (!projects.length) throw new Error(`KOPI SAIGON project ${PROJECT_ID} was not found or is not readable.`);
       const latest = projects[0];
       if (latest.id !== PROJECT_ID) throw new Error('The KOPI SAIGON viewer received an unexpected project.');
-      setProject(current => current && current.updated_at === latest.updated_at ? current : latest);
+      // Atlas is the source of truth. Compare the full row as a fallback in
+      // case two saves share the same timestamp precision.
+      setProject(current => current && JSON.stringify(current) === JSON.stringify(latest) ? current : latest);
       setError('');
     } catch (err) {
       setError(current => current || (err instanceof Error ? err.message : 'Could not load the KOPI SAIGON project.'));
@@ -223,7 +225,16 @@ export default function KopiSaigonPage() {
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadProject();
     }, 15000);
-    return () => window.clearInterval(timer);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === 'visible') void loadProject();
+    };
+    window.addEventListener('focus', refreshWhenVisible);
+    document.addEventListener('visibilitychange', refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener('focus', refreshWhenVisible);
+      document.removeEventListener('visibilitychange', refreshWhenVisible);
+    };
   }, [loadProject]);
 
   useEffect(() => {
