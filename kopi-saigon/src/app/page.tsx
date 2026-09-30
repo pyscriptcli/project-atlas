@@ -9,8 +9,9 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 
 type AtlasFeature = { id: number; name: string; kind: string; geometry: Geometry; props?: Record<string, any> };
 type AtlasProject = { id: string; name: string; basemap?: string; center?: [number, number]; zoom?: number; pitch?: number; bearing?: number; features?: AtlasFeature[]; layer_visibilities?: Record<string, boolean>; updated_at?: string };
-type Stop = { id: string; title: string; subtitle: string; featureIds: number[]; match: (f: AtlasFeature) => boolean };
+type Stop = { id: string; title: string; subtitle: string; tier: PriceTier; featureIds: number[]; match: (f: AtlasFeature) => boolean };
 type PriceTier = 'high' | 'mid' | 'low';
+const TIER_COLORS: Record<PriceTier, string> = { high: '#fb7185', mid: '#fbbf24', low: '#34d399' };
 const PROJECT_NAME = 'KOPI SAIGON';
 const PROJECT_ID = 'c5e014fa-2c16-4ad5-8f00-5d525ba954d7';
 const DEFAULT_SUPABASE_URL = 'https://cyczyaswxkpdcremqnkn.supabase.co';
@@ -20,7 +21,7 @@ function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId
   ['kopi-areas-fill', 'kopi-areas-line', 'kopi-poi-dots', 'kopi-poi-labels'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
   if (map.getSource('kopi-features')) map.removeSource('kopi-features');
   const active = makeStops(features).find(stop => stop.id === selectedId);
-  map.addSource('kopi-features', { type: 'geojson', data: featureCollection(features, active?.match) });
+  map.addSource('kopi-features', { type: 'geojson', data: featureCollection(features, active?.match, active?.tier) });
   map.addLayer({ id: 'kopi-areas-fill', type: 'fill', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'selected'], 0.16, 0.035] } });
   map.addLayer({ id: 'kopi-areas-line', type: 'line', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon', 'LineString', 'MultiLineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'selected'], 2.2, 1], 'line-opacity': ['case', ['get', 'selected'], 0.9, 0.24] } });
   map.addLayer({ id: 'kopi-poi-dots', type: 'circle', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 15, 7], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#f7f8fa', 'circle-stroke-width': 1.5, 'circle-opacity': ['case', ['get', 'selected'], 0.96, 0.18] } });
@@ -75,7 +76,7 @@ function getGoogleMapsUrl(feature: AtlasFeature): string {
   return url.toString();
 }
 
-function featureCollection(features: AtlasFeature[], selectedPoi?: (feature: AtlasFeature) => boolean): FeatureCollection<Geometry> {
+function featureCollection(features: AtlasFeature[], selectedPoi?: (feature: AtlasFeature) => boolean, selectedTier?: PriceTier): FeatureCollection<Geometry> {
   return {
     type: 'FeatureCollection',
     // Tier navigation filters POIs by feature data, not numeric feature IDs.
@@ -85,7 +86,7 @@ function featureCollection(features: AtlasFeature[], selectedPoi?: (feature: Atl
       geometry: f.geometry,
       properties: {
         id: f.id, name: f.name || 'Unnamed place', kind: f.kind,
-        color: f.props?.color || f.props?.fillColor || '#39c6be',
+        color: f.kind === 'marker' && selectedTier && selectedPoi?.(f) ? TIER_COLORS[selectedTier] : f.props?.color || f.props?.fillColor || '#39c6be',
         label: f.props?.showLabel === false ? '' : (f.name || ''),
         category: f.props?.amenityGroupLabel || f.props?.category || f.props?.poiType || f.kind,
         priceLabel: getPriceLabel(f),
@@ -139,7 +140,7 @@ function makeStops(features: AtlasFeature[]): Stop[] {
     const title = `${tier[0].toUpperCase()}${tier.slice(1)} tier`;
     return {
       id: `tier:${tier}`, title, subtitle: `${matching.length} places · ${tier} recorded coffee prices`,
-      featureIds: matching.map(feature => feature.id), match: feature => tierFor(feature) === tier,
+      tier, featureIds: matching.map(feature => feature.id), match: feature => tierFor(feature) === tier,
     };
   });
 }
@@ -187,7 +188,7 @@ export default function KopiSaigonPage() {
     if (!map || !sourceReady.current) return;
     const chosen = focus?.match;
     const source = map.getSource('kopi-features') as maplibregl.GeoJSONSource | undefined;
-    source?.setData(featureCollection(features, chosen));
+    source?.setData(featureCollection(features, chosen, focus?.tier));
     const targetFeatures = focus ? features.filter(f => focus.match(f)) : features;
     const points = targetFeatures.flatMap(f => positions(f.geometry));
     if (points.length) {
@@ -330,7 +331,7 @@ export default function KopiSaigonPage() {
     const stop = makeStops(features).find(item => item.id === selectedRef.current);
     const updateSource = () => {
       const source = map.getSource('kopi-features') as maplibregl.GeoJSONSource | undefined;
-      source?.setData(featureCollection(features, stop?.match));
+      source?.setData(featureCollection(features, stop?.match, stop?.tier));
     };
     const desiredStyle = project.basemap || 'Midnight Blue';
     const editorCamera = JSON.stringify([project.center, project.zoom, project.pitch, project.bearing]);
