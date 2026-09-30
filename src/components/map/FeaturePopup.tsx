@@ -34,6 +34,21 @@ export const FeaturePopup: React.FC = () => {
     ['Cuisine', osmTags.cuisine ? humanize(osmTags.cuisine) : ''],
   ];
   const readablePlaceDetails: Array<[string, string]> = placeDetailCandidates.flatMap(([label, value]) => value ? [[label, String(value)]] : []);
+  const researchData = (f.props?.researchData || {}) as Record<string, unknown>;
+  const normalizePriceRange = (value: unknown, currency: 'PHP' | 'MYR') => {
+    if (value == null || value === '') return '—';
+    const formatted = String(value).trim()
+      .replace(/(?:\bPHP\b|₱)\s*/gi, 'PHP ')
+      .replace(/(?:\bMYR\b|\bRM\b)\s*/gi, 'MYR ')
+      .trim();
+    const hasCurrency = currency === 'PHP' ? /\bPHP\b/.test(formatted) : /\bMYR\b/.test(formatted);
+    return hasCurrency ? formatted : `${currency} ${formatted}`;
+  };
+  const hasPriceRange = researchData.priceRangePhp != null || researchData.priceRangePHP != null || researchData.priceRangeMyr != null || researchData.priceRangeMYR != null;
+  const priceRange = `${normalizePriceRange(researchData.priceRangePhp ?? researchData.priceRangePHP, 'PHP')} / ${normalizePriceRange(researchData.priceRangeMyr ?? researchData.priceRangeMYR, 'MYR')}`;
+  const googleMapsUrl = f.geometry.type === 'Point'
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${f.geometry.coordinates[1]},${f.geometry.coordinates[0]}`)}`
+    : null;
 
   let primaryImage: string | null = null;
   if (f.props.attrRows && f.props.attrRows.length > 0 && f.props.attrTypes) {
@@ -101,9 +116,14 @@ export const FeaturePopup: React.FC = () => {
         />
       )}
 
-      {/* Coordinate Pill if Point */}
+      {/* Places link or coordinates for other point features */}
       {f.geometry.type === 'Point' && (
-        <div className="flex items-center justify-between p-2 mb-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px]">
+        isOpenNodePlace && googleMapsUrl ? (
+          <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 mb-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px] text-zinc-200 hover:bg-white/[0.07] hover:text-white" aria-label={`View ${displayName} in Google Maps`}>
+            <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-cyan-300" /><span>View in Google Maps</span></span>
+            <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
+          </a>
+        ) : <div className="flex items-center justify-between p-2 mb-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px]">
           <span className="font-mono text-zinc-400 flex items-center gap-1">
             <MapPin className="w-3 h-3 text-white" />
             <span>{f.geometry.coordinates[1].toFixed(5)}, {f.geometry.coordinates[0].toFixed(5)}</span>
@@ -122,12 +142,15 @@ export const FeaturePopup: React.FC = () => {
       {/* Attribute Properties List */}
       <div className="max-h-48 overflow-y-auto pr-1 flex flex-col gap-1 mb-3">
         {isOpenNodePlace ? (
-          readablePlaceDetails.map(([label, value]) => (
+          <>
+          {readablePlaceDetails.map(([label, value]) => (
             <div key={label} className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/5 border-b border-white/5 transition">
               <span className="text-zinc-400 text-[10px] truncate max-w-[100px]">{label}</span>
               <span className="text-zinc-200 text-right font-medium text-[10.5px] truncate max-w-[170px]">{value}</span>
             </div>
-          ))
+          ))}
+          {hasPriceRange && <div className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg border-b border-white/5"><span className="text-zinc-400 text-[10px]">Price range (PHP / MYR)</span><span className="text-zinc-200 text-right font-medium text-[10.5px]">{priceRange}</span></div>}
+          </>
         ) : f.props.attributes && Object.keys(f.props.attributes).length > 0 ? (
           Object.entries(f.props.attributes)
             .filter(([_, v]) => typeof v === 'string' && !v.startsWith('data:image'))

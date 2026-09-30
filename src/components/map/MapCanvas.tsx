@@ -433,6 +433,38 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       });
 
       map.addLayer({
+        id: 'draw-poi-labels',
+        type: 'symbol',
+        source: 'draw',
+        minzoom: 15,
+        filter: [
+          'all',
+          ['==', ['geometry-type'], 'Point'],
+          ['==', ['get', 'managedBy'], 'open-node'],
+          ['!=', ['coalesce', ['get', 'visible'], 1], 0],
+          ['!=', ['coalesce', ['get', 'name'], ''], ''],
+        ],
+        layout: {
+          visibility: 'visible',
+          'text-field': ['get', 'name'],
+          'text-font': ['Noto Sans Regular'],
+          'text-size': ['interpolate', ['linear'], ['zoom'], 15, 10, 18, 13],
+          'text-anchor': 'bottom',
+          'text-offset': [0, -1.8],
+          'text-max-width': 12,
+          'text-padding': 2,
+          'text-allow-overlap': false,
+          'text-ignore-placement': false,
+        },
+        paint: {
+          'text-color': '#ffffff',
+          'text-halo-color': '#111827',
+          'text-halo-width': 1.5,
+          'text-halo-blur': 0.2,
+        },
+      });
+
+      map.addLayer({
         id: 'draw-text',
         type: 'symbol',
         source: 'draw',
@@ -604,6 +636,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         ...(openNodeDisplayMode === 'pins' ? [] : [['!=', ['get', 'managedBy'], 'open-node'] as any]),
       ] as any);
     }
+    const poiLabels = map.getLayer('draw-poi-labels');
+    if (poiLabels) map.setLayoutProperty('draw-poi-labels', 'visibility', openNodeDisplayMode === 'pins' ? 'visible' : 'none');
     const clusterVisibility = openNodeDisplayMode === 'clusters' ? 'visible' : 'none';
     ['open-node-cluster-circles', 'open-node-cluster-count', 'open-node-cluster-points'].forEach((id) => {
       if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', clusterVisibility);
