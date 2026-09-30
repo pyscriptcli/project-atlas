@@ -4,14 +4,25 @@ import maplibregl, { LngLatBounds, Map as MapLibreMap } from 'maplibre-gl';
 import { ArrowDown, ArrowUp, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, LoaderCircle, MapPinned, RotateCcw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature as GeoFeature, FeatureCollection, Geometry } from 'geojson';
+import { ALL_STYLES, VIS_MAP } from '../gis/map';
 import 'maplibre-gl/dist/maplibre-gl.css';
 
 type AtlasFeature = { id: number; name: string; kind: string; geometry: Geometry; props?: Record<string, any> };
-type AtlasProject = { id: string; name: string; center?: [number, number]; zoom?: number; pitch?: number; bearing?: number; features?: AtlasFeature[] };
+type AtlasProject = { id: string; name: string; basemap?: string; center?: [number, number]; zoom?: number; pitch?: number; bearing?: number; features?: AtlasFeature[]; layer_visibilities?: Record<string, boolean>; updated_at?: string };
 type Stop = { id: string; title: string; subtitle: string; featureIds: number[]; match: (f: AtlasFeature) => boolean };
 const PROJECT_NAME = 'KOPI SAIGON';
+const PROJECT_ID = 'c5e014fa-2c16-4ad5-8f00-5d525ba954d7';
 const DEFAULT_SUPABASE_URL = 'https://cyczyaswxkpdcremqnkn.supabase.co';
 const DEFAULT_SUPABASE_KEY = 'sb_publishable_pUppHGjwmT1mLlhWGZH6Og_4GcCLCPR';
+
+function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId: string) {
+  const active = makeStops(features).find(stop => stop.id === selectedId);
+  map.addSource('kopi-features', { type: 'geojson', data: featureCollection(features, active ? new Set(active.featureIds) : undefined) });
+  map.addLayer({ id: 'kopi-areas-fill', type: 'fill', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'selected'], 0.16, 0.035] } });
+  map.addLayer({ id: 'kopi-areas-line', type: 'line', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon', 'LineString', 'MultiLineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'selected'], 2.2, 1], 'line-opacity': ['case', ['get', 'selected'], 0.9, 0.24] } });
+  map.addLayer({ id: 'kopi-poi-dots', type: 'circle', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 15, 7], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#f7f8fa', 'circle-stroke-width': 1.5, 'circle-opacity': ['case', ['get', 'selected'], 0.96, 0.18] } });
+  map.addLayer({ id: 'kopi-poi-labels', type: 'symbol', source: 'kopi-features', filter: ['all', ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], ['!=', ['get', 'label'], '']], layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10, 16, 13], 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-max-width': 12, 'text-optional': true }, paint: { 'text-color': '#f0f6fc', 'text-halo-color': '#0a1628', 'text-halo-width': 1.5, 'text-opacity': ['case', ['get', 'selected'], 0.95, 0.22] }, minzoom: 13 });
+}
 
 function positions(geometry: Geometry): number[][] {
   const out: number[][] = [];
@@ -68,11 +79,14 @@ export default function KopiSaigonPage() {
   const mapNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const sourceReady = useRef(false);
+  const selectedRef = useRef('overview');
+  const styleNameRef = useRef('');
+  const editorCameraRef = useRef('');
   const [project, setProject] = useState<AtlasProject | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string>('overview');
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(true);
   const features = useMemo(() => project?.features || [], [project]);
   const stops = useMemo(() => makeStops(features), [features]);
 
@@ -92,70 +106,88 @@ export default function KopiSaigonPage() {
     }
   }, [features, menuOpen]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function loadProject() {
-      setLoading(true); setError('');
-      try {
-        const url = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-        const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-        const query = new URLSearchParams({ select: '*', order: 'updated_at.desc', limit: '1' });
-        const id = process.env.NEXT_PUBLIC_KOPI_SAIGON_PROJECT_ID;
-        query.set(id ? 'id' : 'name', id ? `eq.${id}` : `ilike.${PROJECT_NAME}`);
-        const response = await fetch(`${url}/rest/v1/map_projects?${query}`, { headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: 'no-store' });
-        if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Atlas could not read this project. Apply the Supabase project-read / save rollback migration, then reload.' : `Could not load the KOPI SAIGON project (HTTP ${response.status}).`);
-        const projects = await response.json() as AtlasProject[];
-        if (!projects.length) throw new Error('KOPI SAIGON is not in Atlas yet. Create or rename the project in Atlas, then reload this viewer.');
-        if (cancelled) return;
-        setProject(projects[0]);
-      } catch (err) { if (!cancelled) setError(err instanceof Error ? err.message : 'Could not load the KOPI SAIGON project.'); }
-      finally { if (!cancelled) setLoading(false); }
-    }
-    void loadProject();
-    return () => { cancelled = true; };
+  const loadProject = useCallback(async () => {
+    try {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
+      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
+      const query = new URLSearchParams({ select: '*', id: `eq.${PROJECT_ID}`, limit: '1' });
+      const response = await fetch(`${url}/rest/v1/map_projects?${query}`, { headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: 'no-store' });
+      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Atlas could not read the KOPI SAIGON project. Check Supabase read permissions.' : `Could not load the KOPI SAIGON project (HTTP ${response.status}).`);
+      const projects = await response.json() as AtlasProject[];
+      if (!projects.length) throw new Error(`KOPI SAIGON project ${PROJECT_ID} was not found or is not readable.`);
+      const latest = projects[0];
+      if (latest.id !== PROJECT_ID) throw new Error('The KOPI SAIGON viewer received an unexpected project.');
+      setProject(current => current && current.updated_at === latest.updated_at ? current : latest);
+      setError('');
+    } catch (err) {
+      setError(current => current || (err instanceof Error ? err.message : 'Could not load the KOPI SAIGON project.'));
+    } finally { setLoading(false); }
   }, []);
 
   useEffect(() => {
+    void loadProject();
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void loadProject();
+    }, 15000);
+    return () => window.clearInterval(timer);
+  }, [loadProject]);
+
+  useEffect(() => {
     if (!project || !mapNode.current || mapRef.current) return;
+    const styleName = project.basemap || 'Midnight Blue';
+    styleNameRef.current = styleName;
+    editorCameraRef.current = JSON.stringify([project.center, project.zoom, project.pitch, project.bearing]);
     const map = new maplibregl.Map({
       container: mapNode.current,
-      style: {
-        version: 8,
-        glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
-        sources: { osm: { type: 'raster', tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize: 256, attribution: '© OpenStreetMap contributors' } },
-        layers: [{ id: 'osm', type: 'raster', source: 'osm', paint: { 'raster-saturation': -0.82, 'raster-contrast': 0.08, 'raster-brightness-min': 0.08, 'raster-brightness-max': 0.76 } }],
-      },
-      center: project.center || [120.9842, 14.5995], zoom: project.zoom || 12, pitch: 0, bearing: project.bearing || 0,
+      style: ALL_STYLES[styleName] || ALL_STYLES['Midnight Blue'],
+      center: project.center || [120.9842, 14.5995], zoom: project.zoom || 12, pitch: project.pitch || 0, bearing: project.bearing || 0,
       attributionControl: false,
     });
     map.addControl(new maplibregl.NavigationControl({ showCompass: true }), 'bottom-right');
     map.addControl(new maplibregl.AttributionControl({ compact: true }), 'bottom-right');
     map.on('load', () => {
-      map.addSource('kopi-features', { type: 'geojson', data: featureCollection(features) });
-      map.addLayer({ id: 'areas-fill', type: 'fill', source: 'kopi-features', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['get', 'selected'], 0.11, 0.025] } });
-      map.addLayer({ id: 'areas-line', type: 'line', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'LineString', 'MultiLineString']]], paint: { 'line-color': ['get', 'color'], 'line-width': ['case', ['get', 'selected'], 2.2, 1], 'line-opacity': ['case', ['get', 'selected'], 0.82, 0.22] } });
-      map.addLayer({ id: 'poi-dots', type: 'circle', source: 'kopi-features', filter: ['==', ['geometry-type'], 'Point'], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 15, 7], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#f7f2e9', 'circle-stroke-width': 1.5, 'circle-opacity': ['case', ['get', 'selected'], 0.96, 0.18] } });
-      map.addLayer({ id: 'poi-labels', type: 'symbol', source: 'kopi-features', filter: ['all', ['==', ['geometry-type'], 'Point'], ['!=', ['get', 'label'], '']], layout: { 'text-field': ['get', 'label'], 'text-font': ['Open Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10, 16, 13], 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-max-width': 12, 'text-optional': true }, paint: { 'text-color': '#fffaf0', 'text-halo-color': '#11130f', 'text-halo-width': 1.5, 'text-opacity': ['case', ['get', 'selected'], 0.95, 0.22] }, minzoom: 13 });
+      addProjectLayers(map, features, selectedRef.current);
+      Object.entries(VIS_MAP).forEach(([key, layerIds]) => {
+        const visible = project.layer_visibilities?.[key] !== false;
+        layerIds.forEach(layerId => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none'); });
+      });
       sourceReady.current = true;
-      const all = features.flatMap(f => positions(f.geometry));
-      if (all.length > 1) {
-        const bounds = new LngLatBounds(all[0] as [number, number], all[0] as [number, number]);
-        all.slice(1).forEach(p => bounds.extend(p as [number, number]));
-        map.fitBounds(bounds, { padding: { top: 100, bottom: 80, left: 435, right: 90 }, maxZoom: 15, duration: 0 });
-      }
     });
-    map.on('click', 'poi-dots', e => {
+    map.on('click', 'kopi-poi-dots', e => {
       const f = e.features?.[0]; if (!f || !e.lngLat) return;
       const name = String(f.properties?.name || 'Place');
       new maplibregl.Popup({ closeButton: true, offset: 12, className: 'kopi-popup' }).setLngLat(e.lngLat).setHTML(`<strong>${name.replace(/[<>&"']/g, c => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;', "'": '&#39;' }[c] || c))}</strong>`).addTo(map);
     });
-    map.on('mouseenter', 'poi-dots', () => { map.getCanvas().style.cursor = 'pointer'; });
-    map.on('mouseleave', 'poi-dots', () => { map.getCanvas().style.cursor = ''; });
+    map.on('mouseenter', 'kopi-poi-dots', () => { map.getCanvas().style.cursor = 'pointer'; });
+    map.on('mouseleave', 'kopi-poi-dots', () => { map.getCanvas().style.cursor = ''; });
     mapRef.current = map;
     return () => { sourceReady.current = false; mapRef.current = null; map.remove(); };
-  }, [project, features]);
+  }, [project?.id]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!project || !map) return;
+    const stop = makeStops(features).find(item => item.id === selectedRef.current);
+    const updateSource = () => {
+      const source = map.getSource('kopi-features') as maplibregl.GeoJSONSource | undefined;
+      source?.setData(featureCollection(features, stop ? new Set(stop.featureIds) : undefined));
+    };
+    const desiredStyle = project.basemap || 'Midnight Blue';
+    const editorCamera = JSON.stringify([project.center, project.zoom, project.pitch, project.bearing]);
+    if (map.isStyleLoaded() && editorCamera !== editorCameraRef.current) {
+      editorCameraRef.current = editorCamera;
+      map.easeTo({ center: project.center || [120.9842, 14.5995], zoom: project.zoom || 12, pitch: project.pitch || 0, bearing: project.bearing || 0, duration: 850 });
+    }
+    if (sourceReady.current && styleNameRef.current !== desiredStyle) {
+      styleNameRef.current = desiredStyle;
+      sourceReady.current = false;
+      map.once('style.load', () => { addProjectLayers(map, features, selectedRef.current); sourceReady.current = true; });
+      map.setStyle(ALL_STYLES[desiredStyle] || ALL_STYLES['Midnight Blue']);
+    } else updateSource();
+  }, [features, project]);
 
   const navigate = (stop?: Stop) => {
+    selectedRef.current = stop?.id || 'overview';
     setSelected(stop?.id || 'overview');
     refreshMap(stop);
     setMenuOpen(true);

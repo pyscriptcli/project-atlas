@@ -8,11 +8,10 @@ Create a new Vercel project connected to this repository and set **Root Director
 
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-- `NEXT_PUBLIC_KOPI_SAIGON_PROJECT_ID` (recommended; binds the viewer to one exact project record)
 
 After deployment, assign `kopi.saigon.competitorscheck.vercel.app` in Vercel's Domains settings. Apply `supabase/migrations/202609300003_restore_pre_viewer_project_saving.sql` from the repository root to restore the project-table read permission used by this viewer as well as Atlas editing.
 
-Navigation is generated from the project's saved search-area labels and place categories, alongside an Overview. Atlas remains the only place to edit project data; changes appear here after a refresh.
+Navigation is generated from the project's saved search-area labels and place categories, alongside an Overview. The viewer polls the same project every 15 seconds so edits saved in Atlas appear without reloading. Basemap, saved camera, layer visibility, and project features follow the current Atlas project. Atlas remains the only place to edit project data.
 
 ## Local development
 
