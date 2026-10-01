@@ -822,6 +822,16 @@ export interface VicinityPresetLogo {
 export const VICINITY_PRESET_LOGOS: VicinityPresetLogo[] = [
   // Cafes & Dining
   {
+    id: 'kopi-saigon',
+    name: 'Kopi Saigon',
+    category: 'Cafe & Dining',
+    color: '#783819',
+    bg: '#ffffff',
+    border: '#783819',
+    monogram: 'KS',
+    logoUrl: '/logos/logo.svg',
+  },
+  {
     id: 'starbucks',
     name: 'Starbucks',
     category: 'Cafe & Dining',

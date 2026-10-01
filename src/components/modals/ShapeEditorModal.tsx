@@ -56,6 +56,10 @@ export const ShapeEditorModal: React.FC = () => {
   );
   const [shapeCategory, setShapeCategory] = useState<string>('All');
   const [logoCategory, setLogoCategory] = useState<string>('All');
+  const [brandSearchQuery, setBrandSearchQuery] = useState<string>('');
+  const [domainInput, setDomainInput] = useState<string>('');
+  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
+  const [isDragging, setIsDragging] = useState<boolean>(false);
   const [customLogoUrl, setCustomLogoUrl] = useState<string>(f?.props.logoUrl || '');
   const [monogramInput, setMonogramInput] = useState<string>(f?.props.logoText || '');
   const [logoFrame, setLogoFrame] = useState<'circle' | 'squircle' | 'hexagon' | 'pin-badge'>(
@@ -66,6 +70,8 @@ export const ShapeEditorModal: React.FC = () => {
   const [logoScale, setLogoScale] = useState<number>(f?.props.logoScale || 0.72);
   const [isRenderingLogo, setIsRenderingLogo] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const processImageFileRef = useRef<(file: File) => void>(() => {});
+  const applyDomainOrUrlRef = useRef<(text: string) => void>(() => {});
 
   // Keep hook order stable while the modal is closed, and refresh its draft fields
   // when the user opens the editor for a different feature.
@@ -75,6 +81,10 @@ export const ShapeEditorModal: React.FC = () => {
     setMarkerSubTab(currentFeature.props.shape === 'vicinity-logo' ? 'logos' : 'shapes');
     setShapeCategory('All');
     setLogoCategory('All');
+    setBrandSearchQuery('');
+    setDomainInput('');
+    setImgErrors({});
+    setIsDragging(false);
     setCustomLogoUrl(currentFeature.props.logoUrl || '');
     setMonogramInput(currentFeature.props.logoText || '');
     setLogoFrame(currentFeature.props.logoFrame || 'circle');
@@ -83,6 +93,44 @@ export const ShapeEditorModal: React.FC = () => {
     setLogoScale(currentFeature.props.logoScale || 0.72);
     setIsRenderingLogo(false);
   }, [selectedId]);
+
+  // Global paste handler for frictionless logo ingestion
+  useEffect(() => {
+    if (!activePanels.shapeEditor || markerSubTab !== 'logos') return;
+
+    const handlePaste = (e: ClipboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      // 1. Prioritize image binary in clipboard (from screenshot / copy-image from web)
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.indexOf('image') !== -1) {
+          const file = item.getAsFile();
+          if (file) {
+            e.preventDefault();
+            processImageFileRef.current(file);
+            return;
+          }
+        }
+      }
+
+      // 2. If user is not typing in a text field, check if clipboard text is a URL or domain
+      if (!isInput) {
+        const text = e.clipboardData?.getData('text')?.trim();
+        if (text && (text.startsWith('http://') || text.startsWith('https://') || text.includes('.'))) {
+          e.preventDefault();
+          applyDomainOrUrlRef.current(text);
+        }
+      }
+    };
+
+    window.addEventListener('paste', handlePaste);
+    return () => window.removeEventListener('paste', handlePaste);
+  }, [activePanels.shapeEditor, markerSubTab]);
 
   if (!activePanels.shapeEditor || !selectedId || !f) return null;
 
@@ -136,16 +184,127 @@ export const ShapeEditorModal: React.FC = () => {
     }
   };
 
-  const handleApplyCustomUrl = async () => {
-    if (!customLogoUrl.trim()) return;
+  const handleUpdateHousing = async (
+    newFrame?: 'circle' | 'squircle' | 'hexagon' | 'pin-badge',
+    newBg?: string,
+    newBorder?: string,
+    newScale?: number
+  ) => {
+    const frameToUse = newFrame ?? logoFrame;
+    const bgToUse = newBg ?? logoBg;
+    const borderToUse = newBorder ?? logoBorder;
+    const scaleToUse = newScale ?? logoScale;
+
+    if (newFrame) setLogoFrame(newFrame);
+    if (newBg) setLogoBg(newBg);
+    if (newBorder) setLogoBorder(newBorder);
+    if (newScale !== undefined) setLogoScale(newScale);
+
+    if (f.props.shape === 'vicinity-logo') {
+      try {
+        const map = (window as any).__map;
+        const { key, dataUrl } = await renderUniformLogoMarker(
+          {
+            logoUrl: f.props.logoUrl,
+            monogramText: f.props.logoText || 'HUB',
+            frame: frameToUse,
+            bg: bgToUse,
+            border: borderToUse,
+            scale: scaleToUse,
+            color: f.props.color,
+          },
+          map
+        );
+
+        updateFeature(f.id, (feat) => ({
+          ...feat,
+          props: {
+            ...feat.props,
+            iconKey: key,
+            customImageDataUrl: dataUrl,
+            logoFrame: frameToUse,
+            logoBg: bgToUse,
+            logoBorder: borderToUse,
+            logoScale: scaleToUse,
+          },
+        }));
+      } catch (err) {
+        console.error('Failed to update housing:', err);
+      }
+    }
+  };
+
+  const processImageFile = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const result = reader.result as string;
+      setIsRenderingLogo(true);
+      setToast('Formatting symmetric badge from image...');
+      try {
+        const map = (window as any).__map;
+        const { key, dataUrl } = await renderUniformLogoMarker(
+          {
+            logoUrl: result,
+            monogramText: file.name.slice(0, 3).toUpperCase() || 'LOGO',
+            frame: logoFrame,
+            bg: logoBg,
+            border: logoBorder,
+            scale: logoScale,
+          },
+          map
+        );
+
+        const cleanName = file.name.split('.')[0] || f.name;
+        updateFeature(f.id, (feat) => ({
+          ...feat,
+          name: cleanName,
+          props: {
+            ...feat.props,
+            shape: 'vicinity-logo',
+            iconKey: key,
+            customImageDataUrl: dataUrl,
+            logoUrl: result,
+            logoFrame,
+            logoBg,
+            logoBorder,
+            logoScale,
+          },
+        }));
+        setToast('Uniform logo badge placed!');
+      } catch (err) {
+        console.error(err);
+        setToast('Failed to format logo image');
+      } finally {
+        setIsRenderingLogo(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleApplyDomainOrUrl = async (inputStr: string) => {
+    const trimmed = inputStr.trim();
+    if (!trimmed) return;
+
     setIsRenderingLogo(true);
-    setToast('Generating symmetric logo badge from URL...');
+    let targetUrl = trimmed;
+    let brandLabel = 'Brand';
+
+    if (!trimmed.startsWith('http://') && !trimmed.startsWith('https://') && !trimmed.startsWith('data:')) {
+      const domainClean = trimmed.replace(/^https?:\/\//, '').split('/')[0];
+      targetUrl = `https://www.google.com/s2/favicons?domain=${domainClean}&sz=128`;
+      brandLabel = domainClean.split('.')[0].toUpperCase();
+      setToast(`Fetching brand logo for ${domainClean}...`);
+    } else {
+      setToast('Generating symmetric logo badge from URL...');
+    }
+
     try {
       const map = (window as any).__map;
       const { key, dataUrl } = await renderUniformLogoMarker(
         {
-          logoUrl: customLogoUrl.trim(),
-          monogramText: 'POI',
+          logoUrl: targetUrl,
+          monogramText: brandLabel.slice(0, 3),
           frame: logoFrame,
           bg: logoBg,
           border: logoBorder,
@@ -161,21 +320,30 @@ export const ShapeEditorModal: React.FC = () => {
           shape: 'vicinity-logo',
           iconKey: key,
           customImageDataUrl: dataUrl,
-          logoUrl: customLogoUrl.trim(),
+          logoUrl: targetUrl,
           logoFrame,
           logoBg,
           logoBorder,
           logoScale,
         },
       }));
-      setToast('Applied custom logo badge!');
+      setToast('Applied brand logo badge!');
+      setDomainInput('');
       setCustomLogoUrl('');
     } catch (err) {
       console.error(err);
-      setToast('Could not load logo from URL');
+      setToast('Could not load logo from source');
     } finally {
       setIsRenderingLogo(false);
     }
+  };
+
+  processImageFileRef.current = processImageFile;
+  applyDomainOrUrlRef.current = handleApplyDomainOrUrl;
+
+  const handleApplyCustomUrl = async () => {
+    if (!customLogoUrl.trim()) return;
+    await handleApplyDomainOrUrl(customLogoUrl.trim());
   };
 
   const handleApplyMonogram = async () => {
@@ -222,51 +390,9 @@ export const ShapeEditorModal: React.FC = () => {
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const result = reader.result as string;
-      setIsRenderingLogo(true);
-      setToast('Formatting symmetric badge from uploaded logo...');
-      try {
-        const map = (window as any).__map;
-        const { key, dataUrl } = await renderUniformLogoMarker(
-          {
-            logoUrl: result,
-            monogramText: 'LOGO',
-            frame: logoFrame,
-            bg: logoBg,
-            border: logoBorder,
-            scale: logoScale,
-          },
-          map
-        );
-
-        updateFeature(f.id, (feat) => ({
-          ...feat,
-          name: file.name.split('.')[0] || feat.name,
-          props: {
-            ...feat.props,
-            shape: 'vicinity-logo',
-            iconKey: key,
-            customImageDataUrl: dataUrl,
-            logoUrl: result,
-            logoFrame,
-            logoBg,
-            logoBorder,
-            logoScale,
-          },
-        }));
-        setToast('Uniform logo badge placed!');
-      } catch (err) {
-        console.error(err);
-        setToast('Failed to format uploaded logo');
-      } finally {
-        setIsRenderingLogo(false);
-        if (fileInputRef.current) fileInputRef.current.value = '';
-      }
-    };
-    reader.readAsDataURL(file);
+    if (file) {
+      processImageFile(file);
+    }
   };
 
   const handleRecalculateRoute = async () => {
@@ -809,255 +935,355 @@ export const ShapeEditorModal: React.FC = () => {
             </>
           ) : (
             /* VICINITY LOGO STUDIO */
-            <div className="flex flex-col gap-3">
-              {/* Badge Housing & Uniformity Controls */}
-              <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10.5px] font-bold text-white uppercase tracking-wider">
-                    Symmetric Housing Frame
-                  </span>
-                  <span className="text-[9px] px-1.5 py-0.2 rounded bg-white/10 text-zinc-300">
-                    Uniform Geometry
-                  </span>
-                </div>
+            (() => {
+              const filteredPresets = VICINITY_PRESET_LOGOS.filter((p) => {
+                const matchesCategory = logoCategory === 'All' || p.category === logoCategory;
+                const matchesSearch =
+                  !brandSearchQuery.trim() ||
+                  p.name.toLowerCase().includes(brandSearchQuery.toLowerCase()) ||
+                  p.monogram.toLowerCase().includes(brandSearchQuery.toLowerCase()) ||
+                  p.category.toLowerCase().includes(brandSearchQuery.toLowerCase());
+                return matchesCategory && matchesSearch;
+              });
 
-                {/* Frame Shape Toggle */}
-                <div className="grid grid-cols-4 gap-1 text-[10px]">
-                  {[
-                    { id: 'circle', label: 'Circle Disc' },
-                    { id: 'squircle', label: 'Squircle' },
-                    { id: 'hexagon', label: 'Hexagon' },
-                    { id: 'pin-badge', label: 'Pin Stalk' },
-                  ].map((fm) => (
-                    <button
-                      key={fm.id}
-                      type="button"
-                      onClick={() => {
-                        setLogoFrame(fm.id as any);
-                        if (f.props.shape === 'vicinity-logo') {
-                          renderUniformLogoMarker(
-                            {
-                              logoUrl: f.props.logoUrl,
-                              monogramText: f.props.logoText,
-                              frame: fm.id as any,
-                              bg: logoBg,
-                              border: logoBorder,
-                              scale: logoScale,
-                              color: f.props.color,
-                            },
-                            (window as any).__map
-                          ).then(({ key, dataUrl }) => {
-                            updateFeature(f.id, (feat) => ({
-                              ...feat,
-                              props: {
-                                ...feat.props,
-                                iconKey: key,
-                                customImageDataUrl: dataUrl,
-                                logoFrame: fm.id as any,
-                              },
-                            }));
-                          });
-                        }
-                      }}
-                      className={`py-1 rounded-lg border text-center transition ${
-                        logoFrame === fm.id
-                          ? 'bg-white text-black font-bold border-white'
-                          : 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10'
-                      }`}
-                    >
-                      {fm.label}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Frame Background & Border */}
-                <div className="flex items-center justify-between pt-1 text-[10px]">
-                  <span className="text-zinc-400">Badge Background</span>
-                  <div className="flex items-center gap-1.5">
-                    {[
-                      { col: '#ffffff', label: 'White' },
-                      { col: '#0c1322', label: 'Dark' },
-                      { col: '#00205b', label: 'Navy' },
-                      { col: '#da291c', label: 'Red' },
-                    ].map((b) => (
-                      <button
-                        key={b.col}
-                        type="button"
-                        onClick={() => {
-                          setLogoBg(b.col);
-                          setLogoBorder(b.col === '#ffffff' ? '#ffffff' : '#ffffff');
-                        }}
-                        className={`w-4 h-4 rounded-full border ${
-                          logoBg === b.col ? 'ring-2 ring-white scale-110' : 'border-white/30'
-                        }`}
-                        style={{ backgroundColor: b.col }}
-                        title={b.label}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                {/* Inner Padding / Scale */}
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-zinc-400">Logo Scale (Fit)</span>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="range"
-                      min="0.5"
-                      max="0.85"
-                      step="0.05"
-                      value={logoScale}
-                      onChange={(e) => setLogoScale(parseFloat(e.target.value))}
-                      className="accent-blue-600 w-20 cursor-pointer"
-                    />
-                    <span className="font-mono text-xs text-white w-7 text-right">
-                      {Math.round(logoScale * 100)}%
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 1-Click Popular Brand Logo Presets */}
-              <div className="flex flex-col gap-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-white">Popular Brand Catalogs</span>
-                  <span className="text-[10px] text-zinc-400">1-Click Apply</span>
-                </div>
-
-                {/* Brand Category Filter */}
-                <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[9.5px] no-scrollbar">
-                  {['All', 'Cafe & Dining', 'Retail & Malls', 'Banking', 'Fuel & Transit', 'Convenience'].map((cat) => (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => setLogoCategory(cat)}
-                      className={`px-2 py-0.5 rounded-full border whitespace-nowrap transition ${
-                        logoCategory === cat
-                          ? 'bg-white text-black border-white font-bold'
-                          : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white'
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Grid of Brand Logos */}
-                <div className="grid grid-cols-4 gap-1.5 max-h-44 overflow-y-auto pr-1">
-                  {VICINITY_PRESET_LOGOS
-                    .filter((p) => logoCategory === 'All' || p.category === logoCategory)
-                    .map((preset) => (
-                      <button
-                        key={preset.id}
-                        type="button"
-                        onClick={() => handleApplyPresetLogo(preset)}
-                        className="p-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 flex flex-col items-center justify-center gap-1 transition group active:scale-95"
-                        title={`${preset.name} (${preset.category})`}
-                      >
-                        <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center p-1 shadow-sm overflow-hidden group-hover:scale-105 transition">
-                          {preset.logoUrl ? (
+              return (
+                <div className="flex flex-col gap-3">
+                  {/* 1. Live WYSIWYG Badge Preview & Housing Geometry */}
+                  <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10 space-y-2.5">
+                    <div className="flex items-center gap-3 bg-white/[0.03] p-2.5 rounded-xl border border-white/5">
+                      {/* Left: Live Preview */}
+                      <div className="flex flex-col items-center justify-center shrink-0 w-16">
+                        <div className="w-14 h-14 flex items-center justify-center relative">
+                          {f.props.customImageDataUrl ? (
                             <img
-                              src={preset.logoUrl}
-                              alt={preset.name}
-                              className="max-h-full max-w-full object-contain"
+                              src={f.props.customImageDataUrl}
+                              alt="Current badge"
+                              className="w-14 h-14 object-contain filter drop-shadow-md"
                             />
                           ) : (
-                            <span className="font-black text-[10px] text-zinc-900">{preset.monogram}</span>
+                            <div
+                              className={`w-12 h-12 flex items-center justify-center border shadow-md ${
+                                logoFrame === 'squircle'
+                                  ? 'rounded-2xl'
+                                  : logoFrame === 'hexagon'
+                                  ? 'rounded-lg rotate-45'
+                                  : 'rounded-full'
+                              }`}
+                              style={{
+                                backgroundColor: logoBg,
+                                borderColor: logoBorder,
+                                borderWidth: 2,
+                              }}
+                            >
+                              <span
+                                className={`font-black text-xs ${logoFrame === 'hexagon' ? '-rotate-45' : ''}`}
+                                style={{ color: f.props.color || '#000000' }}
+                              >
+                                {f.props.logoText || 'HUB'}
+                              </span>
+                            </div>
                           )}
                         </div>
-                        <span className="text-[8.5px] text-zinc-300 truncate w-full text-center font-medium">
-                          {preset.name}
+                        <span className="text-[8.5px] text-zinc-400 font-medium tracking-tight mt-0.5">
+                          Live Badge
                         </span>
+                      </div>
+
+                      {/* Right: Housing & Geometry Controls */}
+                      <div className="flex-1 space-y-2">
+                        {/* Frame Shapes */}
+                        <div>
+                          <div className="flex items-center justify-between text-[10px] text-zinc-400 mb-1">
+                            <span className="font-semibold text-white uppercase tracking-wider text-[9.5px]">Frame Shape</span>
+                            <span className="text-[9px] text-zinc-400">Uniform</span>
+                          </div>
+                          <div className="grid grid-cols-4 gap-1">
+                            {[
+                              { id: 'circle', label: 'Circle', Icon: Circle },
+                              { id: 'squircle', label: 'Squircle', Icon: Square },
+                              { id: 'hexagon', label: 'Hexagon', Icon: Hexagon },
+                              { id: 'pin-badge', label: 'Pin Stalk', Icon: MapPin },
+                            ].map((fm) => {
+                              const FIcon = fm.Icon;
+                              const isSel = logoFrame === fm.id;
+                              return (
+                                <button
+                                  key={fm.id}
+                                  type="button"
+                                  onClick={() => handleUpdateHousing(fm.id as any)}
+                                  className={`py-1 px-1 rounded-lg border text-center transition flex flex-col items-center justify-center gap-0.5 ${
+                                    isSel
+                                      ? 'bg-white text-black font-bold border-white shadow-sm'
+                                      : 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10'
+                                  }`}
+                                  title={fm.label}
+                                >
+                                  <FIcon className="w-3 h-3" />
+                                  <span className="text-[8.5px] truncate">{fm.label}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Frame Background Swatches */}
+                        <div className="flex items-center justify-between pt-0.5 text-[10px]">
+                          <span className="text-zinc-400">Badge Background</span>
+                          <div className="flex items-center gap-1.5">
+                            {[
+                              { col: '#ffffff', label: 'White' },
+                              { col: '#0f172a', label: 'Slate' },
+                              { col: '#00205b', label: 'Navy' },
+                              { col: '#783819', label: 'Kopi Brown' },
+                              { col: '#d97706', label: 'Amber' },
+                              { col: '#da291c', label: 'Red' },
+                            ].map((b) => (
+                              <button
+                                key={b.col}
+                                type="button"
+                                onClick={() => handleUpdateHousing(undefined, b.col, b.col === '#ffffff' ? '#ffffff' : '#ffffff')}
+                                className={`w-4 h-4 rounded-full border transition active:scale-90 ${
+                                  logoBg === b.col ? 'ring-2 ring-white scale-110' : 'border-white/30 hover:border-white'
+                                }`}
+                                style={{ backgroundColor: b.col }}
+                                title={b.label}
+                              />
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Scale Fit Slider */}
+                        <div className="flex items-center justify-between pt-0.5">
+                          <span className="text-zinc-400 text-[10px]">Inner Logo Scale</span>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="range"
+                              min="0.5"
+                              max="0.85"
+                              step="0.05"
+                              value={logoScale}
+                              onChange={(e) => handleUpdateHousing(undefined, undefined, undefined, parseFloat(e.target.value))}
+                              className="accent-blue-600 w-16 cursor-pointer"
+                            />
+                            <span className="font-mono text-[10.5px] text-white w-7 text-right">
+                              {Math.round(logoScale * 100)}%
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 2. Frictionless Ingestion: Drag/Drop/Paste & Domain Fetcher */}
+                  <div
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsDragging(true);
+                    }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsDragging(false);
+                      const file = e.dataTransfer.files?.[0];
+                      if (file) processImageFile(file);
+                    }}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`p-3 rounded-2xl border-2 border-dashed cursor-pointer transition text-center flex flex-col items-center justify-center gap-1 ${
+                      isDragging
+                        ? 'border-blue-400 bg-blue-500/20 scale-[1.01]'
+                        : 'border-white/20 bg-white/[0.03] hover:border-white/40 hover:bg-white/[0.06]'
+                    }`}
+                  >
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/svg+xml,image/webp"
+                      onChange={handleFileUpload}
+                      className="hidden"
+                    />
+                    <div className="flex items-center gap-2 text-white text-xs font-semibold">
+                      <Upload className="w-4 h-4 text-blue-400" />
+                      <span>Drop logo file or click to browse</span>
+                    </div>
+                    <div className="text-[10px] text-zinc-400 flex items-center gap-1.5 flex-wrap justify-center">
+                      <span>Copy an image and press</span>
+                      <kbd className="px-1.5 py-0.5 rounded bg-white/10 text-white font-mono text-[9px] border border-white/20">
+                        Ctrl + V
+                      </kbd>
+                      <span>to paste directly</span>
+                    </div>
+                  </div>
+
+                  {/* Domain / Website Logo Resolver */}
+                  <div className="flex items-center gap-1.5">
+                    <div className="relative flex-1">
+                      <Globe className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Domain or URL (e.g. kopisaigon.com, starbucks.com)..."
+                        value={domainInput}
+                        onChange={(e) => setDomainInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyDomainOrUrl(domainInput);
+                          }
+                        }}
+                        className="w-full bg-black/50 border border-white/15 rounded-xl pl-8 pr-2 py-1.5 text-white text-xs outline-none focus:border-blue-400 transition"
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleApplyDomainOrUrl(domainInput)}
+                      disabled={!domainInput.trim() || isRenderingLogo}
+                      className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold text-xs transition flex items-center gap-1 shrink-0"
+                    >
+                      {isRenderingLogo ? <RefreshCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                      <span>Fetch</span>
+                    </button>
+                  </div>
+
+                  {/* 3. Popular Brand Catalog with Search & Self-Healing Monograms */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold text-white text-xs">Popular Brand Catalogs</span>
+                      <span className="text-[10px] text-zinc-400">1-Click Apply</span>
+                    </div>
+
+                    {/* Search catalog bar */}
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search brands (e.g. Kopi, SM, Shell, BDO)..."
+                        value={brandSearchQuery}
+                        onChange={(e) => setBrandSearchQuery(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 rounded-xl pl-8 pr-2 py-1 text-white text-xs outline-none focus:border-white/30 transition"
+                      />
+                    </div>
+
+                    {/* Category filter buttons */}
+                    <div className="flex items-center gap-1 overflow-x-auto pb-1 text-[9.5px] no-scrollbar">
+                      {['All', 'Cafe & Dining', 'Retail & Malls', 'Banking', 'Fuel & Transit', 'Convenience'].map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setLogoCategory(cat)}
+                          className={`px-2 py-0.5 rounded-full border whitespace-nowrap transition ${
+                            logoCategory === cat
+                              ? 'bg-white text-black border-white font-bold'
+                              : 'bg-white/5 border-white/10 text-zinc-400 hover:text-white'
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* Grid with self-healing fallback to brand monogram on broken image */}
+                    <div className="grid grid-cols-4 gap-1.5 max-h-44 overflow-y-auto pr-1">
+                      {filteredPresets.length === 0 ? (
+                        <div className="col-span-4 py-4 text-center text-xs text-zinc-500">
+                          No brands match &quot;{brandSearchQuery}&quot;. Use domain fetch above!
+                        </div>
+                      ) : (
+                        filteredPresets.map((preset) => (
+                          <button
+                            key={preset.id}
+                            type="button"
+                            onClick={() => handleApplyPresetLogo(preset)}
+                            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/15 border border-white/10 hover:border-white/30 flex flex-col items-center justify-center gap-1 transition group active:scale-95"
+                            title={`${preset.name} (${preset.category})`}
+                          >
+                            <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center p-1 shadow-sm overflow-hidden group-hover:scale-105 transition">
+                              {preset.logoUrl && !imgErrors[preset.id] ? (
+                                <img
+                                  src={preset.logoUrl}
+                                  alt={preset.name}
+                                  onError={() => setImgErrors((prev) => ({ ...prev, [preset.id]: true }))}
+                                  className="max-h-full max-w-full object-contain"
+                                />
+                              ) : (
+                                <div
+                                  className="w-full h-full rounded-full flex items-center justify-center font-black text-[10px]"
+                                  style={{ backgroundColor: preset.color, color: preset.bg || '#ffffff' }}
+                                >
+                                  {preset.monogram}
+                                </div>
+                              )}
+                            </div>
+                            <span className="text-[8.5px] text-zinc-300 truncate w-full text-center font-medium">
+                              {preset.name}
+                            </span>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
+                  {/* 4. Monogram Acronym Generator */}
+                  <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-[10px] font-bold text-white uppercase tracking-wider">
+                          Monogram Acronym Badge
+                        </span>
+                      </div>
+                      <span className="text-[9px] text-zinc-400">1-5 Letters</span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        placeholder="Monogram (e.g. PRIME, BDO, HQ)"
+                        value={monogramInput}
+                        maxLength={5}
+                        onChange={(e) => setMonogramInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleApplyMonogram();
+                          }
+                        }}
+                        className="flex-1 bg-black/50 border border-white/15 rounded-lg px-2 py-1 text-white text-xs outline-none focus:border-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleApplyMonogram}
+                        className="px-2.5 py-1 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition"
+                      >
+                        Generate
                       </button>
-                    ))}
+                    </div>
+                  </div>
+
+                  {/* 5. Marker Badge Size Slider */}
+                  <div className="flex items-center justify-between pt-1">
+                    <span className="text-xs text-zinc-300">Marker Badge Size</span>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min="0.5"
+                        max="2.5"
+                        step="0.1"
+                        value={f.props.iconSize || 1.0}
+                        onChange={(e) =>
+                          updateFeature(f.id, (feat) => ({
+                            ...feat,
+                            props: { ...feat.props, iconSize: parseFloat(e.target.value) },
+                          }))
+                        }
+                        className="accent-blue-600 w-24 cursor-pointer"
+                      />
+                      <span className="font-mono text-xs w-10 text-right text-white font-bold">
+                        {(f.props.iconSize || 1.0).toFixed(1)}x
+                      </span>
+                    </div>
+                  </div>
                 </div>
-              </div>
-
-              {/* Custom Logo Upload & Monogram Input */}
-              <div className="p-2.5 rounded-2xl bg-black/40 border border-white/10 space-y-2">
-                <span className="text-[10.5px] font-bold text-white uppercase tracking-wider block">
-                  Custom Logo Ingestion
-                </span>
-
-                {/* File Upload Button */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/svg+xml,image/webp"
-                  onChange={handleFileUpload}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/20 text-white font-semibold flex items-center justify-center gap-1.5 transition text-xs"
-                >
-                  <Upload className="w-3.5 h-3.5" />
-                  <span>Upload Logo Image (PNG / SVG)</span>
-                </button>
-
-                {/* Monogram / Brand Acronym Generator */}
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="text"
-                    placeholder="Monogram (e.g. PRIME, BDO, HQ)"
-                    value={monogramInput}
-                    maxLength={5}
-                    onChange={(e) => setMonogramInput(e.target.value)}
-                    className="flex-1 bg-black/50 border border-white/15 rounded-lg px-2 py-1 text-white text-xs outline-none focus:border-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleApplyMonogram}
-                    className="px-2.5 py-1 rounded-lg bg-white text-black font-bold text-xs hover:bg-zinc-200 transition"
-                  >
-                    Generate
-                  </button>
-                </div>
-
-                {/* Direct Image URL */}
-                <div className="flex items-center gap-1.5">
-                  <input
-                    type="url"
-                    placeholder="Paste Logo Image URL"
-                    value={customLogoUrl}
-                    onChange={(e) => setCustomLogoUrl(e.target.value)}
-                    className="flex-1 bg-black/50 border border-white/15 rounded-lg px-2 py-1 text-white text-xs outline-none focus:border-white"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleApplyCustomUrl}
-                    className="px-2.5 py-1 rounded-lg bg-white/10 hover:bg-white/20 border border-white/20 text-white font-bold text-xs transition"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-
-              {/* Logo Marker Size */}
-              <div className="flex items-center justify-between pt-1">
-                <span>Marker Badge Size</span>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="range"
-                    min="0.5"
-                    max="2.5"
-                    step="0.1"
-                    value={f.props.iconSize || 1.0}
-                    onChange={(e) =>
-                      updateFeature(f.id, (feat) => ({
-                        ...feat,
-                        props: { ...feat.props, iconSize: parseFloat(e.target.value) },
-                      }))
-                    }
-                    className="accent-blue-600 w-24 cursor-pointer"
-                  />
-                  <span className="font-mono text-xs w-10 text-right text-white font-bold">
-                    {(f.props.iconSize || 1.0).toFixed(1)}x
-                  </span>
-                </div>
-              </div>
-            </div>
+              );
+            })()
           )}
         </div>
       )}
