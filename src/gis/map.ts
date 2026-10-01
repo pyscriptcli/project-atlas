@@ -57,6 +57,26 @@ export const THEMES: Record<string, ThemeColors> = {
     sec_opacity: 0.7, ter_opacity: 0.6, building_opacity: 0.5,
     boundary: "#ff1e1e", muted: "#6b7280",
   },
+  "Satellite": {
+    overlay: "#000000", text: "#ffffff", land: "#000000",
+    landcover: "#000000", water: "#000000", waterway: "#38bdf8",
+    parks: "#000000", buildings: "#dedad2", aeroway: "#e2e8f0",
+    rail: "#facc15", rd_express: "#ffaa00", rd_major: "#ffffff",
+    rd_secondary: "#ffffff", rd_tertiary: "#e2e8f0", rd_min_md: "#cbd5e1",
+    rd_min_lo: "#94a3b8", rd_path: "#cbd5e1", rd_case: "#000000",
+    sec_opacity: 0.85, ter_opacity: 0.7, building_opacity: 0.5,
+    boundary: "#ff1e1e", muted: "#cbd5e1",
+  },
+  "OSM": {
+    overlay: "#ffffff", text: "#2d2a26", land: "#f2efe9",
+    landcover: "#e5e2da", water: "#aad3df", waterway: "#84b7cf",
+    parks: "#c8facc", buildings: "#dedad2", aeroway: "#bbbbcc",
+    rail: "#787878", rd_express: "#ffaa00", rd_major: "#e8b84a",
+    rd_secondary: "#c99c37", rd_tertiary: "#ffffff", rd_min_md: "#ffffff",
+    rd_min_lo: "#ffffff", rd_path: "#ffffff", rd_case: "#b0a89d",
+    sec_opacity: 0.85, ter_opacity: 0.7, building_opacity: 0.5,
+    boundary: "#ff1e1e", muted: "#716b61",
+  },
 };
 
 function w(...stops: [number, number][]): any[] {
@@ -206,25 +226,44 @@ export function rasterStyle(tileUrls: string[], bg: string, maxzoom = 20) {
 
 /** Satellite imagery with the same editable OpenFreeMap vector layers used by
  * the vector basemaps. Keeping the layer IDs shared lets the layer panel and
- * style editor control roads, boundaries, labels, buildings, and water here.
+ * style editor control roads, boundaries, labels, and buildings on top of satellite imagery.
  */
 export function satelliteVectorStyle() {
-  const vector = vectorStyle(THEMES["Monochrome"]);
+  const vector = vectorStyle(THEMES["Satellite"]);
   const satellite = rasterStyle(
     ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
     "#000000",
     19,
   );
-  const vectorLayers = vector.layers
-    .filter((layer: any) => !["bg", "landcover", "landuse", "park"].includes(layer.id))
-    .map((layer: any) => layer.id === "water"
-      ? { ...layer, paint: { ...layer.paint, "fill-opacity": 0.22 } }
-      : layer);
+  const vectorLayers = vector.layers.filter((layer: any) =>
+    !["bg", "landcover", "landuse", "park", "water", "waterway"].includes(layer.id)
+  );
 
   return {
     ...vector,
     sources: { ...vector.sources, ...satellite.sources },
     layers: [satellite.layers[0], satellite.layers[1], ...vectorLayers],
+  };
+}
+
+/** OpenStreetMap raster basemap with editable vector road and label layers on top.
+ * Enables road color, thickness, opacity editing and visibility toggles on top of OSM.
+ */
+export function osmVectorStyle() {
+  const vector = vectorStyle(THEMES["OSM"]);
+  const osm = rasterStyle(
+    ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+    "#f2efe9",
+    19,
+  );
+  const vectorLayers = vector.layers.filter((layer: any) =>
+    !["bg", "landcover", "landuse", "park", "water", "waterway"].includes(layer.id)
+  );
+
+  return {
+    ...vector,
+    sources: { ...vector.sources, ...osm.sources },
+    layers: [osm.layers[0], osm.layers[1], ...vectorLayers],
   };
 }
 
@@ -302,16 +341,18 @@ export function mapboxSatelliteXRayStyle(token?: string) {
           "fill-extrusion-opacity": 0.88
         }
       },
-      // Major Roads & Highways luminous overlay
-      {
-        id: "rd_major_xray",
-        type: "line",
-        source: "omt",
-        "source-layer": "transportation",
-        filter: ["match", ["get", "class"], ["motorway", "trunk", "primary"], true, false],
-        layout: { "line-cap": "round", "line-join": "round" },
-        paint: { "line-color": "#ffffff", "line-width": 1.5, "line-opacity": 0.6 }
-      },
+      // Editable Vector Road Layers
+      road_layer(THEMES["Satellite"], "case_express", ["motorway"], null, [[5, 1.5], [14, 5.5], [20, 24]], true),
+      road_layer(THEMES["Satellite"], "case_major", ["trunk", "primary"], null, [[6, 1.0], [14, 3.8], [20, 18]], true),
+      road_layer(THEMES["Satellite"], "case_secondary", ["secondary"], null, [[8, 0.8], [14, 2.8], [20, 15]], true, THEMES["Satellite"].sec_opacity),
+      road_layer(THEMES["Satellite"], "case_tertiary", ["tertiary"], null, [[9, 0.6], [14, 2.0], [20, 12]], true, THEMES["Satellite"].ter_opacity),
+      road_layer(THEMES["Satellite"], "rd_path", ["path", "pedestrian", "footway"], THEMES["Satellite"].rd_path, [[14, 0.6], [20, 5]], false, 1.0, 14),
+      road_layer(THEMES["Satellite"], "rd_min_lo", ["service", "track"], THEMES["Satellite"].rd_min_lo, [[14, 0.6], [20, 6]], false, 1.0, 14),
+      road_layer(THEMES["Satellite"], "rd_min_md", ["minor"], THEMES["Satellite"].rd_min_md, [[13, 0.8], [16, 3.5], [20, 10]], false, 1.0, 13),
+      road_layer(THEMES["Satellite"], "rd_tertiary", ["tertiary"], THEMES["Satellite"].rd_tertiary, [[9, 0.6], [14, 2.0], [20, 12]], false, THEMES["Satellite"].ter_opacity),
+      road_layer(THEMES["Satellite"], "rd_secondary", ["secondary"], THEMES["Satellite"].rd_secondary, [[8, 0.8], [14, 2.8], [20, 15]], false, THEMES["Satellite"].sec_opacity),
+      road_layer(THEMES["Satellite"], "rd_major", ["trunk", "primary"], THEMES["Satellite"].rd_major, [[6, 1.0], [14, 3.8], [20, 18]]),
+      road_layer(THEMES["Satellite"], "rd_express", ["motorway"], THEMES["Satellite"].rd_express, [[5, 1.5], [14, 5.5], [20, 24]]),
       // Street & City Labels with high-contrast halos
       {
         id: "label_street",
@@ -358,7 +399,7 @@ export const ALL_STYLES: Record<string, any> = {
   "Midnight Blue": vectorStyle(THEMES["Midnight Blue"]),
   "Monochrome": vectorStyle(THEMES["Monochrome"]),
   "White Gold": vectorStyle(THEMES["White Gold"]),
-  "OSM": rasterStyle(["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], "#f2efe9", 19),
+  "OSM": osmVectorStyle(),
   "Satellite": satelliteVectorStyle(),
   "Satellite 3D X-Ray": mapboxSatelliteXRayStyle(),
 };
