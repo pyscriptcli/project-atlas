@@ -50,16 +50,145 @@ function pointCollection(collection: FeatureCollection<Geometry>, focusArea: Foc
   return { type: 'FeatureCollection', features: points } as FeatureCollection<Geometry>;
 }
 
+function getActiveBoundaryCollection(features: AtlasFeature[], focusArea: FocusArea | null): FeatureCollection<Geometry> {
+  const activeBoundaryFeatures = focusArea
+    ? features.filter(f => f.kind !== 'marker' && focusArea.match(f))
+    : [];
+  return {
+    type: 'FeatureCollection',
+    features: activeBoundaryFeatures.map(f => ({
+      type: 'Feature', id: f.id, geometry: f.geometry, properties: { id: f.id, name: f.name, kind: f.kind }
+    })) as GeoFeature<Geometry>[],
+  };
+}
+
 function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId: string, focusArea: FocusArea | null = null, displayMode: DisplayMode = 'pins') {
-  ['kopi-areas-fill', 'kopi-areas-line', 'kopi-poi-halo', 'kopi-poi-dots', 'kopi-poi-labels', 'kopi-poi-heatmap', 'kopi-cluster-circles', 'kopi-cluster-count', 'kopi-cluster-points'].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
+  [
+    'kopi-areas-fill', 'kopi-circle-casing', 'kopi-circle-line', 'kopi-areas-line',
+    'kopi-active-fill', 'kopi-active-ripple-2', 'kopi-active-ripple-1', 'kopi-active-casing', 'kopi-active-line',
+    'kopi-poi-halo', 'kopi-poi-dots', 'kopi-poi-labels', 'kopi-poi-heatmap',
+    'kopi-cluster-circles', 'kopi-cluster-count', 'kopi-cluster-points'
+  ].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
   if (map.getSource('kopi-features')) map.removeSource('kopi-features');
   if (map.getSource('kopi-clusters')) map.removeSource('kopi-clusters');
+  if (map.getSource('kopi-active-boundary')) map.removeSource('kopi-active-boundary');
+
   const active = makeStops(features).find(stop => stop.id === selectedId);
   const collection = featureCollection(features, active?.match, active?.tier, focusArea);
   map.addSource('kopi-features', { type: 'geojson', data: collection });
   map.addSource('kopi-clusters', { type: 'geojson', data: pointCollection(collection, focusArea), cluster: true, clusterMaxZoom: 14, clusterRadius: 48 });
-  map.addLayer({ id: 'kopi-areas-fill', type: 'fill', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], paint: { 'fill-color': ['get', 'color'], 'fill-opacity': ['case', ['==', ['get', 'kind'], 'circle'], 0, ['case', ['get', 'selected'], 0.16, 0.035]] } });
-  map.addLayer({ id: 'kopi-areas-line', type: 'line', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon', 'LineString', 'MultiLineString']]], paint: { 'line-color': ['coalesce', ['get', 'borderColor'], ['get', 'color']], 'line-width': ['case', ['get', 'selected'], 2.2, 1], 'line-opacity': ['case', ['get', 'selected'], 0.9, 0.24] } });
+  map.addSource('kopi-active-boundary', {
+    type: 'geojson',
+    data: getActiveBoundaryCollection(features, focusArea),
+  });
+
+  // Base area fills
+  map.addLayer({
+    id: 'kopi-areas-fill',
+    type: 'fill',
+    source: 'kopi-features',
+    filter: ['all', ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]], ['!=', ['get', 'kind'], 'circle']],
+    paint: {
+      'fill-color': ['get', 'color'],
+      'fill-opacity': ['case', ['get', 'selected'], 0.16, 0.035]
+    }
+  });
+
+  // Radius Circle (bold prominent border width with casing so it's clearly noticeable)
+  map.addLayer({
+    id: 'kopi-circle-casing',
+    type: 'line',
+    source: 'kopi-features',
+    filter: ['==', ['get', 'kind'], 'circle'],
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 9, 14, 13, 18, 18],
+      'line-opacity': 0.95
+    }
+  });
+  map.addLayer({
+    id: 'kopi-circle-line',
+    type: 'line',
+    source: 'kopi-features',
+    filter: ['==', ['get', 'kind'], 'circle'],
+    paint: {
+      'line-color': ['coalesce', ['get', 'borderColor'], ['get', 'color'], '#EE3F24'],
+      'line-width': ['interpolate', ['linear'], ['zoom'], 10, 6, 14, 9, 18, 13],
+      'line-opacity': 1
+    }
+  });
+
+  // Non-circle boundary & route lines
+  map.addLayer({
+    id: 'kopi-areas-line',
+    type: 'line',
+    source: 'kopi-features',
+    filter: ['all', ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon', 'LineString', 'MultiLineString']]], ['!=', ['get', 'kind'], 'circle']],
+    paint: {
+      'line-color': ['coalesce', ['get', 'borderColor'], ['get', 'color']],
+      'line-width': ['case', ['get', 'focusMatch'], 4, ['case', ['get', 'selected'], 2.5, 1.2]],
+      'line-opacity': ['case', ['get', 'focusMatch'], 0.95, ['case', ['get', 'selected'], 0.85, 0.25]]
+    }
+  });
+
+  // Active Explore Area: Polygon Fill & Ripple Animation Loop
+  map.addLayer({
+    id: 'kopi-active-fill',
+    type: 'fill',
+    source: 'kopi-active-boundary',
+    filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
+    paint: {
+      'fill-color': '#E6B549',
+      'fill-opacity': 0.18
+    }
+  });
+  map.addLayer({
+    id: 'kopi-active-ripple-2',
+    type: 'line',
+    source: 'kopi-active-boundary',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#E6B549',
+      'line-width': 6,
+      'line-opacity': 0,
+      'line-blur': 2
+    }
+  });
+  map.addLayer({
+    id: 'kopi-active-ripple-1',
+    type: 'line',
+    source: 'kopi-active-boundary',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#E6B549',
+      'line-width': 6,
+      'line-opacity': 0,
+      'line-blur': 2
+    }
+  });
+  map.addLayer({
+    id: 'kopi-active-casing',
+    type: 'line',
+    source: 'kopi-active-boundary',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#ffffff',
+      'line-width': 9.5,
+      'line-opacity': 0.95
+    }
+  });
+  map.addLayer({
+    id: 'kopi-active-line',
+    type: 'line',
+    source: 'kopi-active-boundary',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#783819',
+      'line-width': 6,
+      'line-opacity': 1
+    }
+  });
+
   map.addLayer({ id: 'kopi-poi-halo', type: 'circle', source: 'kopi-features', filter: ['all', ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], ['==', ['get', 'focusMatch'], true]], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 9, 15, 15], 'circle-color': '#E6B549', 'circle-opacity': 0.35, 'circle-blur': 0.55 } });
   map.addLayer({ id: 'kopi-poi-dots', type: 'circle', source: 'kopi-features', filter: ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 5, 3.5, 15, 7], 'circle-color': ['get', 'color'], 'circle-stroke-color': '#ffffff', 'circle-stroke-width': ['case', ['get', 'focusMatch'], 2.5, 1.5], 'circle-opacity': ['case', ['get', 'focusMode'], ['case', ['get', 'focusMatch'], 0.98, 0.12], ['case', ['get', 'selected'], 0.96, 0.18]] } });
   map.addLayer({ id: 'kopi-poi-labels', type: 'symbol', source: 'kopi-features', filter: ['all', ['in', ['geometry-type'], ['literal', ['Point', 'MultiPoint']]], ['!=', ['get', 'label'], '']], layout: { 'text-field': ['get', 'label'], 'text-font': ['Noto Sans Regular'], 'text-size': ['interpolate', ['linear'], ['zoom'], 11, 10, 16, 13], 'text-offset': [0, 1.3], 'text-anchor': 'top', 'text-max-width': 12, 'text-optional': true }, paint: { 'text-color': '#181D1E', 'text-halo-color': '#FAF5EE', 'text-halo-width': 2, 'text-opacity': ['case', ['get', 'focusMode'], ['case', ['get', 'focusMatch'], 0.98, 0.15], ['case', ['get', 'selected'], 0.98, 0.25]] }, minzoom: 13 });
@@ -224,6 +353,7 @@ export default function KopiSaigonPage() {
   const displayModeRef = useRef<DisplayMode>('pins');
   const styleNameRef = useRef('');
   const editorCameraRef = useRef('');
+  const rippleAnimRef = useRef<number | null>(null);
   const [project, setProject] = useState<AtlasProject | null>(null);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
@@ -241,6 +371,80 @@ export default function KopiSaigonPage() {
     places: features.filter(stop.match).sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id),
   })), [features, stops]);
   const tableCount = tierGroups.reduce((total, group) => total + group.places.length, 0);
+
+  const stopRippleAnimation = useCallback(() => {
+    if (rippleAnimRef.current != null) {
+      cancelAnimationFrame(rippleAnimRef.current);
+      rippleAnimRef.current = null;
+    }
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      if (map.getLayer('kopi-active-ripple-1')) {
+        map.setPaintProperty('kopi-active-ripple-1', 'line-opacity', 0);
+      }
+      if (map.getLayer('kopi-active-ripple-2')) {
+        map.setPaintProperty('kopi-active-ripple-2', 'line-opacity', 0);
+      }
+    } catch {
+      // Map may be destroyed or style reloading
+    }
+  }, []);
+
+  const startRippleAnimation = useCallback(() => {
+    stopRippleAnimation();
+    const map = mapRef.current;
+    if (!map) return;
+
+    const DURATION = 1800;
+    let startTimestamp: number | null = null;
+
+    const step = (now: number) => {
+      if (!mapRef.current) return;
+      if (startTimestamp === null) startTimestamp = now;
+      const elapsed = now - startTimestamp;
+
+      // Two ripples offset by half cycle (900ms)
+      const p1 = (elapsed % DURATION) / DURATION;
+      const p2 = ((elapsed + DURATION / 2) % DURATION) / DURATION;
+
+      // Width expands smoothly from 6px to 38px
+      // Opacity decays from 0.85 to 0
+      // Blur increases from 2px to 14px
+      const w1 = 6 + p1 * 32;
+      const o1 = (1 - p1) * 0.85;
+      const b1 = 2 + p1 * 12;
+
+      const w2 = 6 + p2 * 32;
+      const o2 = (1 - p2) * 0.85;
+      const b2 = 2 + p2 * 12;
+
+      try {
+        if (map.getLayer('kopi-active-ripple-1')) {
+          map.setPaintProperty('kopi-active-ripple-1', 'line-width', w1);
+          map.setPaintProperty('kopi-active-ripple-1', 'line-opacity', o1);
+          map.setPaintProperty('kopi-active-ripple-1', 'line-blur', b1);
+        }
+        if (map.getLayer('kopi-active-ripple-2')) {
+          map.setPaintProperty('kopi-active-ripple-2', 'line-width', w2);
+          map.setPaintProperty('kopi-active-ripple-2', 'line-opacity', o2);
+          map.setPaintProperty('kopi-active-ripple-2', 'line-blur', b2);
+        }
+      } catch {
+        return;
+      }
+
+      rippleAnimRef.current = requestAnimationFrame(step);
+    };
+
+    rippleAnimRef.current = requestAnimationFrame(step);
+  }, [stopRippleAnimation]);
+
+  useEffect(() => {
+    return () => {
+      stopRippleAnimation();
+    };
+  }, [stopRippleAnimation]);
 
   useEffect(() => {
     const dialog = tableDialogRef.current;
@@ -262,6 +466,15 @@ export default function KopiSaigonPage() {
     const collection = featureCollection(features, chosenStop?.match, chosenStop?.tier, activeArea);
     source?.setData(collection);
     (map.getSource('kopi-clusters') as maplibregl.GeoJSONSource | undefined)?.setData(pointCollection(collection, activeArea));
+
+    const boundaryData = getActiveBoundaryCollection(features, activeArea);
+    (map.getSource('kopi-active-boundary') as maplibregl.GeoJSONSource | undefined)?.setData(boundaryData);
+    if (boundaryData.features.length > 0) {
+      startRippleAnimation();
+    } else {
+      stopRippleAnimation();
+    }
+
     const targetFeatures = activeArea ? features.filter(activeArea.match) : chosenStop ? features.filter(chosenStop.match) : features;
     const points = targetFeatures.flatMap(f => positions(f.geometry));
     if (activeArea) {
@@ -272,7 +485,7 @@ export default function KopiSaigonPage() {
       if (bounds.getNorthEast().distanceTo(bounds.getSouthWest()) < 80) map.flyTo({ center: points[0] as [number, number], zoom: 16.5, speed: 0.9, curve: 1.25 });
       else map.fitBounds(bounds, { padding: { top: 105, bottom: 90, left: menuOpen ? 420 : 90, right: 100 }, maxZoom: 16, duration: 1100 });
     }
-  }, [features, menuOpen, stops]);
+  }, [features, menuOpen, startRippleAnimation, stopRippleAnimation, stops]);
 
   useEffect(() => {
     if (sourceReady.current) refreshMap(stops.find(stop => stop.id === selectedRef.current), focusAreaRef.current);
@@ -340,6 +553,9 @@ export default function KopiSaigonPage() {
           layerIds.forEach(layerId => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none'); });
         });
         sourceReady.current = true;
+        if (focusAreaRef.current && getActiveBoundaryCollection(features, focusAreaRef.current).features.length > 0) {
+          startRippleAnimation();
+        }
       });
       map.setStyle(FALLBACK_OSM_STYLE as any);
     };
@@ -355,6 +571,9 @@ export default function KopiSaigonPage() {
       });
       applyPerspectiveLayers(map, true);
       sourceReady.current = true;
+      if (focusAreaRef.current && getActiveBoundaryCollection(features, focusAreaRef.current).features.length > 0) {
+        startRippleAnimation();
+      }
       const coordinates = features.flatMap(feature => positions(feature.geometry));
       if (coordinates.length) {
         const bounds = new LngLatBounds(coordinates[0] as [number, number], coordinates[0] as [number, number]);
@@ -412,8 +631,13 @@ export default function KopiSaigonPage() {
     map.on('mouseenter', 'kopi-cluster-circles', () => { map.getCanvas().style.cursor = 'pointer'; });
     map.on('mouseleave', 'kopi-cluster-circles', () => { map.getCanvas().style.cursor = ''; });
     mapRef.current = map;
-    return () => { sourceReady.current = false; mapRef.current = null; map.remove(); };
-  }, [project?.id]);
+    return () => {
+      stopRippleAnimation();
+      sourceReady.current = false;
+      mapRef.current = null;
+      map.remove();
+    };
+  }, [project?.id, startRippleAnimation, stopRippleAnimation]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -424,6 +648,13 @@ export default function KopiSaigonPage() {
       const collection = featureCollection(features, stop?.match, stop?.tier, focusAreaRef.current);
       source?.setData(collection);
       (map.getSource('kopi-clusters') as maplibregl.GeoJSONSource | undefined)?.setData(pointCollection(collection, focusAreaRef.current));
+      const boundaryData = getActiveBoundaryCollection(features, focusAreaRef.current);
+      (map.getSource('kopi-active-boundary') as maplibregl.GeoJSONSource | undefined)?.setData(boundaryData);
+      if (boundaryData.features.length > 0) {
+        startRippleAnimation();
+      } else {
+        stopRippleAnimation();
+      }
     };
     const desiredStyle = project.basemap || 'Midnight Blue';
     const editorCamera = JSON.stringify([project.center, project.zoom, project.pitch, project.bearing]);
@@ -434,10 +665,16 @@ export default function KopiSaigonPage() {
     if (sourceReady.current && styleNameRef.current !== desiredStyle) {
       styleNameRef.current = desiredStyle;
       sourceReady.current = false;
-      map.once('style.load', () => { addProjectLayers(map, features, selectedRef.current, focusAreaRef.current, displayModeRef.current); sourceReady.current = true; });
+      map.once('style.load', () => {
+        addProjectLayers(map, features, selectedRef.current, focusAreaRef.current, displayModeRef.current);
+        sourceReady.current = true;
+        if (focusAreaRef.current && getActiveBoundaryCollection(features, focusAreaRef.current).features.length > 0) {
+          startRippleAnimation();
+        }
+      });
       map.setStyle(ALL_STYLES[desiredStyle] || ALL_STYLES['Midnight Blue']);
     } else updateSource();
-  }, [features, project]);
+  }, [features, project, startRippleAnimation, stopRippleAnimation]);
 
   const navigate = (stop?: Stop) => {
     selectedRef.current = stop?.id || 'overview';
@@ -450,6 +687,7 @@ export default function KopiSaigonPage() {
     focusAreaRef.current = null;
     setSelected('overview');
     setFocusArea(null);
+    stopRippleAnimation();
     refreshMap(undefined, null);
     setMenuOpen(true);
   };
