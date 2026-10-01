@@ -1,4 +1,4 @@
-﻿@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Montserrat:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900;1,700&display=swap');
 
 :root {
   color-scheme: light;
@@ -272,8 +272,8 @@ button { color: inherit; cursor: pointer; }
 .nav-heading {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 2px 6px 14px;
+  align-items: center;
+  padding: 6px 6px 14px;
   border-bottom: 1.5px solid rgba(120, 56, 25, 0.12);
 }
 .eyebrow {
@@ -284,13 +284,14 @@ button { color: inherit; cursor: pointer; }
   letter-spacing: 0.14em;
   text-transform: uppercase;
 }
-.nav-heading h1 {
-  margin: 7px 0 3px;
+.nav-heading h1, .nav-heading-title {
+  margin: 0;
   font-family: var(--kopi-font-heading);
   font-weight: 800;
   font-size: 21px;
   color: var(--kopi-brown-primary);
   letter-spacing: -0.02em;
+  line-height: 1.2;
 }
 .nav-heading p {
   margin: 0;
@@ -770,8 +771,8 @@ button { color: inherit; cursor: pointer; }
 
 .table-tier-tabs {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
   padding: 16px 28px 0;
 }
 .table-tier-tab {
