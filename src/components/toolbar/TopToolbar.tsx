@@ -53,6 +53,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     setToolConfig,
     isSunDialOpen,
     toggleSunDial,
+    setToast,
   } = useMapStore();
 
   const { currentProjectName, updateProjectName, currentProjectId, saveCurrentProject } =
@@ -96,6 +97,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
   const toggleFlyout = (folder: 'draw' | 'studio') => {
     setOpenFolder((prev) => (prev === folder ? null : folder));
   };
+
+  const isDrawToolActive = Boolean(activeTool) && activeTool !== 'marker';
 
   return (
     <>
@@ -255,7 +258,60 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         </div>
 
         {/* =========================================================================
-            SECTION 3: DRAW & 3D TOOLS (ICON-ONLY BUTTON - MONOCHROME)
+            SECTION 3: PINS & ANNOTATIONS (DIRECT TOOLBAR BUTTONS)
+           ========================================================================= */}
+        <div className="flex items-center gap-1 shrink-0 pr-1.5 border-r border-white/15">
+          {/* Place Marker */}
+          <button
+            type="button"
+            onClick={() => {
+              const isCurrentlyMarker = activeTool === 'marker' && markerShape !== 'vicinity-logo';
+              if (isCurrentlyMarker) {
+                setActiveTool(null);
+              } else {
+                setActiveTool('marker');
+                setToolConfig({ markerShape: 'pin' });
+                setOpenFolder(null);
+                setToast('Click map to place a Marker Pin');
+              }
+            }}
+            title="Place Marker Pin"
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
+              activeTool === 'marker' && markerShape !== 'vicinity-logo'
+                ? 'bg-white text-black shadow-md'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <MapPin className={`w-4 h-4 ${activeTool === 'marker' && markerShape !== 'vicinity-logo' ? 'text-black' : 'text-zinc-300'}`} />
+          </button>
+
+          {/* Place Vicinity Brand Logo */}
+          <button
+            type="button"
+            onClick={() => {
+              const isCurrentlyVicinity = activeTool === 'marker' && markerShape === 'vicinity-logo';
+              if (isCurrentlyVicinity) {
+                setActiveTool(null);
+              } else {
+                setActiveTool('marker');
+                setToolConfig({ markerShape: 'vicinity-logo' });
+                setOpenFolder(null);
+                setToast('Click map to place a Vicinity Brand Logo, then choose brand in Editor');
+              }
+            }}
+            title="Place Vicinity Brand Logo"
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition ${
+              activeTool === 'marker' && markerShape === 'vicinity-logo'
+                ? 'bg-white text-black shadow-md'
+                : 'text-zinc-300 hover:text-white hover:bg-white/10'
+            }`}
+          >
+            <Store className={`w-4 h-4 ${activeTool === 'marker' && markerShape === 'vicinity-logo' ? 'text-black' : 'text-zinc-300'}`} />
+          </button>
+        </div>
+
+        {/* =========================================================================
+            SECTION 4: DRAW & 3D TOOLS (ICON-ONLY BUTTON - MONOCHROME)
            ========================================================================= */}
         <div className="relative shrink-0">
           <button
@@ -263,19 +319,19 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
             onClick={() => toggleFlyout('draw')}
             title="Draw & 3D Tools"
             className={`h-8 px-2.5 rounded-full flex items-center gap-1 transition ${
-              openFolder === 'draw' || Boolean(activeTool) || activePanels.buildingCatalog
+              openFolder === 'draw' || isDrawToolActive || activePanels.buildingCatalog
                 ? 'bg-white text-black shadow-lg shadow-white/10'
                 : 'text-zinc-300 hover:text-white hover:bg-white/10'
             }`}
           >
             {activeTool === 'polygon3d' ? (
-              <Box className={`w-4 h-4 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-300'}`} />
+              <Box className={`w-4 h-4 ${openFolder === 'draw' || isDrawToolActive ? 'text-black' : 'text-zinc-300'}`} />
             ) : activeTool === 'polygon' ? (
-              <Hexagon className={`w-4 h-4 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-300'}`} />
+              <Hexagon className={`w-4 h-4 ${openFolder === 'draw' || isDrawToolActive ? 'text-black' : 'text-zinc-300'}`} />
             ) : (
-              <PenTool className={`w-4 h-4 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-300'}`} />
+              <PenTool className={`w-4 h-4 ${openFolder === 'draw' || isDrawToolActive ? 'text-black' : 'text-zinc-300'}`} />
             )}
-            <ChevronDown className={`w-3 h-3 ${openFolder === 'draw' || Boolean(activeTool) ? 'text-black' : 'text-zinc-400'} transition-transform ${openFolder === 'draw' ? 'rotate-180' : ''}`} />
+            <ChevronDown className={`w-3 h-3 ${openFolder === 'draw' || isDrawToolActive ? 'text-black' : 'text-zinc-400'} transition-transform ${openFolder === 'draw' ? 'rotate-180' : ''}`} />
           </button>
 
           {openFolder === 'draw' && (
@@ -386,7 +442,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
               <div className="h-[1px] bg-white/10 my-1" />
 
               <span className="px-3 py-1 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
-                Routing &amp; Annotations
+                Routing &amp; Text
               </span>
 
               <button
@@ -403,43 +459,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 <span>Multi-Stop Route</span>
               </button>
 
-              {/* Place Marker (Renamed from Place Marker Pin) */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool('marker');
-                  setOpenFolder(null);
-                }}
-                className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 transition ${
-                  activeTool === 'marker' && useMapStore.getState().markerShape !== 'vicinity-logo'
-                    ? 'bg-white text-black font-bold'
-                    : 'text-zinc-200 hover:bg-white/10'
-                }`}
-              >
-                <MapPin className="w-3.5 h-3.5 text-zinc-300" />
-                <span>Place Marker</span>
-              </button>
-
-              {/* Place Vicinity Brand Logo */}
-              <button
-                type="button"
-                onClick={() => {
-                  setActiveTool('marker');
-                  useMapStore.setState({ markerShape: 'vicinity-logo' });
-                  setOpenFolder(null);
-                  useMapStore.getState().setToast('Click map to place a Vicinity Brand Logo, then choose brand or upload logo in Editor');
-                }}
-                className={`w-full text-left px-3 py-1.5 rounded-xl text-xs flex items-center gap-2 transition ${
-                  activeTool === 'marker' && useMapStore.getState().markerShape === 'vicinity-logo'
-                    ? 'bg-white text-black font-bold'
-                    : 'text-zinc-200 hover:bg-white/10'
-                }`}
-              >
-                <Store className="w-3.5 h-3.5 text-zinc-300" />
-                <span>Place Vicinity Logo</span>
-              </button>
-
-              {/* Add Text (Renamed from Add Text Box Label) */}
+              {/* Add Text Label */}
               <button
                 type="button"
                 onClick={() => {
@@ -451,14 +471,14 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 }`}
               >
                 <Type className="w-3.5 h-3.5 text-zinc-300" />
-                <span>Add Text</span>
+                <span>Add Text Label</span>
               </button>
             </div>
           )}
         </div>
 
         {/* =========================================================================
-            SECTION 4: STUDIO & STYLING (STUDIO MODE + BASEMAP WITH MAP ICON + FX)
+            SECTION 5: STUDIO & STYLING (STUDIO MODE + BASEMAP WITH MAP ICON + FX)
            ========================================================================= */}
         <div className="relative shrink-0">
           <button
@@ -540,58 +560,88 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
 
       {/* Floating Marker Options Bar when placing a marker */}
       {activeTool === 'marker' && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[1000] bg-black/90 border border-white/20 rounded-2xl px-3 py-2 flex items-center gap-2.5 shadow-2xl backdrop-blur-xl text-zinc-200 animate-in fade-in slide-in-from-top-2">
-          <div className="flex items-center gap-1.5 text-sky-400 font-bold text-xs pr-2 border-r border-white/10">
-            <MapPin className="w-4 h-4" />
-            <span>Pin Config</span>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            {SHAPE_OPTIONS.map((s) => (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[1000] bg-black/90 border border-white/20 rounded-2xl px-3.5 py-2 flex items-center gap-2.5 shadow-2xl backdrop-blur-xl text-zinc-200 animate-in fade-in slide-in-from-top-2">
+          {markerShape === 'vicinity-logo' ? (
+            <>
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs pr-2 border-r border-white/10">
+                <Store className="w-4 h-4" />
+                <span>Place Brand Badge</span>
+              </div>
+              <span className="text-[11px] text-zinc-300">
+                Click map to drop Vicinity badge • Select brand logo or monogram in Editor
+              </span>
               <button
-                key={s.id}
                 type="button"
-                onClick={() => setToolConfig({ markerShape: s.id as any })}
-                className={`p-1.5 rounded-lg border transition ${
-                  markerShape === s.id
-                    ? 'bg-white/20 border-white text-white'
-                    : 'border-white/10 hover:bg-white/10 text-zinc-400'
-                }`}
+                onClick={() => setActiveTool(null)}
+                className="ml-2 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white transition"
               >
-                <svg
-                  className="w-3.5 h-3.5 fill-none stroke-current"
-                  viewBox="0 0 24 24"
-                  strokeWidth="2"
-                  dangerouslySetInnerHTML={{ __html: ICON_SVGS[s.id] || '' }}
-                />
+                Cancel (Esc)
               </button>
-            ))}
-          </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-1.5 text-sky-400 font-bold text-xs pr-2 border-r border-white/10">
+                <MapPin className="w-4 h-4" />
+                <span>Pin Config</span>
+              </div>
 
-          <div className="w-[1px] h-4 bg-white/10" />
+              <div className="flex items-center gap-1">
+                {SHAPE_OPTIONS.filter((s) => s.id !== 'vicinity-logo').slice(0, 8).map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    title={s.label}
+                    onClick={() => setToolConfig({ markerShape: s.id as any })}
+                    className={`p-1.5 rounded-lg border transition ${
+                      markerShape === s.id
+                        ? 'bg-white/20 border-white text-white'
+                        : 'border-white/10 hover:bg-white/10 text-zinc-400'
+                    }`}
+                  >
+                    <svg
+                      className="w-3.5 h-3.5 fill-none stroke-current"
+                      viewBox="0 0 24 24"
+                      strokeWidth="2"
+                      dangerouslySetInnerHTML={{ __html: ICON_SVGS[s.id] || '' }}
+                    />
+                  </button>
+                ))}
+              </div>
 
-          {/* Color Picker */}
-          <input
-            type="color"
-            value={markerColor}
-            onChange={(e) => setToolConfig({ markerColor: e.target.value })}
-            className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
-            title="Marker Color"
-          />
+              <div className="w-[1px] h-4 bg-white/10" />
 
-          <div className="w-[1px] h-4 bg-white/10" />
+              {/* Color Picker */}
+              <input
+                type="color"
+                value={markerColor}
+                onChange={(e) => setToolConfig({ markerColor: e.target.value })}
+                className="w-6 h-6 rounded cursor-pointer border-0 bg-transparent"
+                title="Marker Color"
+              />
 
-          {/* Size Slider */}
-          <input
-            type="range"
-            min="0.5"
-            max="2.5"
-            step="0.1"
-            value={markerSize}
-            onChange={(e) => setToolConfig({ markerSize: parseFloat(e.target.value) })}
-            className="w-20 accent-sky-400 h-1"
-            title="Marker Size"
-          />
+              <div className="w-[1px] h-4 bg-white/10" />
+
+              {/* Size Slider */}
+              <input
+                type="range"
+                min="0.5"
+                max="2.5"
+                step="0.1"
+                value={markerSize}
+                onChange={(e) => setToolConfig({ markerSize: parseFloat(e.target.value) })}
+                className="w-16 accent-sky-400 h-1"
+                title="Marker Size"
+              />
+
+              <button
+                type="button"
+                onClick={() => setActiveTool(null)}
+                className="ml-2 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white transition"
+              >
+                Cancel (Esc)
+              </button>
+            </>
+          )}
         </div>
       )}
     </>
