@@ -70,7 +70,7 @@ const BasemapThumbnail: React.FC<{ name: string; isSelected: boolean }> = ({ nam
   const preview = BASEMAP_PREVIEWS[name] || BASEMAP_PREVIEWS["Midnight Blue"];
 
   return (
-    <div className="relative w-full h-full overflow-hidden bg-slate-950">
+    <div className="relative w-full h-full overflow-hidden bg-slate-950 select-none">
       {preview.tileUrl && !imgError ? (
         <>
           <img
@@ -81,33 +81,43 @@ const BasemapThumbnail: React.FC<{ name: string; isSelected: boolean }> = ({ nam
             onError={() => setImgError(true)}
             className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
           />
-          {/* Subtle vector road overlay on satellite/OSM */}
-          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 62" preserveAspectRatio="none">
-            <path d="M-5 45 Q 40 38 60 20 T 105 10" fill="none" stroke={preview.expressway} strokeWidth="2.5" opacity="0.9" />
-            <path d="M25 -5 L 35 65" fill="none" stroke={preview.roads[0]} strokeWidth="1.8" opacity="0.8" />
-            <path d="M75 -5 L 65 65" fill="none" stroke={preview.roads[0]} strokeWidth="1.2" opacity="0.65" />
-            <path d="M0 25 L 100 25" fill="none" stroke={preview.roads[0]} strokeWidth="1" opacity="0.55" />
+          {/* Luminous vector road network overlay */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 75" preserveAspectRatio="none">
+            {/* Expressways */}
+            <path d="M-5 55 Q 35 48 55 25 T 105 12" fill="none" stroke={preview.expressway} strokeWidth="3" opacity="0.95" />
+            <path d="M45 -5 Q 52 35 55 80" fill="none" stroke={preview.expressway} strokeWidth="2.2" opacity="0.9" />
+            {/* Major roads */}
+            <path d="M20 -5 L 30 80" fill="none" stroke={preview.roads[0]} strokeWidth="1.8" opacity="0.8" />
+            <path d="M80 -5 L 70 80" fill="none" stroke={preview.roads[0]} strokeWidth="1.4" opacity="0.7" />
+            <path d="M0 32 L 100 32" fill="none" stroke={preview.roads[0]} strokeWidth="1.2" opacity="0.6" />
+            {/* Cities/nodes */}
+            <circle cx="55" cy="25" r="2.5" fill="#ffffff" stroke={preview.expressway} strokeWidth="1" />
+            <circle cx="30" cy="50" r="2" fill="#ffffff" stroke={preview.roads[0]} strokeWidth="1" />
           </svg>
         </>
       ) : (
-        <svg className="w-full h-full transition-transform duration-300 group-hover:scale-105" viewBox="0 0 100 62" preserveAspectRatio="none">
+        <svg className="w-full h-full transition-transform duration-300 group-hover:scale-105" viewBox="0 0 100 75" preserveAspectRatio="none">
           {/* Land / Background */}
-          <rect width="100" height="62" fill={preview.bg} />
-          {/* Water body */}
-          <path d="M 0 0 L 35 0 C 30 18 42 32 30 48 C 22 58 10 60 0 62 Z" fill={preview.water} />
+          <rect width="100" height="75" fill={preview.bg} />
+          {/* Water body / Coastline & Bay */}
+          <path d="M 0 0 L 28 0 C 24 22 36 38 28 58 C 20 70 8 72 0 75 Z" fill={preview.water} />
+          <path d="M 18 35 C 32 30 45 42 38 52 C 30 60 22 48 18 35 Z" fill={preview.water} opacity="0.95" />
           {/* Landuse / Park */}
           {preview.landuse && (
-            <path d="M 55 8 C 68 6 78 12 76 22 C 72 30 58 28 55 20 Z" fill={preview.landuse} opacity="0.8" />
+            <path d="M 52 10 C 68 8 82 14 78 28 C 72 38 56 36 52 25 Z" fill={preview.landuse} opacity="0.85" />
           )}
           {/* Local road grid */}
-          <path d="M 30 20 L 100 20 M 35 38 L 100 38 M 52 0 L 52 62 M 80 0 L 80 62" fill="none" stroke={preview.roads[0]} strokeWidth="1" opacity="0.45" />
+          <path d="M 28 24 L 100 24 M 32 45 L 100 45 M 50 0 L 50 75 M 78 0 L 78 75" fill="none" stroke={preview.roads[0]} strokeWidth="1" opacity="0.4" />
           {/* Secondary road */}
-          <path d="M 28 50 Q 55 42 100 32" fill="none" stroke={preview.roads[1]} strokeWidth="1.8" opacity="0.85" />
+          <path d="M 25 60 Q 52 50 100 38" fill="none" stroke={preview.roads[1]} strokeWidth="2" opacity="0.85" />
           {/* Expressway */}
-          <path d="M 15 62 Q 45 30 88 0" fill="none" stroke={preview.expressway} strokeWidth="2.6" />
+          <path d="M 12 75 Q 42 38 88 0" fill="none" stroke={preview.expressway} strokeWidth="2.8" />
+          {/* City node */}
+          <circle cx="48" cy="38" r="2.5" fill="#ffffff" stroke={preview.expressway} strokeWidth="1" />
+          <circle cx="75" cy="20" r="2" fill="#ffffff" stroke={preview.roads[1]} strokeWidth="1" />
         </svg>
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent pointer-events-none" />
     </div>
   );
 };
@@ -290,7 +300,7 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
   if (!activePanels.customMap) return null;
 
   return (
-    <div className="fixed top-16 right-4 z-[998] w-[calc(100vw_-_2rem)] max-w-[340px] max-h-[84vh] overflow-y-auto bg-[rgba(9,16,24,0.98)] border border-white/15 rounded-3xl p-4 shadow-2xl backdrop-blur-xl flex flex-col gap-3.5 text-xs text-gray-300 animate-in fade-in slide-in-from-top-4">
+    <div className="fixed top-16 right-4 z-[998] w-[calc(100vw_-_2rem)] max-w-[430px] max-h-[84vh] overflow-y-auto bg-[rgba(9,16,24,0.98)] border border-white/15 rounded-3xl p-4 shadow-2xl backdrop-blur-xl flex flex-col gap-3.5 text-xs text-gray-300 animate-in fade-in slide-in-from-top-4">
       {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b border-white/10">
         <div className="flex items-center gap-2 font-bold text-white text-sm">
@@ -305,7 +315,7 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
         </button>
       </div>
 
-      {/* Preset List with map preview and name below it */}
+      {/* Preset List with map preview and name below it in a 3x2 landscape layout */}
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
           <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
@@ -315,7 +325,7 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
             {Object.keys(ALL_STYLES).length} styles
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-3 gap-2">
           {Object.keys(ALL_STYLES).map((name) => {
             const isSelected = currentBasemap === name;
             return (
@@ -329,7 +339,7 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
                     : 'bg-white/[0.03] border-white/10 text-gray-300 hover:bg-white/[0.07] hover:border-white/20 hover:text-white'
                 }`}
               >
-                <div className="relative w-full aspect-[16/10] rounded-lg overflow-hidden border border-white/10 bg-slate-950 shadow-inner flex items-center justify-center">
+                <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden border border-white/10 bg-slate-950 shadow-inner flex items-center justify-center">
                   <BasemapThumbnail name={name} isSelected={isSelected} />
                   {isSelected && (
                     <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-sky-400 text-slate-950 flex items-center justify-center shadow-md">
@@ -337,7 +347,7 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
                     </div>
                   )}
                 </div>
-                <span className={`text-[10.5px] font-medium leading-tight px-1 line-clamp-1 ${isSelected ? 'text-sky-300 font-bold' : 'text-gray-300 group-hover:text-white'}`}>
+                <span className={`text-[10px] sm:text-[10.5px] font-medium leading-tight px-0.5 line-clamp-1 ${isSelected ? 'text-sky-300 font-bold' : 'text-gray-300 group-hover:text-white'}`}>
                   {name}
                 </span>
               </button>
