@@ -65,7 +65,7 @@ function getActiveBoundaryCollection(features: AtlasFeature[], focusArea: FocusA
 function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId: string, focusArea: FocusArea | null = null, displayMode: DisplayMode = 'pins') {
   [
     'kopi-areas-fill', 'kopi-circle-casing', 'kopi-circle-line', 'kopi-areas-line',
-    'kopi-active-fill', 'kopi-active-ripple-2', 'kopi-active-ripple-1', 'kopi-active-casing', 'kopi-active-line',
+    'kopi-active-fill', 'kopi-active-ripple-2', 'kopi-active-ripple-1', 'kopi-active-glow', 'kopi-active-line', 'kopi-active-core',
     'kopi-poi-halo', 'kopi-poi-dots', 'kopi-poi-labels', 'kopi-poi-heatmap',
     'kopi-cluster-circles', 'kopi-cluster-count', 'kopi-cluster-points'
   ].forEach(id => { if (map.getLayer(id)) map.removeLayer(id); });
@@ -131,15 +131,15 @@ function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId
     }
   });
 
-  // Active Explore Area: Polygon Fill & Ripple Animation Loop
+  // Active Explore Area: Glowing Red Polygon Fill & Animated Pulsing/Ripple Red Street/Border
   map.addLayer({
     id: 'kopi-active-fill',
     type: 'fill',
     source: 'kopi-active-boundary',
     filter: ['in', ['geometry-type'], ['literal', ['Polygon', 'MultiPolygon']]],
     paint: {
-      'fill-color': '#E6B549',
-      'fill-opacity': 0.18
+      'fill-color': '#FF1E27',
+      'fill-opacity': 0.15
     }
   });
   map.addLayer({
@@ -148,7 +148,7 @@ function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId
     source: 'kopi-active-boundary',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': '#E6B549',
+      'line-color': '#FF2222',
       'line-width': 6,
       'line-opacity': 0,
       'line-blur': 2
@@ -160,21 +160,22 @@ function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId
     source: 'kopi-active-boundary',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': '#E6B549',
+      'line-color': '#FF2222',
       'line-width': 6,
       'line-opacity': 0,
       'line-blur': 2
     }
   });
   map.addLayer({
-    id: 'kopi-active-casing',
+    id: 'kopi-active-glow',
     type: 'line',
     source: 'kopi-active-boundary',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': '#ffffff',
-      'line-width': 9.5,
-      'line-opacity': 0.95
+      'line-color': '#FF1E27',
+      'line-width': 14,
+      'line-blur': 6,
+      'line-opacity': 0.85
     }
   });
   map.addLayer({
@@ -183,9 +184,20 @@ function addProjectLayers(map: MapLibreMap, features: AtlasFeature[], selectedId
     source: 'kopi-active-boundary',
     layout: { 'line-cap': 'round', 'line-join': 'round' },
     paint: {
-      'line-color': '#783819',
-      'line-width': 6,
+      'line-color': '#FF1E27',
+      'line-width': 5.5,
       'line-opacity': 1
+    }
+  });
+  map.addLayer({
+    id: 'kopi-active-core',
+    type: 'line',
+    source: 'kopi-active-boundary',
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: {
+      'line-color': '#FFFFFF',
+      'line-width': 1.8,
+      'line-opacity': 0.9
     }
   });
 
@@ -362,7 +374,7 @@ export default function KopiSaigonPage() {
   const [tableOpen, setTableOpen] = useState(false);
   const [tableTier, setTableTier] = useState<PriceTier | 'all'>('all');
   const [focusArea, setFocusArea] = useState<FocusArea | null>(null);
-  const [is3D, setIs3D] = useState(true);
+  const [is3D, setIs3D] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('pins');
   const features = useMemo(() => project?.features || [], [project]);
   const stops = useMemo(() => makeStops(features), [features]);
@@ -386,6 +398,9 @@ export default function KopiSaigonPage() {
       if (map.getLayer('kopi-active-ripple-2')) {
         map.setPaintProperty('kopi-active-ripple-2', 'line-opacity', 0);
       }
+      if (map.getLayer('kopi-active-glow')) {
+        map.setPaintProperty('kopi-active-glow', 'line-opacity', 0.85);
+      }
     } catch {
       // Map may be destroyed or style reloading
     }
@@ -408,16 +423,19 @@ export default function KopiSaigonPage() {
       const p1 = (elapsed % DURATION) / DURATION;
       const p2 = ((elapsed + DURATION / 2) % DURATION) / DURATION;
 
-      // Width expands smoothly from 6px to 38px
+      // Width expands smoothly from 6px to 40px
       // Opacity decays from 0.85 to 0
       // Blur increases from 2px to 14px
-      const w1 = 6 + p1 * 32;
+      const w1 = 6 + p1 * 34;
       const o1 = (1 - p1) * 0.85;
       const b1 = 2 + p1 * 12;
 
-      const w2 = 6 + p2 * 32;
+      const w2 = 6 + p2 * 34;
       const o2 = (1 - p2) * 0.85;
       const b2 = 2 + p2 * 12;
+
+      // Glowing red aura breathes with rhythmic intensity
+      const glowPulse = 0.75 + 0.2 * Math.sin((elapsed / DURATION) * Math.PI * 2);
 
       try {
         if (map.getLayer('kopi-active-ripple-1')) {
@@ -429,6 +447,9 @@ export default function KopiSaigonPage() {
           map.setPaintProperty('kopi-active-ripple-2', 'line-width', w2);
           map.setPaintProperty('kopi-active-ripple-2', 'line-opacity', o2);
           map.setPaintProperty('kopi-active-ripple-2', 'line-blur', b2);
+        }
+        if (map.getLayer('kopi-active-glow')) {
+          map.setPaintProperty('kopi-active-glow', 'line-opacity', glowPulse);
         }
       } catch {
         return;
@@ -454,7 +475,7 @@ export default function KopiSaigonPage() {
   }, [tableOpen]);
 
   useEffect(() => {
-    if (project) setIs3D(true);
+    if (project) setIs3D(false);
   }, [project?.id]);
 
   const refreshMap = useCallback((focus?: Stop, area?: FocusArea | null) => {
@@ -569,7 +590,7 @@ export default function KopiSaigonPage() {
         const visible = project.layer_visibilities?.[key] !== false;
         layerIds.forEach(layerId => { if (map.getLayer(layerId)) map.setLayoutProperty(layerId, 'visibility', visible ? 'visible' : 'none'); });
       });
-      applyPerspectiveLayers(map, true);
+      applyPerspectiveLayers(map, false);
       sourceReady.current = true;
       if (focusAreaRef.current && getActiveBoundaryCollection(features, focusAreaRef.current).features.length > 0) {
         startRippleAnimation();
@@ -580,7 +601,6 @@ export default function KopiSaigonPage() {
         coordinates.slice(1).forEach(point => bounds.extend(point as [number, number]));
         map.fitBounds(bounds, { padding: { top: 100, bottom: 90, left: menuOpen ? 390 : 90, right: 90 }, maxZoom: 15.5, duration: 0 });
       }
-      map.easeTo({ pitch: 60, bearing: -15, duration: 800 });
       map.once('idle', () => {
         const basemapLayers = ['landcover', 'landuse', 'park', 'water', 'rd_major', 'rd_secondary', 'label_city']
           .filter(layerId => map.getLayer(layerId));
