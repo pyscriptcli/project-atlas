@@ -642,10 +642,12 @@ export default function KopiSaigonPage() {
     if (!project || !mapNode.current || mapRef.current) return;
     const styleName = project.basemap || 'Midnight Blue';
     styleNameRef.current = styleName;
-    editorCameraRef.current = JSON.stringify([project.center, project.zoom, project.pitch, project.bearing]);
+    const resolvedStyle = ALL_STYLES[styleName]
+      || (styleName === 'Satellite' || styleName === 'Satellite 3D X-Ray' ? ALL_STYLES['Google Satellite'] : null)
+      || ALL_STYLES['Midnight Blue'];
     const map = new maplibregl.Map({
       container: mapNode.current,
-      style: ALL_STYLES[styleName] || ALL_STYLES['Midnight Blue'],
+      style: resolvedStyle,
       center: project.center || [120.9842, 14.5995], zoom: project.zoom || 12, pitch: project.pitch || 0, bearing: project.bearing || 0,
       attributionControl: false,
     });
@@ -781,7 +783,11 @@ export default function KopiSaigonPage() {
           startRippleAnimation();
         }
       });
-      map.setStyle(ALL_STYLES[desiredStyle] || ALL_STYLES['Midnight Blue']);
+      map.setStyle(
+        ALL_STYLES[desiredStyle]
+          || (desiredStyle === 'Satellite' || desiredStyle === 'Satellite 3D X-Ray' ? ALL_STYLES['Google Satellite'] : null)
+          || ALL_STYLES['Midnight Blue']
+      );
     } else updateSource();
   }, [features, project, startRippleAnimation, stopRippleAnimation]);
 

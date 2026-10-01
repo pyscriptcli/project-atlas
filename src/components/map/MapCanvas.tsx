@@ -70,7 +70,6 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       .then((data) => {
         if (data.token) {
           setMapboxToken(data.token);
-          ALL_STYLES['Satellite 3D X-Ray'] = mapboxSatelliteXRayStyle(data.token);
         }
       })
       .catch(() => {});
@@ -98,7 +97,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    const initialStyle = ALL_STYLES[currentBasemap] || ALL_STYLES['Midnight Blue'];
+    const initialStyle = ALL_STYLES[currentBasemap]
+      || (currentBasemap === 'Satellite' || currentBasemap === 'Satellite 3D X-Ray' ? ALL_STYLES['Google Satellite'] : null)
+      || ALL_STYLES['Midnight Blue'];
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
@@ -151,9 +152,9 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     if (!map) return;
     if (prevBasemapRef.current === currentBasemap) return;
     prevBasemapRef.current = currentBasemap;
-    const style = currentBasemap === 'Satellite 3D X-Ray'
-      ? mapboxSatelliteXRayStyle(mapboxToken || undefined)
-      : ALL_STYLES[currentBasemap];
+    const style = ALL_STYLES[currentBasemap]
+      || (currentBasemap === 'Satellite' || currentBasemap === 'Satellite 3D X-Ray' ? ALL_STYLES['Google Satellite'] : null)
+      || ALL_STYLES['Midnight Blue'];
 
     if (style) {
       map.setStyle(style);

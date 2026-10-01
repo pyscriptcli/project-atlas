@@ -35,7 +35,7 @@ export const ViewportStudioDock: React.FC<ViewportStudioDockProps> = ({ mapInsta
     setToast,
   } = useMapStore();
 
-  // Toggle 3D Satellite X-Ray Mode
+  // Toggle Google Satellite Mode
   const handleToggleSatelliteXRay = () => {
     if (isSatelliteXRayActive) {
       toggleSatelliteXRay(false);
@@ -43,8 +43,8 @@ export const ViewportStudioDock: React.FC<ViewportStudioDockProps> = ({ mapInsta
       setToast('Returned to Midnight Blue 3D Vector theme.');
     } else {
       toggleSatelliteXRay(true);
-      setBasemap('Satellite 3D X-Ray');
-      setToast('Activated Mapbox Ultra-HD Satellite with 3D Glass X-Ray footprints.');
+      setBasemap('Google Satellite');
+      setToast('Activated Google Ultra-HD Satellite with editable vector roads.');
     }
   };
 
@@ -91,19 +91,19 @@ export const ViewportStudioDock: React.FC<ViewportStudioDockProps> = ({ mapInsta
         <span className="hidden sm:inline">Sun Dial</span>
       </button>
 
-      {/* 2. Mapbox HD Satellite 3D X-Ray Mode */}
+      {/* 2. Google HD Satellite Mode */}
       <button
         type="button"
         onClick={handleToggleSatelliteXRay}
         className={`px-3 py-2 rounded-full font-bold text-xs transition flex items-center gap-1.5 ${
-          isSatelliteXRayActive || currentBasemap === 'Satellite 3D X-Ray'
+          isSatelliteXRayActive || currentBasemap === 'Google Satellite'
             ? 'bg-sky-400 text-black shadow-lg shadow-sky-400/20 font-black'
             : 'text-zinc-300 hover:text-white hover:bg-white/10'
         }`}
-        title="Toggle Mapbox Ultra-HD Satellite & 3D Glass X-Ray Footprints"
+        title="Toggle Google Ultra-HD Satellite View"
       >
         <Eye className={`w-3.5 h-3.5 ${isSatelliteXRayActive ? 'text-black' : 'text-sky-400'}`} />
-        <span className="hidden sm:inline">Satellite X-Ray</span>
+        <span className="hidden sm:inline">Satellite</span>
       </button>
 
       {/* 3. Cinematic 360° Drone Orbit */}

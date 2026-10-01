@@ -392,8 +392,12 @@ export const useMapStore = create<MapState>((set, get) => ({
       saveStatus: 'unsaved',
     })),
 
-  setBasemap: (currentBasemap) =>
-    set({ currentBasemap, isDirty: true, saveStatus: 'unsaved' }),
+  setBasemap: (currentBasemap) => {
+    const resolved = (currentBasemap === 'Satellite' || currentBasemap === 'Satellite 3D X-Ray')
+      ? 'Google Satellite'
+      : currentBasemap;
+    set({ currentBasemap: resolved, isDirty: true, saveStatus: 'unsaved' });
+  },
 
   set3DMode: (is3DMode) =>
     set((state) => ({

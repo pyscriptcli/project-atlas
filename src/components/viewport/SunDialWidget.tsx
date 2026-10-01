@@ -123,16 +123,16 @@ export const SunDialWidget: React.FC = () => {
     { label: 'Night', time: 21.0, icon: '🌙' },
   ];
 
-  // Satellite 3D X-Ray toggle
+  // Google Satellite toggle
   const handleToggleSatellite = () => {
-    if (isSatelliteXRayActive || currentBasemap === 'Satellite 3D X-Ray') {
+    if (isSatelliteXRayActive || currentBasemap === 'Google Satellite') {
       toggleSatelliteXRay(false);
       setBasemap('Midnight Blue');
       setToast('Switched to Midnight Blue 3D Vector theme.');
     } else {
       toggleSatelliteXRay(true);
-      setBasemap('Satellite 3D X-Ray');
-      setToast('Activated 3D Satellite with Terrain Elevation & Solid Architecture.');
+      setBasemap('Google Satellite');
+      setToast('Activated Google Ultra-HD Satellite with editable vector roads.');
     }
   };
 

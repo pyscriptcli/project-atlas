@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Palette, X } from 'lucide-react';
+import { Check, ChevronDown, Palette, X } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 import { ALL_STYLES } from '../../gis/map';
 import { ColorPicker } from '../toolbar/ColorPicker';
@@ -9,6 +9,108 @@ import { ColorPicker } from '../toolbar/ColorPicker';
 interface BasemapModalProps {
   mapInstance: any;
 }
+
+const isSatelliteOrOsm = (name: string) => /satellite|osm/i.test(name);
+
+const BASEMAP_PREVIEWS: Record<string, {
+  bg: string;
+  water: string;
+  landuse?: string;
+  roads: string[];
+  expressway: string;
+  tileUrl?: string;
+}> = {
+  "Midnight Blue": {
+    bg: "#0a1628",
+    water: "#060d18",
+    landuse: "#0d1a30",
+    roads: ["#7d5f14", "#c99c37"],
+    expressway: "#ffaa00",
+  },
+  "Monochrome": {
+    bg: "#ece9e2",
+    water: "#cdd7db",
+    landuse: "#e5e2da",
+    roads: ["#8a8377", "#47423b"],
+    expressway: "#1a1816",
+  },
+  "White Gold": {
+    bg: "#fafafa",
+    water: "#d4dadc",
+    landuse: "#f1f1ec",
+    roads: ["#e0be74", "#b08a24"],
+    expressway: "#f59e0b",
+  },
+  "OSM": {
+    bg: "#f2efe9",
+    water: "#aad3df",
+    landuse: "#c8facc",
+    roads: ["#ffffff", "#fdbf6f"],
+    expressway: "#e892a2",
+    tileUrl: "https://tile.openstreetmap.org/12/3424/1878.png",
+  },
+  "Google Satellite": {
+    bg: "#09131a",
+    water: "#0b1924",
+    roads: ["#ffffff", "#cbd5e1"],
+    expressway: "#ffaa00",
+    tileUrl: "https://mt1.google.com/vt/lyrs=s&x=3424&y=1878&z=12",
+  },
+  "Esri Satellite": {
+    bg: "#0f1715",
+    water: "#0a141c",
+    roads: ["#ffffff", "#cbd5e1"],
+    expressway: "#ffaa00",
+    tileUrl: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/12/1878/3424",
+  },
+};
+
+const BasemapThumbnail: React.FC<{ name: string; isSelected: boolean }> = ({ name }) => {
+  const [imgError, setImgError] = useState(false);
+  const preview = BASEMAP_PREVIEWS[name] || BASEMAP_PREVIEWS["Midnight Blue"];
+
+  return (
+    <div className="relative w-full h-full overflow-hidden bg-slate-950">
+      {preview.tileUrl && !imgError ? (
+        <>
+          <img
+            src={preview.tileUrl}
+            alt={name}
+            loading="lazy"
+            crossOrigin="anonymous"
+            onError={() => setImgError(true)}
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+          {/* Subtle vector road overlay on satellite/OSM */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 62" preserveAspectRatio="none">
+            <path d="M-5 45 Q 40 38 60 20 T 105 10" fill="none" stroke={preview.expressway} strokeWidth="2.5" opacity="0.9" />
+            <path d="M25 -5 L 35 65" fill="none" stroke={preview.roads[0]} strokeWidth="1.8" opacity="0.8" />
+            <path d="M75 -5 L 65 65" fill="none" stroke={preview.roads[0]} strokeWidth="1.2" opacity="0.65" />
+            <path d="M0 25 L 100 25" fill="none" stroke={preview.roads[0]} strokeWidth="1" opacity="0.55" />
+          </svg>
+        </>
+      ) : (
+        <svg className="w-full h-full transition-transform duration-300 group-hover:scale-105" viewBox="0 0 100 62" preserveAspectRatio="none">
+          {/* Land / Background */}
+          <rect width="100" height="62" fill={preview.bg} />
+          {/* Water body */}
+          <path d="M 0 0 L 35 0 C 30 18 42 32 30 48 C 22 58 10 60 0 62 Z" fill={preview.water} />
+          {/* Landuse / Park */}
+          {preview.landuse && (
+            <path d="M 55 8 C 68 6 78 12 76 22 C 72 30 58 28 55 20 Z" fill={preview.landuse} opacity="0.8" />
+          )}
+          {/* Local road grid */}
+          <path d="M 30 20 L 100 20 M 35 38 L 100 38 M 52 0 L 52 62 M 80 0 L 80 62" fill="none" stroke={preview.roads[0]} strokeWidth="1" opacity="0.45" />
+          {/* Secondary road */}
+          <path d="M 28 50 Q 55 42 100 32" fill="none" stroke={preview.roads[1]} strokeWidth="1.8" opacity="0.85" />
+          {/* Expressway */}
+          <path d="M 15 62 Q 45 30 88 0" fill="none" stroke={preview.expressway} strokeWidth="2.6" />
+        </svg>
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent pointer-events-none" />
+    </div>
+  );
+};
 
 const STYLE_CONTROLS = [
   { id: 'expressways', label: 'Expressways', color: '#ffaa00', colorLayers: ['rd_express'], visibilityKeys: ['road_exp'], layers: [{ id: 'case_express_casing', width: 'line-width', opacity: 'line-opacity' }, { id: 'rd_express', width: 'line-width', opacity: 'line-opacity' }], thickness: true, opacity: true },
@@ -95,12 +197,35 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
         }
       }
     }
+    if (isSatelliteOrOsm(currentBasemap)) {
+      opacityDefaults['buildingsOpacity'] = 0;
+      opacityDefaults['backgroundOpacity'] = 0;
+    }
     basePaintRef.current = basePaint;
     mixedOpacityRef.current = mixedOpacityGroups;
     if (Object.keys(styleColors).length) setColors((current) => ({ ...current, ...styleColors }));
     if (Object.keys(opacityDefaults).length) setValues((current) => ({ ...current, ...opacityDefaults }));
     setStyleVersion((version) => version + 1);
-  }, [mapInstance]);
+  }, [mapInstance, currentBasemap]);
+
+  // When switching to Satellite or OSM, ensure buildings and background are 0 by default
+  useEffect(() => {
+    if (!mapInstance) return;
+    if (isSatelliteOrOsm(currentBasemap)) {
+      touchedOpacityRef.current.add('buildings');
+      touchedOpacityRef.current.add('background');
+      setValues((current) => ({
+        ...current,
+        buildingsOpacity: 0,
+        backgroundOpacity: 0,
+      }));
+      try {
+        if (mapInstance.getLayer('bg')) mapInstance.setPaintProperty('bg', 'background-opacity', 0);
+        if (mapInstance.getLayer('building-2d')) mapInstance.setPaintProperty('building-2d', 'fill-opacity', 0);
+        if (mapInstance.getLayer('building-3d')) mapInstance.setPaintProperty('building-3d', 'fill-extrusion-opacity', 0);
+      } catch {}
+    }
+  }, [currentBasemap, mapInstance]);
 
   useEffect(() => {
     if (!Array.isArray(mapInstance?.getStyle?.()?.layers)) return;
@@ -165,7 +290,7 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
   if (!activePanels.customMap) return null;
 
   return (
-    <div className="fixed top-16 right-4 z-[998] w-[calc(100vw_-_2rem)] max-w-80 max-h-[82vh] overflow-y-auto bg-[rgba(9,16,24,0.98)] border border-white/15 rounded-3xl p-4 shadow-2xl backdrop-blur-xl flex flex-col gap-3 text-xs text-gray-300 animate-in fade-in slide-in-from-top-4">
+    <div className="fixed top-16 right-4 z-[998] w-[calc(100vw_-_2rem)] max-w-[340px] max-h-[84vh] overflow-y-auto bg-[rgba(9,16,24,0.98)] border border-white/15 rounded-3xl p-4 shadow-2xl backdrop-blur-xl flex flex-col gap-3.5 text-xs text-gray-300 animate-in fade-in slide-in-from-top-4">
       {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b border-white/10">
         <div className="flex items-center gap-2 font-bold text-white text-sm">
@@ -180,25 +305,44 @@ export const BasemapModal: React.FC<BasemapModalProps> = ({ mapInstance }) => {
         </button>
       </div>
 
-      {/* Preset List */}
-      <div className="flex flex-col gap-1.5">
-        <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-          Basemap Presets
-        </span>
-        <div className="flex flex-wrap gap-1.5">
-          {Object.keys(ALL_STYLES).map((name) => (
-            <button
-              key={name}
-              onClick={() => setBasemap(name)}
-              className={`px-2.5 py-1 rounded-lg border text-[11px] font-medium transition ${
-                currentBasemap === name
-                  ? 'bg-blue-600 border-blue-500 text-white shadow'
-                  : 'bg-white/5 border-white/10 text-gray-300 hover:text-white hover:bg-white/10'
-              }`}
-            >
-              {name}
-            </button>
-          ))}
+      {/* Preset List with map preview and name below it */}
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">
+            Basemap Presets
+          </span>
+          <span className="text-[9px] text-gray-500 font-medium">
+            {Object.keys(ALL_STYLES).length} styles
+          </span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.keys(ALL_STYLES).map((name) => {
+            const isSelected = currentBasemap === name;
+            return (
+              <button
+                key={name}
+                type="button"
+                onClick={() => setBasemap(name)}
+                className={`group relative flex flex-col items-center gap-1.5 p-1.5 rounded-xl border text-center transition-all ${
+                  isSelected
+                    ? 'bg-sky-500/15 border-sky-400 text-white shadow-[0_0_14px_rgba(56,189,248,0.3)] ring-1 ring-sky-400'
+                    : 'bg-white/[0.03] border-white/10 text-gray-300 hover:bg-white/[0.07] hover:border-white/20 hover:text-white'
+                }`}
+              >
+                <div className="relative w-full aspect-[16/10] rounded-lg overflow-hidden border border-white/10 bg-slate-950 shadow-inner flex items-center justify-center">
+                  <BasemapThumbnail name={name} isSelected={isSelected} />
+                  {isSelected && (
+                    <div className="absolute top-1 right-1 w-3.5 h-3.5 rounded-full bg-sky-400 text-slate-950 flex items-center justify-center shadow-md">
+                      <Check className="w-2.5 h-2.5 stroke-[3]" />
+                    </div>
+                  )}
+                </div>
+                <span className={`text-[10.5px] font-medium leading-tight px-1 line-clamp-1 ${isSelected ? 'text-sky-300 font-bold' : 'text-gray-300 group-hover:text-white'}`}>
+                  {name}
+                </span>
+              </button>
+            );
+          })}
         </div>
       </div>
 

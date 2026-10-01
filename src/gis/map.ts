@@ -64,7 +64,7 @@ export const THEMES: Record<string, ThemeColors> = {
     rail: "#facc15", rd_express: "#ffaa00", rd_major: "#ffffff",
     rd_secondary: "#ffffff", rd_tertiary: "#e2e8f0", rd_min_md: "#cbd5e1",
     rd_min_lo: "#94a3b8", rd_path: "#cbd5e1", rd_case: "#000000",
-    sec_opacity: 0.85, ter_opacity: 0.7, building_opacity: 0.5,
+    sec_opacity: 0.85, ter_opacity: 0.7, building_opacity: 0,
     boundary: "#ff1e1e", muted: "#cbd5e1",
   },
   "OSM": {
@@ -74,7 +74,7 @@ export const THEMES: Record<string, ThemeColors> = {
     rail: "#787878", rd_express: "#ffaa00", rd_major: "#e8b84a",
     rd_secondary: "#c99c37", rd_tertiary: "#ffffff", rd_min_md: "#ffffff",
     rd_min_lo: "#ffffff", rd_path: "#ffffff", rd_case: "#b0a89d",
-    sec_opacity: 0.85, ter_opacity: 0.7, building_opacity: 0.5,
+    sec_opacity: 0.85, ter_opacity: 0.7, building_opacity: 0,
     boundary: "#ff1e1e", muted: "#716b61",
   },
 };
@@ -132,12 +132,12 @@ export function vectorStyle(p: ThemeColors) {
       },
       {
         id: "building-3d", type: "fill-extrusion", source: "omt", "source-layer": "building", minzoom: 13,
-        layout: { visibility: "visible" },
+        layout: { visibility: p.building_opacity > 0 ? "visible" : "none" },
         paint: {
           "fill-extrusion-color": p.buildings,
           "fill-extrusion-height": ["coalesce", ["get", "render_height"], ["get", "height"], 12],
           "fill-extrusion-base": ["coalesce", ["get", "render_min_height"], 0],
-          "fill-extrusion-opacity": 0.85
+          "fill-extrusion-opacity": p.building_opacity
         }
       },
       {
@@ -211,14 +211,14 @@ export function vectorStyle(p: ThemeColors) {
   };
 }
 
-export function rasterStyle(tileUrls: string[], bg: string, maxzoom = 20) {
+export function rasterStyle(tileUrls: string[], bg: string, maxzoom = 20, bgOpacity = 1) {
   return {
     version: 8,
     sources: {
       r: { type: "raster", tiles: tileUrls, tileSize: 256, maxzoom }
     },
     layers: [
-      { id: "bg", type: "background", paint: { "background-color": bg } },
+      { id: "bg", type: "background", paint: { "background-color": bg, "background-opacity": bgOpacity } },
       { id: "r", type: "raster", source: "r" }
     ]
   };
@@ -237,14 +237,14 @@ export const ESRI_SATELLITE_TILES = [
 
 /** Satellite imagery with the same editable OpenFreeMap vector layers used by
  * the vector basemaps. Defaults to crystal-clear Google Satellite clean tiles (lyrs=s, maxzoom 22)
- * so roads and high-zoom views are sharp and editable.
+ * with background and buildings set to 0 by default so roads and high-zoom views are sharp and editable.
  */
 export function satelliteVectorStyle(
   tileUrls: string[] = GOOGLE_SATELLITE_TILES,
   maxzoom = 22
 ) {
   const vector = vectorStyle(THEMES["Satellite"]);
-  const satellite = rasterStyle(tileUrls, "#000000", maxzoom);
+  const satellite = rasterStyle(tileUrls, "#000000", maxzoom, 0);
   const vectorLayers = vector.layers.filter((layer: any) =>
     !["bg", "landcover", "landuse", "park", "water", "waterway"].includes(layer.id)
   );
@@ -257,7 +257,8 @@ export function satelliteVectorStyle(
 }
 
 /** OpenStreetMap raster basemap with editable vector road and label layers on top.
- * Enables road color, thickness, opacity editing and visibility toggles on top of OSM.
+ * Enables road color, thickness, opacity editing and visibility toggles on top of OSM,
+ * with background and buildings set to 0 by default.
  */
 export function osmVectorStyle() {
   const vector = vectorStyle(THEMES["OSM"]);
@@ -265,6 +266,7 @@ export function osmVectorStyle() {
     ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
     "#f2efe9",
     19,
+    0
   );
   const vectorLayers = vector.layers.filter((layer: any) =>
     !["bg", "landcover", "landuse", "park", "water", "waterway"].includes(layer.id)
@@ -410,10 +412,8 @@ export const ALL_STYLES: Record<string, any> = {
   "Monochrome": vectorStyle(THEMES["Monochrome"]),
   "White Gold": vectorStyle(THEMES["White Gold"]),
   "OSM": osmVectorStyle(),
-  "Satellite": satelliteVectorStyle(GOOGLE_SATELLITE_TILES, 22),
   "Google Satellite": satelliteVectorStyle(GOOGLE_SATELLITE_TILES, 22),
   "Esri Satellite": satelliteVectorStyle(ESRI_SATELLITE_TILES, 19),
-  "Satellite 3D X-Ray": mapboxSatelliteXRayStyle(),
 };
 
 export const VIS_MAP: Record<string, string[]> = {
