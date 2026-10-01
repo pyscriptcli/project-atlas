@@ -224,17 +224,27 @@ export function rasterStyle(tileUrls: string[], bg: string, maxzoom = 20) {
   };
 }
 
+export const GOOGLE_SATELLITE_TILES = [
+  "https://mt0.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+  "https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+  "https://mt2.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+  "https://mt3.google.com/vt/lyrs=s&x={x}&y={y}&z={z}",
+];
+
+export const ESRI_SATELLITE_TILES = [
+  "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+];
+
 /** Satellite imagery with the same editable OpenFreeMap vector layers used by
- * the vector basemaps. Keeping the layer IDs shared lets the layer panel and
- * style editor control roads, boundaries, labels, and buildings on top of satellite imagery.
+ * the vector basemaps. Defaults to crystal-clear Google Satellite clean tiles (lyrs=s, maxzoom 22)
+ * so roads and high-zoom views are sharp and editable.
  */
-export function satelliteVectorStyle() {
+export function satelliteVectorStyle(
+  tileUrls: string[] = GOOGLE_SATELLITE_TILES,
+  maxzoom = 22
+) {
   const vector = vectorStyle(THEMES["Satellite"]);
-  const satellite = rasterStyle(
-    ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
-    "#000000",
-    19,
-  );
+  const satellite = rasterStyle(tileUrls, "#000000", maxzoom);
   const vectorLayers = vector.layers.filter((layer: any) =>
     !["bg", "landcover", "landuse", "park", "water", "waterway"].includes(layer.id)
   );
@@ -270,7 +280,7 @@ export function osmVectorStyle() {
 export function mapboxSatelliteXRayStyle(token?: string) {
   const satTiles = token
     ? [`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.webp?access_token=${token}`]
-    : ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"];
+    : GOOGLE_SATELLITE_TILES;
 
   return {
     version: 8,
@@ -400,7 +410,9 @@ export const ALL_STYLES: Record<string, any> = {
   "Monochrome": vectorStyle(THEMES["Monochrome"]),
   "White Gold": vectorStyle(THEMES["White Gold"]),
   "OSM": osmVectorStyle(),
-  "Satellite": satelliteVectorStyle(),
+  "Satellite": satelliteVectorStyle(GOOGLE_SATELLITE_TILES, 22),
+  "Google Satellite": satelliteVectorStyle(GOOGLE_SATELLITE_TILES, 22),
+  "Esri Satellite": satelliteVectorStyle(ESRI_SATELLITE_TILES, 19),
   "Satellite 3D X-Ray": mapboxSatelliteXRayStyle(),
 };
 
