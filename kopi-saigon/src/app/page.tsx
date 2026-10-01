@@ -14,11 +14,98 @@ type PriceTier = 'high' | 'mid' | 'low';
 type DisplayMode = 'pins' | 'heatmap' | 'clusters';
 type FocusArea = { id: string; name: string; bounds: [number, number, number, number]; match: (feature: AtlasFeature) => boolean };
 const TIER_COLORS: Record<PriceTier, string> = { high: '#EE3F24', mid: '#E6B549', low: '#22c55e' };
-const FOCUS_AREAS: FocusArea[] = [
-  { id: 'scout', name: 'Scout Area', bounds: [121.018, 14.625, 121.047, 14.651], match: feature => areaMatches(feature, ['scout area', 'scout neighborhood', 'scout'], ['maginhawa', 'katipunan']) },
-  { id: 'maginhawa', name: 'Maginhawa', bounds: [121.054, 14.635, 121.0739, 14.668], match: feature => areaMatches(feature, ['maginhawa'], ['katipunan', 'scout']) },
-  { id: 'katipunan', name: 'Katipunan', bounds: [121.0741, 14.622, 121.102, 14.661], match: feature => areaMatches(feature, ['katipunan'], ['maginhawa', 'scout']) },
-];
+function isPointInPolygon([x, y]: [number, number], ring: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const [xi, yi] = ring[i];
+    const [xj, yj] = ring[j];
+    const intersect = ((yi > y) !== (yj > y)) && (x < ((xj - xi) * (y - yi)) / (yj - yi) + xi);
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceToLine([px, py]: [number, number], line: [number, number][]): number {
+  let minDist = Infinity;
+  for (let i = 0; i < line.length - 1; i++) {
+    const [x1, y1] = line[i];
+    const [x2, y2] = line[i + 1];
+    const midLat = (y1 + y2) / 2;
+    const cosLat = Math.cos((midLat * Math.PI) / 180);
+    const dx = (x2 - x1) * 111320 * cosLat;
+    const dy = (y2 - y1) * 110540;
+    const lenSq = dx * dx + dy * dy;
+    let projX = x1;
+    let projY = y1;
+    if (lenSq > 0) {
+      const pDx = (px - x1) * 111320 * cosLat;
+      const pDy = (py - y1) * 110540;
+      const t = Math.max(0, Math.min(1, (pDx * dx + pDy * dy) / lenSq));
+      projX = x1 + t * (x2 - x1);
+      projY = y1 + t * (y2 - y1);
+    }
+    const dX = (px - projX) * 111320 * cosLat;
+    const dY = (py - projY) * 110540;
+    const dist = Math.sqrt(dX * dX + dY * dY);
+    if (dist < minDist) minDist = dist;
+  }
+  return minDist;
+}
+
+function makeFocusAreas(features: AtlasFeature[]): FocusArea[] {
+  const scoutFeature = features.find(f => f.kind === 'polygon' && /scout/i.test(f.name));
+  const magFeature = features.find(f => f.kind === 'route' && /maginhawa/i.test(f.name));
+  const katFeature = features.find(f => f.kind === 'route' && /katipunan/i.test(f.name));
+
+  const scoutRing = scoutFeature?.geometry?.type === 'Polygon' ? (scoutFeature.geometry.coordinates[0] as [number, number][]) : [];
+  const magLine = magFeature?.geometry?.type === 'LineString' ? (magFeature.geometry.coordinates as [number, number][]) : [];
+  const katLine = katFeature?.geometry?.type === 'LineString' ? (katFeature.geometry.coordinates as [number, number][]) : [];
+
+  return [
+    {
+      id: 'scout',
+      name: 'Scout Area',
+      bounds: [121.0157, 14.62761, 121.04577, 14.64419],
+      match: feature => {
+        if (feature.kind !== 'marker') return /scout/i.test(feature.name);
+        if (feature.geometry.type !== 'Point') return false;
+        const [lng, lat] = feature.geometry.coordinates as [number, number];
+        if (scoutRing.length && isPointInPolygon([lng, lat], scoutRing)) return true;
+        const tags = feature.props?.osmTags || {};
+        const street = String(tags['addr:street'] || tags['addr:full'] || '').toLowerCase();
+        return street.includes('scout') && !street.includes('maginhawa') && !street.includes('katipunan');
+      },
+    },
+    {
+      id: 'maginhawa',
+      name: 'Maginhawa',
+      bounds: [121.05356, 14.63636, 121.06154, 14.65171],
+      match: feature => {
+        if (feature.kind !== 'marker') return /maginhawa/i.test(feature.name);
+        if (feature.geometry.type !== 'Point') return false;
+        const [lng, lat] = feature.geometry.coordinates as [number, number];
+        if (magLine.length && distanceToLine([lng, lat], magLine) <= 180) return true;
+        const tags = feature.props?.osmTags || {};
+        const street = String(tags['addr:street'] || tags['addr:full'] || '').toLowerCase();
+        return street.includes('maginhawa');
+      },
+    },
+    {
+      id: 'katipunan',
+      name: 'Katipunan',
+      bounds: [121.07049, 14.61536, 121.07482, 14.65757],
+      match: feature => {
+        if (feature.kind !== 'marker') return /katipunan/i.test(feature.name);
+        if (feature.geometry.type !== 'Point') return false;
+        const [lng, lat] = feature.geometry.coordinates as [number, number];
+        if (katLine.length && distanceToLine([lng, lat], katLine) <= 180) return true;
+        const tags = feature.props?.osmTags || {};
+        const street = String(tags['addr:street'] || tags['addr:full'] || '').toLowerCase();
+        return street.includes('katipunan');
+      },
+    },
+  ];
+}
 const PROJECT_NAME = 'KOPI SAIGON';
 const PROJECT_ID = 'c5e014fa-2c16-4ad5-8f00-5d525ba954d7';
 const DEFAULT_SUPABASE_URL = 'https://cyczyaswxkpdcremqnkn.supabase.co';
@@ -253,18 +340,6 @@ function getLocationLabel(feature: AtlasFeature): string {
   return String(address || '').trim() || coordinates || feature.name || 'Location unavailable';
 }
 
-function areaMatches(feature: AtlasFeature, terms: string[], excludedTerms: string[] = []): boolean {
-  const tags = feature.props?.osmTags || {};
-  const searchable = [feature.name, ...Object.values(tags), feature.props?.address, feature.props?.location]
-    .filter(value => typeof value === 'string').join(' ').toLowerCase();
-  if (excludedTerms.some(term => searchable.includes(term))) return false;
-  if (terms.some(term => searchable.includes(term))) return true;
-  const point = feature.geometry.type === 'Point' ? feature.geometry.coordinates : null;
-  if (!point || !point.every(Number.isFinite)) return false;
-  const [longitude, latitude] = point;
-  const area = FOCUS_AREAS.find(candidate => terms.some(term => term === candidate.id || term === candidate.name.toLowerCase()));
-  return !!area && longitude >= area.bounds[0] && longitude <= area.bounds[2] && latitude >= area.bounds[1] && latitude <= area.bounds[3];
-}
 
 function getGoogleMapsUrl(feature: AtlasFeature): string {
   const url = new URL('https://www.google.com/maps/search/');
@@ -319,7 +394,7 @@ function getPricePhp(feature: AtlasFeature): number | null {
 
 function getExplicitPriceTier(feature: AtlasFeature): PriceTier | null {
   const research = feature.props?.researchData;
-  const value = String(research?.priceTier ?? research?.priceLevel ?? '').trim().toLowerCase();
+  const value = String(research?.tier ?? research?.priceTier ?? research?.priceLevel ?? '').trim().toLowerCase();
   if (value === 'high' || value === 'premium' || value === 'expensive') return 'high';
   if (value === 'mid' || value === 'medium' || value === 'moderate') return 'mid';
   if (value === 'low' || value === 'budget' || value === 'affordable') return 'low';
@@ -328,14 +403,17 @@ function getExplicitPriceTier(feature: AtlasFeature): PriceTier | null {
 
 function makeStops(features: AtlasFeature[]): Stop[] {
   const places = features.filter(feature => feature.kind === 'marker' && feature.geometry?.type === 'Point');
-  const ranked = places.filter(feature => getExplicitPriceTier(feature) == null && getPricePhp(feature) != null)
-    .sort((a, b) => (getPricePhp(a) || 0) - (getPricePhp(b) || 0));
-  const inferred = new Map<AtlasFeature, PriceTier>();
-  ranked.forEach((feature, index) => {
-    const percentile = (index + 0.5) / ranked.length;
-    inferred.set(feature, percentile < 1 / 3 ? 'low' : percentile < 2 / 3 ? 'mid' : 'high');
-  });
-  const tierFor = (feature: AtlasFeature): PriceTier | null => getExplicitPriceTier(feature) || inferred.get(feature) || null;
+  const tierFor = (feature: AtlasFeature): PriceTier | null => {
+    const explicit = getExplicitPriceTier(feature);
+    if (explicit) return explicit;
+    const php = getPricePhp(feature);
+    if (php != null) {
+      if (php >= 190) return 'high';
+      if (php >= 125) return 'mid';
+      return 'low';
+    }
+    return null;
+  };
   return (['high', 'mid', 'low'] as const).map(tier => {
     const matching = places.filter(feature => tierFor(feature) === tier);
     const title = `${tier[0].toUpperCase()}${tier.slice(1)} tier`;
@@ -377,12 +455,23 @@ export default function KopiSaigonPage() {
   const [is3D, setIs3D] = useState(false);
   const [displayMode, setDisplayMode] = useState<DisplayMode>('pins');
   const features = useMemo(() => project?.features || [], [project]);
+  const focusAreas = useMemo(() => makeFocusAreas(features), [features]);
   const stops = useMemo(() => makeStops(features), [features]);
   const tierGroups = useMemo(() => stops.map(stop => ({
     stop,
     places: features.filter(stop.match).sort((a, b) => a.name.localeCompare(b.name) || a.id - b.id),
   })), [features, stops]);
   const tableCount = tierGroups.reduce((total, group) => total + group.places.length, 0);
+
+  useEffect(() => {
+    if (focusAreaRef.current) {
+      const updated = focusAreas.find(a => a.id === focusAreaRef.current?.id);
+      if (updated) {
+        focusAreaRef.current = updated;
+        setFocusArea(updated);
+      }
+    }
+  }, [focusAreas]);
 
   const stopRippleAnimation = useCallback(() => {
     if (rippleAnimRef.current != null) {
@@ -749,7 +838,7 @@ export default function KopiSaigonPage() {
           { id: 'heatmap', name: 'Heatmap', icon: Flame },
           { id: 'clusters', name: 'Clusters', icon: Network },
         ] as const).map(option => <button key={option.id} type="button" className={`display-button ${displayMode === option.id ? 'active' : ''}`} aria-pressed={displayMode === option.id} onClick={() => chooseDisplayMode(option.id)}><option.icon size={14}/><span>{option.name}</span></button>)}</div></div>
-        <div className="nav-section area-section"><div className="area-heading-row"><span className="eyebrow">EXPLORE AN AREA</span><button type="button" className={`all-places-compact ${selected === 'overview' && !focusArea ? 'active' : ''}`} aria-pressed={selected === 'overview' && !focusArea} onClick={showAllPlaces}><Compass size={14}/><span>All places</span></button></div><p className="section-hint">Zoom to an area and highlight nearby cafés.</p>{FOCUS_AREAS.map(area => {
+        <div className="nav-section area-section"><div className="area-heading-row"><span className="eyebrow">EXPLORE AN AREA</span><button type="button" className={`all-places-compact ${selected === 'overview' && !focusArea ? 'active' : ''}`} aria-pressed={selected === 'overview' && !focusArea} onClick={showAllPlaces}><Compass size={14}/><span>All places</span></button></div><p className="section-hint">Zoom to an area and highlight nearby cafés.</p>{focusAreas.map(area => {
           const areaCount = features.filter(feature => feature.kind === 'marker' && area.match(feature)).length;
           return <button key={area.id} className={`area-button ${focusArea?.id === area.id ? 'active' : ''}`} aria-pressed={focusArea?.id === area.id} onClick={() => toggleArea(area)}><span className="area-button-icon"><MapPinned size={16}/></span><span><b>{area.name}</b><small>{areaCount} places</small></span><span className="area-check">{focusArea?.id === area.id ? 'On' : 'View'}</span></button>;
         })}</div>
