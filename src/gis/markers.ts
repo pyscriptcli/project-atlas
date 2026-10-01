@@ -1199,12 +1199,21 @@ export async function renderUniformLogoMarker(
       ctx.drawImage(img, cx - drawW / 2, cy - drawH / 2, drawW, drawH);
       ctx.restore();
     } catch (_) {
-      drawMonogram(monogramText || 'POI');
+      if (monogramText) {
+        drawMonogram(monogramText);
+      }
     }
   } else if (monogramText) {
     drawMonogram(monogramText);
   } else {
-    drawMonogram('HUB');
+    // Clean blank badge: soft subtle inner guide ring
+    ctx.save();
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.08)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius * 0.6, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
   }
 
   // 5. Specular highlight for 3D glassy finish

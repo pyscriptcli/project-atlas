@@ -206,7 +206,7 @@ export const ShapeEditorModal: React.FC = () => {
         const { key, dataUrl } = await renderUniformLogoMarker(
           {
             logoUrl: f.props.logoUrl,
-            monogramText: f.props.logoText || 'HUB',
+            monogramText: f.props.logoText || '',
             frame: frameToUse,
             bg: bgToUse,
             border: borderToUse,
@@ -975,12 +975,18 @@ export const ShapeEditorModal: React.FC = () => {
                                 borderWidth: 2,
                               }}
                             >
-                              <span
-                                className={`font-black text-xs ${logoFrame === 'hexagon' ? '-rotate-45' : ''}`}
-                                style={{ color: f.props.color || '#000000' }}
-                              >
-                                {f.props.logoText || 'HUB'}
-                              </span>
+                              {f.props.logoText ? (
+                                <span
+                                  className={`font-black text-xs ${logoFrame === 'hexagon' ? '-rotate-45' : ''}`}
+                                  style={{ color: f.props.color || '#000000' }}
+                                >
+                                  {f.props.logoText}
+                                </span>
+                              ) : (
+                                <span className="text-[9px] text-zinc-400 font-semibold tracking-tight uppercase">
+                                  Blank
+                                </span>
+                              )}
                             </div>
                           )}
                         </div>

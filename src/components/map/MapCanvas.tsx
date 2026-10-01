@@ -978,46 +978,88 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       if (activeTool === 'marker') {
         const isVicinity = markerShape === 'vicinity-logo';
         if (isVicinity) {
-          const preset = VICINITY_PRESET_LOGOS.find((p) => p.id === selectedBrandId) || VICINITY_PRESET_LOGOS[0];
+          const preset = selectedBrandId ? VICINITY_PRESET_LOGOS.find((p) => p.id === selectedBrandId) : null;
+          if (preset) {
+            renderUniformLogoMarker(
+              {
+                logoUrl: preset.logoUrl,
+                monogramText: preset.monogram,
+                frame: 'circle',
+                bg: '#ffffff',
+                border: preset.border,
+                scale: 0.72,
+                color: preset.color,
+              },
+              map
+            ).then(({ key, dataUrl }) => {
+              addFeature({
+                id,
+                name: preset.name,
+                kind: 'marker',
+                geometry: { type: 'Point', coordinates: ll },
+                props: {
+                  shape: 'vicinity-logo',
+                  color: preset.color,
+                  borderColor: preset.border,
+                  iconSize: 1.0,
+                  iconKey: key,
+                  customImageDataUrl: dataUrl,
+                  logoUrl: preset.logoUrl,
+                  logoFrame: 'circle',
+                  logoBg: '#ffffff',
+                  logoBorder: preset.border,
+                  logoText: preset.monogram,
+                  logoScale: 0.72,
+                  visible: 1,
+                  attributes: { name: preset.name },
+                },
+              });
+              setSelectedId(id);
+              togglePanel('shapeEditor', true);
+            });
+            setActiveTool(null);
+            setToast(`Placed ${preset.name} brand badge!`);
+            return;
+          }
+
+          // BLANK BRAND BADGE (DEFAULT) - Clean neutral badge with no default brand
           renderUniformLogoMarker(
             {
-              logoUrl: preset.logoUrl,
-              monogramText: preset.monogram,
               frame: 'circle',
               bg: '#ffffff',
-              border: preset.border,
+              border: '#0f172a',
               scale: 0.72,
-              color: preset.color,
+              color: '#0f172a',
             },
             map
           ).then(({ key, dataUrl }) => {
             addFeature({
               id,
-              name: preset.name,
+              name: 'Brand Badge',
               kind: 'marker',
               geometry: { type: 'Point', coordinates: ll },
               props: {
                 shape: 'vicinity-logo',
-                color: preset.color,
-                borderColor: preset.border,
+                color: '#0f172a',
+                borderColor: '#ffffff',
                 iconSize: 1.0,
                 iconKey: key,
                 customImageDataUrl: dataUrl,
-                logoUrl: preset.logoUrl,
+                logoUrl: undefined,
                 logoFrame: 'circle',
                 logoBg: '#ffffff',
-                logoBorder: preset.border,
-                logoText: preset.monogram,
+                logoBorder: '#ffffff',
+                logoText: '',
                 logoScale: 0.72,
                 visible: 1,
-                attributes: { name: preset.name },
+                attributes: { name: 'Brand Badge' },
               },
             });
             setSelectedId(id);
             togglePanel('shapeEditor', true);
           });
           setActiveTool(null);
-          setToast(`Placed ${preset.name} brand badge!`);
+          setToast('Placed blank brand badge! Choose brand or upload logo in Editor');
           return;
         }
 

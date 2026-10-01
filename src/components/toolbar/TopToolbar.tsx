@@ -296,9 +296,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                 setActiveTool(null);
               } else {
                 setActiveTool('marker');
-                setToolConfig({ markerShape: 'vicinity-logo' });
+                setSelectedBrandId(null);
+                setToolConfig({ markerShape: 'vicinity-logo', selectedBrandId: null });
                 setOpenFolder(null);
-                setToast('Click map to place a Vicinity Brand Logo, then choose brand in Editor');
+                setToast('Click map to place a blank brand badge, then customize in Editor');
               }
             }}
             title="Place Vicinity Brand Logo"
@@ -571,7 +572,24 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
               </div>
 
               {/* Quick Brand Selectors */}
-              <div className="flex items-center gap-1 overflow-x-auto max-w-[420px] no-scrollbar">
+              <div className="flex items-center gap-1 overflow-x-auto max-w-[460px] no-scrollbar">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedBrandId(null);
+                    setToolConfig({ markerColor: '#0f172a', selectedBrandId: null });
+                  }}
+                  className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
+                    selectedBrandId === null
+                      ? 'bg-white text-black border-white shadow-md'
+                      : 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white'
+                  }`}
+                  title="Blank Badge (Default)"
+                >
+                  <span className="w-2.5 h-2.5 rounded-full border border-zinc-400 bg-white shrink-0" />
+                  <span>Blank</span>
+                </button>
+
                 {VICINITY_PRESET_LOGOS.slice(0, 6).map((preset) => {
                   const isSel = selectedBrandId === preset.id;
                   return (
@@ -580,7 +598,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
                       type="button"
                       onClick={() => {
                         setSelectedBrandId(preset.id);
-                        setToolConfig({ markerColor: preset.color });
+                        setToolConfig({ markerColor: preset.color, selectedBrandId: preset.id });
                       }}
                       className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
                         isSel
