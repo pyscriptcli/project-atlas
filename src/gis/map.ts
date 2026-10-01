@@ -204,6 +204,30 @@ export function rasterStyle(tileUrls: string[], bg: string, maxzoom = 20) {
   };
 }
 
+/** Satellite imagery with the same editable OpenFreeMap vector layers used by
+ * the vector basemaps. Keeping the layer IDs shared lets the layer panel and
+ * style editor control roads, boundaries, labels, buildings, and water here.
+ */
+export function satelliteVectorStyle() {
+  const vector = vectorStyle(THEMES["Monochrome"]);
+  const satellite = rasterStyle(
+    ["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"],
+    "#000000",
+    19,
+  );
+  const vectorLayers = vector.layers
+    .filter((layer: any) => !["bg", "landcover", "landuse", "park"].includes(layer.id))
+    .map((layer: any) => layer.id === "water"
+      ? { ...layer, paint: { ...layer.paint, "fill-opacity": 0.22 } }
+      : layer);
+
+  return {
+    ...vector,
+    sources: { ...vector.sources, ...satellite.sources },
+    layers: [satellite.layers[0], satellite.layers[1], ...vectorLayers],
+  };
+}
+
 export function mapboxSatelliteXRayStyle(token?: string) {
   const satTiles = token
     ? [`https://api.mapbox.com/v4/mapbox.satellite/{z}/{x}/{y}@2x.webp?access_token=${token}`]
@@ -335,7 +359,7 @@ export const ALL_STYLES: Record<string, any> = {
   "Monochrome": vectorStyle(THEMES["Monochrome"]),
   "White Gold": vectorStyle(THEMES["White Gold"]),
   "OSM": rasterStyle(["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], "#f2efe9", 19),
-  "Satellite": rasterStyle(["https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"], "#000000", 19),
+  "Satellite": satelliteVectorStyle(),
   "Satellite 3D X-Ray": mapboxSatelliteXRayStyle(),
 };
 
