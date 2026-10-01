@@ -31,7 +31,7 @@ import {
 import { useMapStore } from '../../store/useMapStore';
 import { useProjectStore } from '../../store/useProjectStore';
 import { exportMapToPNG } from '../../gis/importExport';
-import { SHAPE_OPTIONS, ICON_SVGS } from '../../gis/markers';
+import { SHAPE_OPTIONS, ICON_SVGS, VICINITY_PRESET_LOGOS } from '../../gis/markers';
 
 interface TopToolbarProps {
   mapInstance: any;
@@ -50,6 +50,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
     markerShape,
     markerColor,
     markerSize,
+    selectedBrandId,
+    setSelectedBrandId,
     setToolConfig,
     isSunDialOpen,
     toggleSunDial,
@@ -563,17 +565,48 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, onImportCli
         <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[1000] bg-black/90 border border-white/20 rounded-2xl px-3.5 py-2 flex items-center gap-2.5 shadow-2xl backdrop-blur-xl text-zinc-200 animate-in fade-in slide-in-from-top-2">
           {markerShape === 'vicinity-logo' ? (
             <>
-              <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs pr-2 border-r border-white/10">
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs pr-2 border-r border-white/10 shrink-0">
                 <Store className="w-4 h-4" />
-                <span>Place Brand Badge</span>
+                <span>Brand Badge:</span>
               </div>
-              <span className="text-[11px] text-zinc-300">
-                Click map to drop Vicinity badge • Select brand logo or monogram in Editor
+
+              {/* Quick Brand Selectors */}
+              <div className="flex items-center gap-1 overflow-x-auto max-w-[420px] no-scrollbar">
+                {VICINITY_PRESET_LOGOS.slice(0, 6).map((preset) => {
+                  const isSel = selectedBrandId === preset.id;
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => {
+                        setSelectedBrandId(preset.id);
+                        setToolConfig({ markerColor: preset.color });
+                      }}
+                      className={`px-2 py-1 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition ${
+                        isSel
+                          ? 'bg-white text-black border-white shadow-md'
+                          : 'bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10 hover:text-white'
+                      }`}
+                      title={preset.name}
+                    >
+                      <span
+                        className="w-2.5 h-2.5 rounded-full shrink-0"
+                        style={{ backgroundColor: preset.color }}
+                      />
+                      <span className="truncate max-w-[90px]">{preset.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <span className="text-[10.5px] text-zinc-400 border-l border-white/10 pl-2">
+                Click map to drop
               </span>
+
               <button
                 type="button"
                 onClick={() => setActiveTool(null)}
-                className="ml-2 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white transition"
+                className="ml-1 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white transition"
               >
                 Cancel (Esc)
               </button>

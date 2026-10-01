@@ -7,7 +7,7 @@ import { useMapStore } from '../../store/useMapStore';
 import { ALL_STYLES, VIS_MAP, mapboxSatelliteXRayStyle } from '../../gis/map';
 import { rectCoords, rotateGeometry, translateCoordinates, calcBounds } from '../../gis/polygons';
 import { circleCoords, haversineDist } from '../../gis/circles';
-import { getIconKey, registerCustomImageMarker } from '../../gis/markers';
+import { getIconKey, registerCustomImageMarker, renderUniformLogoMarker, VICINITY_PRESET_LOGOS } from '../../gis/markers';
 import { fetchMultiPointRoute } from '../../gis/routes';
 import { generateLabelsGeoJSON } from '../../gis/labels';
 import { generateCompoundBuildingFeatures, ARCHETYPE_CONFIGS } from '../../gis/buildings3d';
@@ -45,6 +45,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     markerColor,
     markerSize,
     customMarkerKey,
+    selectedBrandId,
     textContent,
     textSize,
     textColor,
@@ -976,29 +977,69 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
 
       if (activeTool === 'marker') {
         const isVicinity = markerShape === 'vicinity-logo';
+        if (isVicinity) {
+          const preset = VICINITY_PRESET_LOGOS.find((p) => p.id === selectedBrandId) || VICINITY_PRESET_LOGOS[0];
+          renderUniformLogoMarker(
+            {
+              logoUrl: preset.logoUrl,
+              monogramText: preset.monogram,
+              frame: 'circle',
+              bg: '#ffffff',
+              border: preset.border,
+              scale: 0.72,
+              color: preset.color,
+            },
+            map
+          ).then(({ key, dataUrl }) => {
+            addFeature({
+              id,
+              name: preset.name,
+              kind: 'marker',
+              geometry: { type: 'Point', coordinates: ll },
+              props: {
+                shape: 'vicinity-logo',
+                color: preset.color,
+                borderColor: preset.border,
+                iconSize: 1.0,
+                iconKey: key,
+                customImageDataUrl: dataUrl,
+                logoUrl: preset.logoUrl,
+                logoFrame: 'circle',
+                logoBg: '#ffffff',
+                logoBorder: preset.border,
+                logoText: preset.monogram,
+                logoScale: 0.72,
+                visible: 1,
+                attributes: { name: preset.name },
+              },
+            });
+            setSelectedId(id);
+            togglePanel('shapeEditor', true);
+          });
+          setActiveTool(null);
+          setToast(`Placed ${preset.name} brand badge!`);
+          return;
+        }
+
         const iconKey = customMarkerKey || getIconKey(markerShape, markerColor, map);
         addFeature({
           id,
-          name: isVicinity ? `Vicinity Logo ${id}` : `Marker ${id}`,
+          name: `Marker ${id}`,
           kind: 'marker',
           geometry: { type: 'Point', coordinates: ll },
           props: {
             shape: markerShape,
             color: markerColor,
-            iconSize: isVicinity ? 1.0 : markerSize,
+            iconSize: markerSize,
             iconKey,
             visible: 1,
-            logoFrame: 'circle',
-            logoBg: '#ffffff',
-            logoBorder: '#ffffff',
-            logoScale: 0.72,
-            attributes: { name: isVicinity ? `Vicinity Logo ${id}` : `Marker ${id}` },
+            attributes: { name: `Marker ${id}` },
           },
         });
         setSelectedId(id);
         togglePanel('shapeEditor', true);
         setActiveTool(null);
-        setToast(isVicinity ? 'Vicinity Logo placed! Select brand or upload custom logo in Editor' : 'Marker placed');
+        setToast('Marker placed');
       } else if (activeTool === 'textbox') {
         addFeature({
           id,

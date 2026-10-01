@@ -1120,7 +1120,7 @@ export const ShapeEditorModal: React.FC = () => {
                       <Globe className="w-3.5 h-3.5 text-zinc-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                       <input
                         type="text"
-                        placeholder="Domain or URL (e.g. kopisaigon.com, starbucks.com)..."
+                        placeholder="Domain or URL (e.g. kopisaigon.com, jollibee.com.ph)..."
                         value={domainInput}
                         onChange={(e) => setDomainInput(e.target.value)}
                         onKeyDown={(e) => {

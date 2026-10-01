@@ -44,6 +44,8 @@ interface MapState {
   markerColor: string;
   markerSize: number;
   customMarkerKey: string | null;
+  selectedBrandId: string;
+  setSelectedBrandId: (id: string) => void;
 
   textContent: string;
   textSize: number;
@@ -155,6 +157,7 @@ interface MapState {
     markerColor: string;
     markerSize: number;
     customMarkerKey: string | null;
+    selectedBrandId: string;
     textContent: string;
     textSize: number;
     textColor: string;
@@ -208,6 +211,8 @@ export const useMapStore = create<MapState>((set, get) => ({
   markerColor: '#1e40af',
   markerSize: 0.9,
   customMarkerKey: null,
+  selectedBrandId: 'kopi-saigon',
+  setSelectedBrandId: (selectedBrandId) => set({ selectedBrandId }),
 
   textContent: 'Custom Label',
   textSize: 16,
