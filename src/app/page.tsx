@@ -74,9 +74,8 @@ export default function WorkspacePage() {
         closeContextMenu();
         setActiveTool(null);
         useMapStore.getState().setDroneOrbiting(false);
-        useMapStore.getState().toggleSunDial(false);
+        useMapStore.getState().closeAllPanels();
         useMapStore.getState().setActiveTour(null);
-        useMapStore.getState().toggleAtlasAI(false);
       }
     };
 

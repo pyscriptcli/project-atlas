@@ -232,7 +232,20 @@ export const useMapStore = create<MapState>((set, get) => ({
   toastMessage: null,
 
   activeCinematicCluster: null,
-  setActiveCinematicCluster: (activeCinematicCluster) => set({ activeCinematicCluster }),
+  setActiveCinematicCluster: (activeCinematicCluster) =>
+    set((state) => ({
+      activeCinematicCluster,
+      ...(activeCinematicCluster
+        ? {
+            activePanels: {
+              ...state.activePanels,
+              customMap: false,
+              shapeEditor: false,
+            },
+            isAtlasAIOpen: false,
+          }
+        : {}),
+    })),
   focusDisplayMode: 'popup',
   setFocusDisplayMode: (focusDisplayMode) => set({ focusDisplayMode }),
 
@@ -247,7 +260,22 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   setSolarTime: (solarTime) => set({ solarTime: Math.max(0, Math.min(24, solarTime)) }),
   toggleSunDial: (open) =>
-    set((state) => ({ isSunDialOpen: open !== undefined ? open : !state.isSunDialOpen })),
+    set((state) => {
+      const nextOpen = open !== undefined ? open : !state.isSunDialOpen;
+      return {
+        isSunDialOpen: nextOpen,
+        ...(nextOpen
+          ? {
+              activePanels: {
+                ...state.activePanels,
+                search: false,
+                customMap: false,
+                shapeEditor: false,
+              },
+            }
+          : {}),
+      };
+    }),
   toggleSatelliteXRay: (active) =>
     set((state) => ({
       isSatelliteXRayActive: active !== undefined ? active : !state.isSatelliteXRayActive,
@@ -284,7 +312,24 @@ export const useMapStore = create<MapState>((set, get) => ({
   setTourPlaying: (isPlaying) =>
     set((state) => (state.activeTour ? { activeTour: { ...state.activeTour, isPlaying } } : {})),
   toggleAtlasAI: (open) =>
-    set((state) => ({ isAtlasAIOpen: open !== undefined ? open : !state.isAtlasAIOpen })),
+    set((state) => {
+      const nextOpen = open !== undefined ? open : !state.isAtlasAIOpen;
+      return {
+        isAtlasAIOpen: nextOpen,
+        ...(nextOpen
+          ? {
+              activePanels: {
+                ...state.activePanels,
+                customMap: false,
+                shapeEditor: false,
+                search: false,
+              },
+              activeCinematicCluster: null,
+              editMode: false,
+            }
+          : {}),
+      };
+    }),
 
   setActiveTool: (tool) => {
     set((state) => {
@@ -300,6 +345,7 @@ export const useMapStore = create<MapState>((set, get) => ({
           textSettings: nextTool === 'textbox',
           routeSettings: nextTool === 'route',
           shapeEditor: false,
+          customMap: false,
         },
       };
     });
@@ -419,29 +465,92 @@ export const useMapStore = create<MapState>((set, get) => ({
       const currentState = state.activePanels[panel];
       const nextState = forceState !== undefined ? forceState : !currentState;
 
-      const mainSidebars = ['browser', 'myLayers', 'tradeArea'];
-      const isOpeningMainSidebar = mainSidebars.includes(panel) && nextState;
+      // Closing panel
+      if (!nextState) {
+        return {
+          activePanels: {
+            ...state.activePanels,
+            [panel]: false,
+          },
+          ...(panel === 'shapeEditor' ? { editMode: false } : {}),
+        };
+      }
+
+      // Opening panel (nextState === true):
+      const isMobileOrTablet = typeof window !== 'undefined' && window.innerWidth < 1024;
+
+      const rightPanels: Array<keyof MapState['activePanels']> = ['customMap', 'shapeEditor'];
+      const leftPanels: Array<keyof MapState['activePanels']> = ['browser', 'myLayers', 'tradeArea'];
+      const centerPanels: Array<keyof MapState['activePanels']> = ['search'];
+      const fullscreenModals: Array<keyof MapState['activePanels']> = ['attributeTable', 'buildingCatalog', 'launcher'];
 
       const updatedPanels = {
         ...state.activePanels,
-        [panel]: nextState,
+        [panel]: true,
       };
 
-      if (isOpeningMainSidebar) {
-        mainSidebars.forEach((p) => {
-          if (p !== panel) {
-            updatedPanels[p as keyof typeof state.activePanels] = false;
-          }
+      let nextIsAtlasAIOpen = state.isAtlasAIOpen;
+      let nextIsSunDialOpen = state.isSunDialOpen;
+      let nextActiveCinematicCluster = state.activeCinematicCluster;
+
+      if (fullscreenModals.includes(panel)) {
+        // Fullscreen modals supersede all floating panels & drawers
+        (Object.keys(updatedPanels) as Array<keyof MapState['activePanels']>).forEach((k) => {
+          if (k !== panel) updatedPanels[k] = false;
         });
+        nextIsAtlasAIOpen = false;
+        nextIsSunDialOpen = false;
+        nextActiveCinematicCluster = null;
+      } else if (isMobileOrTablet) {
+        // On small viewports, close any other open panel to eliminate overlap completely
+        (Object.keys(updatedPanels) as Array<keyof MapState['activePanels']>).forEach((k) => {
+          if (k !== panel) updatedPanels[k] = false;
+        });
+        nextIsAtlasAIOpen = false;
+        nextIsSunDialOpen = false;
+        nextActiveCinematicCluster = null;
+      } else {
+        // Desktop slot-based mutual exclusion
+        if (rightPanels.includes(panel)) {
+          // Close other right-docked panels and conflicting overlays
+          rightPanels.forEach((p) => {
+            if (p !== panel) updatedPanels[p] = false;
+          });
+          updatedPanels.search = false;
+          nextIsAtlasAIOpen = false;
+          nextActiveCinematicCluster = null;
+        }
+
+        if (leftPanels.includes(panel)) {
+          // Close other left-docked panels
+          leftPanels.forEach((p) => {
+            if (p !== panel) updatedPanels[p] = false;
+          });
+          if (panel === 'tradeArea') {
+            updatedPanels.shapeEditor = false;
+          }
+        }
+
+        if (centerPanels.includes(panel)) {
+          // Close center & right panels
+          nextIsSunDialOpen = false;
+          updatedPanels.customMap = false;
+          updatedPanels.shapeEditor = false;
+          nextIsAtlasAIOpen = false;
+        }
       }
 
       return {
         activePanels: updatedPanels,
+        isAtlasAIOpen: nextIsAtlasAIOpen,
+        isSunDialOpen: nextIsSunDialOpen,
+        activeCinematicCluster: nextActiveCinematicCluster,
+        ...(panel === 'customMap' ? { editMode: false } : {}),
       };
     }),
 
   closeAllPanels: () =>
-    set((state) => ({
+    set(() => ({
       activePanels: {
         browser: false,
         myLayers: false,
@@ -456,6 +565,10 @@ export const useMapStore = create<MapState>((set, get) => ({
         launcher: false,
         buildingCatalog: false,
       },
+      isAtlasAIOpen: false,
+      isSunDialOpen: false,
+      activeCinematicCluster: null,
+      editMode: false,
     })),
 
   setContextMenu: (contextMenu) => set({ contextMenu }),

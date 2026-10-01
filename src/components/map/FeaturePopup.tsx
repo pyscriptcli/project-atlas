@@ -6,10 +6,11 @@ import { useMapStore } from '../../store/useMapStore';
 import { CATEGORY_COLORS } from '../../gis/tradeArea';
 
 export const FeaturePopup: React.FC = () => {
-  const { selectedId, setSelectedId, features, togglePanel, setToast } = useMapStore();
+  const { selectedId, setSelectedId, features, togglePanel, setToast, activePanels } = useMapStore();
   const [copied, setCopied] = useState(false);
 
   if (!selectedId) return null;
+  if (activePanels.shapeEditor || activePanels.customMap) return null;
   const f = features.find((x) => x.id === selectedId);
   if (!f) return null;
 
