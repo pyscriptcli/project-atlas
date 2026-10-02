@@ -1065,8 +1065,8 @@ button { color: inherit; cursor: pointer; }
 .prime-login-card {
   position: relative;
   z-index: 1;
-  width: min(560px, 100%);
-  padding: clamp(38px, 4.2vw, 62px) clamp(30px, 3.6vw, 50px) 58px;
+  width: min(480px, 100%);
+  padding: clamp(32px, 3vw, 44px) clamp(28px, 3vw, 40px) 42px;
   border: 1px solid rgba(0, 51, 102, .12);
   background: var(--prime-warm-white);
   box-shadow: 0 28px 90px rgba(0, 0, 0, .18);
@@ -1119,11 +1119,6 @@ button { color: inherit; cursor: pointer; }
 .prime-login-password-toggle:hover { color: var(--prime-blue); }
 .prime-login-password-toggle:focus-visible,
 .prime-login-submit:focus-visible { outline: 3px solid var(--prime-gold); outline-offset: 3px; }
-.prime-login-forgot { margin: 18px 0 0; text-align: right; }
-.prime-login-forgot button { padding: 0; border: 0; background: transparent; color: var(--prime-blue); font-size: 13px; }
-.prime-login-forgot button:hover { text-decoration: underline; }
-.prime-login-forgot button:focus-visible { outline: 2px solid var(--prime-gold); outline-offset: 3px; }
-.prime-login-notice { margin: 8px 0 -8px; color: #565B60; font-size: 12px; line-height: 1.5; text-align: right; }
 .prime-login-error { margin: 13px 0 -10px; color: #A3332A; font-size: 13px; line-height: 1.5; }
 .prime-login-submit {
   display: block;
@@ -1152,7 +1147,7 @@ button { color: inherit; cursor: pointer; }
   .prime-login-story-copy h2 { margin: 10px 0 8px; font-size: 37px; }
   .prime-login-story-description { max-width: 520px; font-size: 13px; line-height: 1.5; }
   .prime-login-stage { min-height: 610px; flex: 1; padding: 28px 18px; }
-  .prime-login-card { width: min(560px, 100%); padding: 34px 26px 38px; }
+  .prime-login-card { width: min(480px, 100%); padding: 34px 26px 38px; }
   .prime-login-card h1 { font-size: 36px; }
   .prime-login-card-description { font-size: 14px; }
 }

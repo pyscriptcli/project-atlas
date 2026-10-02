@@ -58,7 +58,7 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             autoComplete="username"
             placeholder="Enter your username"
             value={username}
-            onChange={event => { setUsername(event.target.value); setError(''); setNotice(''); }}
+            onChange={event => { setUsername(event.target.value); setError(''); }}
             required
           />
 
@@ -72,7 +72,7 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               autoComplete="current-password"
               placeholder="Enter your password"
               value={password}
-              onChange={event => { setPassword(event.target.value); setError(''); setNotice(''); }}
+              onChange={event => { setPassword(event.target.value); setError(''); }}
               required
             />
             <button
@@ -85,11 +85,6 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               {showPassword ? <EyeOff size={19} /> : <Eye size={19} />}
             </button>
           </div>
-
-          <div className="prime-login-forgot">
-            <button type="button" onClick={() => { setError(''); setNotice('Password reset is not available for this account.'); }}>Forgot password?</button>
-          </div>
-          {notice && <p className="prime-login-notice" role="status">{notice}</p>}
 
           {error && <p className="prime-login-error" role="alert">{error}</p>}
           <button className="prime-login-submit" type="submit">Log in</button>
