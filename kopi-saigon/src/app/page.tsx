@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature as GeoFeature, FeatureCollection, Geometry } from 'geojson';
 import { ALL_STYLES, VIS_MAP } from '../gis/map';
 import 'maplibre-gl/dist/maplibre-gl.css';
+import LoginScreen from './login-screen';
 
 type AtlasFeature = { id: number; name: string; kind: string; geometry: Geometry; props?: Record<string, any> };
 type AtlasProject = { id: string; name: string; basemap?: string; center?: [number, number]; zoom?: number; pitch?: number; bearing?: number; features?: AtlasFeature[]; layer_visibilities?: Record<string, boolean>; updated_at?: string };
@@ -433,7 +434,31 @@ const FALLBACK_OSM_STYLE = {
   ],
 };
 
+const TEST_LOGIN_SESSION_KEY = 'kopi-saigon-test-login';
+
 export default function KopiSaigonPage() {
+  const [authenticated, setAuthenticated] = useState(false);
+  const [sessionChecked, setSessionChecked] = useState(false);
+
+  useEffect(() => {
+    setAuthenticated(sessionStorage.getItem(TEST_LOGIN_SESSION_KEY) === 'active');
+    setSessionChecked(true);
+  }, []);
+
+  const handleAuthenticated = useCallback(() => {
+    sessionStorage.setItem(TEST_LOGIN_SESSION_KEY, 'active');
+    setAuthenticated(true);
+  }, []);
+
+  if (!sessionChecked) {
+    return <main className="kopi-login-loading" aria-label="Loading sign-in screen"><span className="kopi-login-loading-mark" /></main>;
+  }
+
+  if (!authenticated) return <LoginScreen onAuthenticated={handleAuthenticated} />;
+  return <KopiSaigonDashboard />;
+}
+
+function KopiSaigonDashboard() {
   const mapNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const tableDialogRef = useRef<HTMLDialogElement>(null);

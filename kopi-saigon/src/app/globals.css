@@ -994,3 +994,250 @@ button { color: inherit; cursor: pointer; }
   .table-tier-tabs { gap: 6px; padding: 12px 14px 0; }
   .table-tier-tab { gap: 5px; padding: 9px 6px; font-size: 10px; }
 }
+
+/* Kopi Saigon login page */
+.kopi-login-loading,
+.kopi-login-layout {
+  position: relative;
+  width: 100%;
+  min-height: 100dvh;
+}
+.kopi-login-loading {
+  display: grid;
+  place-items: center;
+  background: #0d1b35;
+}
+.kopi-login-loading-mark {
+  width: 38px;
+  height: 38px;
+  border: 3px solid rgba(230, 181, 73, .25);
+  border-top-color: #e6b549;
+  border-radius: 50%;
+  animation: kopi-login-spin .8s linear infinite;
+}
+@keyframes kopi-login-spin { to { transform: rotate(360deg); } }
+
+.kopi-login-layout {
+  display: grid;
+  grid-template-columns: minmax(320px, 31.25%) minmax(0, 1fr);
+  overflow: auto;
+  color: #171a20;
+  background: #0d1b35;
+  font-family: var(--kopi-font-body);
+}
+.kopi-login-story {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  min-height: 100dvh;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(32px, 4.1vw, 58px) clamp(28px, 3.1vw, 50px);
+  color: #fff;
+  background: #073969;
+}
+.kopi-login-brand {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 13px;
+  color: white;
+  text-decoration: none;
+}
+.kopi-login-brand-mark {
+  display: grid;
+  width: 44px;
+  height: 50px;
+  place-items: center;
+}
+.kopi-login-brand-mark img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.kopi-login-brand-name {
+  font-family: var(--kopi-font-heading);
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  white-space: nowrap;
+}
+.kopi-login-brand-name b { font-weight: 800; }
+.kopi-login-story-copy { width: min(100%, 420px); margin: auto 0; padding: 50px 0 44px; }
+.kopi-login-eyebrow,
+.kopi-login-card-eyebrow {
+  margin: 0;
+  color: #e2b541;
+  font-family: var(--kopi-font-heading);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .29em;
+  line-height: 1.6;
+}
+.kopi-login-story-copy h2 {
+  margin: 30px 0 26px;
+  color: #fff;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(44px, 4.2vw, 68px);
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: -.055em;
+  line-height: 1.08;
+}
+.kopi-login-story-description {
+  max-width: 390px;
+  margin: 0;
+  color: #a7bed8;
+  font-size: 16px;
+  line-height: 1.8;
+}
+.kopi-login-story-footer {
+  margin: 0;
+  color: #b6c9df;
+  font-family: var(--kopi-font-heading);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: .22em;
+}
+
+.kopi-login-stage {
+  position: relative;
+  display: grid;
+  min-width: 0;
+  min-height: 100dvh;
+  place-items: center;
+  overflow: hidden;
+  padding: 40px;
+  background: #0d1b35;
+  isolation: isolate;
+}
+.kopi-login-grid {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background-image: linear-gradient(rgba(139, 159, 190, .075) 1px, transparent 1px), linear-gradient(90deg, rgba(139, 159, 190, .075) 1px, transparent 1px);
+  background-size: 90px 90px;
+}
+.kopi-login-chevron {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  width: clamp(300px, 34vw, 520px);
+  aspect-ratio: 1.8;
+  transform: translateY(-50%);
+  clip-path: polygon(0 0, 54% 0, 100% 50%, 54% 100%, 0 100%, 46% 50%);
+  pointer-events: none;
+}
+.kopi-login-chevron-gold { right: -8%; background: #cda943; }
+.kopi-login-chevron-silver { right: 11%; background: #aab2bc; }
+.kopi-login-card {
+  position: relative;
+  z-index: 1;
+  width: min(560px, 100%);
+  padding: clamp(38px, 4.2vw, 62px) clamp(30px, 3.6vw, 50px) 58px;
+  border: 1px solid rgba(255, 255, 255, .72);
+  background: #fff;
+  box-shadow: 0 28px 90px rgba(0, 0, 0, .24);
+}
+.kopi-login-card-eyebrow { color: #c29a32; }
+.kopi-login-card h1 {
+  margin: 13px 0 10px;
+  color: #202126;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: clamp(31px, 2.5vw, 40px);
+  font-weight: 400;
+  font-style: italic;
+  letter-spacing: -.055em;
+  line-height: 1.2;
+}
+.kopi-login-card-description {
+  margin: 0 0 27px;
+  color: #7c7a77;
+  font-size: 16px;
+  line-height: 1.55;
+}
+.kopi-login-label {
+  display: block;
+  margin: 0 0 7px;
+  color: #222;
+  font-family: var(--kopi-font-body);
+  font-size: 15px;
+  font-weight: 600;
+}
+.kopi-login-label span { margin-left: 3px; color: #c83c32; }
+.kopi-login-input {
+  display: block;
+  width: 100%;
+  height: 50px;
+  padding: 0 15px;
+  border: 1px solid #dedbd5;
+  border-radius: 0;
+  outline: none;
+  background: #fff;
+  color: #252525;
+  font-family: var(--kopi-font-body);
+  font-size: 15px;
+  transition: border-color .18s ease, box-shadow .18s ease;
+}
+.kopi-login-input::placeholder { color: #908e8a; opacity: 1; }
+.kopi-login-input:focus-visible { border-color: #174b7b; box-shadow: 0 0 0 3px rgba(23, 75, 123, .14); }
+.kopi-login-password-label { margin-top: 23px; }
+.kopi-login-password-field { position: relative; }
+.kopi-login-password-field .kopi-login-input { padding-right: 52px; }
+.kopi-login-password-toggle {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #797873;
+}
+.kopi-login-password-toggle:hover { color: #073969; }
+.kopi-login-password-toggle:focus-visible,
+.kopi-login-submit:focus-visible { outline: 3px solid #e6b549; outline-offset: 3px; }
+
+.kopi-login-error { margin: 13px 0 -10px; color: #b3261e; font-size: 13px; line-height: 1.5; }
+.kopi-login-submit {
+  display: block;
+  width: 100%;
+  min-height: 50px;
+  margin-top: 19px;
+  border: 0;
+  border-radius: 0;
+  background: #073969;
+  color: #fff;
+  font-family: var(--kopi-font-heading);
+  font-size: 15px;
+  font-weight: 700;
+  transition: background .18s ease, transform .18s ease;
+}
+.kopi-login-submit:hover { transform: translateY(-1px); background: #0d4a81; }
+
+@media (max-width: 900px) {
+  .kopi-login-layout { grid-template-columns: minmax(260px, 34%) minmax(0, 1fr); }
+  .kopi-login-stage { padding: 28px; }
+  .kopi-login-chevron-silver { right: 4%; }
+}
+@media (max-width: 700px) {
+  .kopi-login-layout { display: flex; flex-direction: column; }
+  .kopi-login-story { min-height: 245px; padding: 24px 26px; }
+  .kopi-login-brand-mark { width: 34px; height: 40px; }
+  .kopi-login-brand-name { font-size: 14px; }
+  .kopi-login-story-copy { margin: 22px 0 0; padding: 0; }
+  .kopi-login-eyebrow { font-size: 9px; }
+  .kopi-login-story-copy h2 { margin: 10px 0 8px; font-size: 37px; }
+  .kopi-login-story-description { max-width: 520px; font-size: 13px; line-height: 1.5; }
+  .kopi-login-story-footer { display: none; }
+  .kopi-login-stage { min-height: 610px; flex: 1; padding: 28px 18px; }
+  .kopi-login-chevron { width: 300px; opacity: .5; }
+  .kopi-login-chevron-gold { right: -35%; }
+  .kopi-login-chevron-silver { right: 0; }
+  .kopi-login-card { width: min(560px, 100%); padding: 34px 26px 38px; }
+  .kopi-login-card h1 { font-size: 32px; }
+  .kopi-login-card-description { font-size: 14px; }
+}
+.kopi-login-forgot { margin: 18px 0 0; text-align: right; }
+.kopi-login-forgot button { padding: 0; border: 0; background: transparent; color: #174b7b; font-size: 14px; }
+.kopi-login-forgot button:hover { text-decoration: underline; }
+.kopi-login-forgot button:focus-visible { outline: 2px solid #e6b549; outline-offset: 3px; }
+.kopi-login-notice { margin: 8px 0 -8px; color: #5b6570; font-size: 12px; line-height: 1.5; text-align: right; }
