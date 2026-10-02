@@ -8,16 +8,13 @@ export async function GET(request: Request) {
   if ('error' in context) return context.error;
   const since30 = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const since7 = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const [usersResult, eventResult, adminAccessResult] = await Promise.all([
+  const [usersResult, eventResult] = await Promise.all([
     context.admin.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     context.admin.from('kopi_activity_events').select('user_id, session_id, event_name, event_properties, created_at').gte('created_at', since30).order('created_at', { ascending: false }).limit(10000),
-    context.admin.from('kopi_app_access').select('user_id').eq('is_admin', true),
   ]);
   if (usersResult.error) return Response.json({ error: usersResult.error.message }, { status: 502 });
   if (eventResult.error) return Response.json({ error: 'Could not load activity. Confirm the database migration is applied.' }, { status: 503 });
-  if (adminAccessResult.error) return Response.json({ error: 'Could not load account roles.' }, { status: 502 });
-  const adminIds = new Set((adminAccessResult.data || []).map(row => row.user_id));
-  const clients = usersResult.data.users.filter(user => user.email && !adminIds.has(user.id));
+  const clients = usersResult.data.users.filter(user => user.email && !context.allowedEmails.has(user.email.toLowerCase()));
   const clientIds = new Set(clients.map(user => user.id));
   const events = (eventResult.data || []).filter(event => clientIds.has(event.user_id));
   const active7 = new Set(events.filter(event => event.created_at >= since7).map(event => event.user_id));
