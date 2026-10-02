@@ -29,13 +29,7 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     <main className="prime-login-layout">
       <section className="prime-login-story" aria-label="PRIME Philippines">
         <a className="prime-login-brand" href="#login" aria-label="PRIME Philippines">
-          <svg className="prime-login-brand-mark" viewBox="0 0 210 58" role="img" aria-labelledby="prime-logo-title">
-            <title id="prime-logo-title">PRIME Philippines</title>
-            <text x="1" y="38" fill="currentColor" fontFamily="Arial, Helvetica, sans-serif" fontSize="38" fontWeight="700" letterSpacing="-2.1">PRIME</text>
-            <path fill="currentColor" d="M151 7h9l22 22-22 22h-9l22-22zM174 7h9l22 22-22 22h-9l22-22z" />
-            <path fill="currentColor" d="M2 44h67v3H2z" />
-            <text x="72" y="52" fill="currentColor" fontFamily="Arial, Helvetica, sans-serif" fontSize="7" fontWeight="600">Philippines</text>
-          </svg>
+          <img className="prime-login-brand-mark" src="/logos/prime-white.png" alt="PRIME Philippines" />
         </a>
 
         <div className="prime-login-story-copy">
@@ -46,14 +40,14 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           </p>
         </div>
       </section>
-      <section className="prime-login-stage" aria-label="Log in to PrimeCore">
+      <section className="prime-login-stage" aria-label="Log in">
         <div className="prime-login-grid" aria-hidden="true" />
         <div className="prime-login-chevron prime-login-chevron-gold" aria-hidden="true" />
         <div className="prime-login-chevron prime-login-chevron-silver" aria-hidden="true" />
 
         <form className="prime-login-card" onSubmit={handleSubmit}>
           <p className="prime-login-card-eyebrow">WELCOME BACK</p>
-          <h1>Log in to PrimeCore</h1>
+          <h1>Log in</h1>
           <p className="prime-login-card-description">Enter your credentials to access your account</p>
 
           <label className="prime-login-label" htmlFor="prime-login-username">Username<span aria-hidden="true">*</span></label>
