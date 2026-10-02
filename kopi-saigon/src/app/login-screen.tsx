@@ -26,40 +26,40 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
   }
 
   return (
-    <main className="kopi-login-layout">
-      <section className="kopi-login-story" aria-label="Kopi Saigon introduction">
-        <a className="kopi-login-brand" href="#login" aria-label="Kopi Saigon home">
-          <span className="kopi-login-brand-mark">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logos/logo-white.svg" alt="" />
-          </span>
-          <span className="kopi-login-brand-name">KOPI <b>SAIGON</b></span>
+    <main className="prime-login-layout">
+      <section className="prime-login-story" aria-label="PRIME Philippines">
+        <a className="prime-login-brand" href="#login" aria-label="PRIME Philippines">
+          <svg className="prime-login-brand-mark" viewBox="0 0 210 58" role="img" aria-labelledby="prime-logo-title">
+            <title id="prime-logo-title">PRIME Philippines</title>
+            <text x="1" y="38" fill="currentColor" fontFamily="Arial, Helvetica, sans-serif" fontSize="38" fontWeight="700" letterSpacing="-2.1">PRIME</text>
+            <path fill="currentColor" d="M151 7h9l22 22-22 22h-9l22-22zM174 7h9l22 22-22 22h-9l22-22z" />
+            <path fill="currentColor" d="M2 44h67v3H2z" />
+            <text x="72" y="52" fill="currentColor" fontFamily="Arial, Helvetica, sans-serif" fontSize="7" fontWeight="600">Philippines</text>
+          </svg>
         </a>
 
-        <div className="kopi-login-story-copy">
-          <p className="kopi-login-eyebrow">COFFEE COMPETITOR INTELLIGENCE</p>
-          <h2>Every cup<br />has a story.</h2>
-          <p className="kopi-login-story-description">
-            Explore KOPI SAIGON’s competitor landscape, pricing tiers, and coffee hotspots in Quezon City.
+        <div className="prime-login-story-copy">
+          <p className="prime-login-eyebrow">COMMERCIAL REAL ESTATE INTELLIGENCE</p>
+          <h2>Data That<br />Drives Deals.</h2>
+          <p className="prime-login-story-description">
+            The Philippines’ leading commercial real estate platform for brokers, analysts, and property managers.
           </p>
         </div>
-        <p className="kopi-login-story-footer">TIADA HARI TANPA KOPI</p>
       </section>
+      <section className="prime-login-stage" aria-label="Log in to PrimeCore">
+        <div className="prime-login-grid" aria-hidden="true" />
+        <div className="prime-login-chevron prime-login-chevron-gold" aria-hidden="true" />
+        <div className="prime-login-chevron prime-login-chevron-silver" aria-hidden="true" />
 
-      <section className="kopi-login-stage" aria-label="Log in to PrimeCore">
-        <div className="kopi-login-grid" aria-hidden="true" />
-        <div className="kopi-login-chevron kopi-login-chevron-gold" aria-hidden="true" />
-        <div className="kopi-login-chevron kopi-login-chevron-silver" aria-hidden="true" />
-
-        <form className="kopi-login-card" onSubmit={handleSubmit}>
-          <p className="kopi-login-card-eyebrow">WELCOME BACK</p>
+        <form className="prime-login-card" onSubmit={handleSubmit}>
+          <p className="prime-login-card-eyebrow">WELCOME BACK</p>
           <h1>Log in to PrimeCore</h1>
-          <p className="kopi-login-card-description">Enter your credentials to access your account</p>
+          <p className="prime-login-card-description">Enter your credentials to access your account</p>
 
-          <label className="kopi-login-label" htmlFor="kopi-login-username">Username<span aria-hidden="true">*</span></label>
+          <label className="prime-login-label" htmlFor="prime-login-username">Username<span aria-hidden="true">*</span></label>
           <input
-            className="kopi-login-input"
-            id="kopi-login-username"
+            className="prime-login-input"
+            id="prime-login-username"
             name="username"
             type="text"
             autoComplete="username"
@@ -69,11 +69,11 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             required
           />
 
-          <label className="kopi-login-label kopi-login-password-label" htmlFor="kopi-login-password">Password<span aria-hidden="true">*</span></label>
-          <div className="kopi-login-password-field">
+          <label className="prime-login-label prime-login-password-label" htmlFor="prime-login-password">Password<span aria-hidden="true">*</span></label>
+          <div className="prime-login-password-field">
             <input
-              className="kopi-login-input"
-              id="kopi-login-password"
+              className="prime-login-input"
+              id="prime-login-password"
               name="password"
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
@@ -83,7 +83,7 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
               required
             />
             <button
-              className="kopi-login-password-toggle"
+              className="prime-login-password-toggle"
               type="button"
               aria-label={showPassword ? 'Hide password' : 'Show password'}
               aria-pressed={showPassword}
@@ -93,13 +93,13 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
             </button>
           </div>
 
-          <div className="kopi-login-forgot">
-            <button type="button" onClick={() => { setError(''); setNotice('Password reset is not available for this testing login.'); }}>Forgot password?</button>
+          <div className="prime-login-forgot">
+            <button type="button" onClick={() => { setError(''); setNotice('Password reset is not available for this account.'); }}>Forgot password?</button>
           </div>
-          {notice && <p className="kopi-login-notice" role="status">{notice}</p>}
+          {notice && <p className="prime-login-notice" role="status">{notice}</p>}
 
-          {error && <p className="kopi-login-error" role="alert">{error}</p>}
-          <button className="kopi-login-submit" type="submit">Log in</button>
+          {error && <p className="prime-login-error" role="alert">{error}</p>}
+          <button className="prime-login-submit" type="submit">Log in</button>
         </form>
       </section>
     </main>

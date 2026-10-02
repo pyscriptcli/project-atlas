@@ -434,25 +434,9 @@ const FALLBACK_OSM_STYLE = {
   ],
 };
 
-const TEST_LOGIN_SESSION_KEY = 'kopi-saigon-test-login';
-
 export default function KopiSaigonPage() {
   const [authenticated, setAuthenticated] = useState(false);
-  const [sessionChecked, setSessionChecked] = useState(false);
-
-  useEffect(() => {
-    setAuthenticated(sessionStorage.getItem(TEST_LOGIN_SESSION_KEY) === 'active');
-    setSessionChecked(true);
-  }, []);
-
-  const handleAuthenticated = useCallback(() => {
-    sessionStorage.setItem(TEST_LOGIN_SESSION_KEY, 'active');
-    setAuthenticated(true);
-  }, []);
-
-  if (!sessionChecked) {
-    return <main className="kopi-login-loading" aria-label="Loading sign-in screen"><span className="kopi-login-loading-mark" /></main>;
-  }
+  const handleAuthenticated = useCallback(() => setAuthenticated(true), []);
 
   if (!authenticated) return <LoginScreen onAuthenticated={handleAuthenticated} />;
   return <KopiSaigonDashboard />;
