@@ -29,6 +29,3 @@ The client viewer uses Supabase Auth invitations. Before deploying this change:
 5. Deploy and open `/admin`; sign in with the administrator account. Invite clients from Client accounts.
 
 Admin/client roles are stored as `is_admin` in `kopi_app_access`. Passwords remain managed by Supabase Auth and are not stored in this table. The admin dashboard reports account activation, 7-day activity, viewer sessions, feature actions, and recent use. It does not collect typed input or precise location. The KOPI project row is protected by RLS and requires enabled access; other map project rows remain available to the Atlas editor.
-
-
-Client login accepts a username and resolves it to the matching Supabase Auth email at `username@primephilippines.com`; users can also enter their full email address. Passwords are authenticated by Supabase Auth.
