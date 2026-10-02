@@ -9,7 +9,7 @@ import { startActivitySession, trackActivity } from '@/lib/telemetry';
 type LoginScreenProps = { onAuthenticated: () => void };
 
 export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
@@ -19,10 +19,12 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
     event.preventDefault();
     setBusy(true);
     setError('');
-    const { data, error: signInError } = await createSupabaseBrowserClient().auth.signInWithPassword({ email: email.trim(), password });
+    const loginIdentifier = username.trim();
+    const email = loginIdentifier.includes('@') ? loginIdentifier : `${loginIdentifier}@primephilippines.com`;
+    const { data, error: signInError } = await createSupabaseBrowserClient().auth.signInWithPassword({ email, password });
     setBusy(false);
     if (signInError || !data.user) {
-      setError('We could not sign you in. Check your email and password, or ask your administrator to verify account access.');
+      setError('We could not sign you in. Check your username and password, or ask your administrator to verify account access.');
       return;
     }
     startActivitySession();
@@ -53,16 +55,16 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
           <h1>Log in</h1>
           <p className="prime-login-card-description">Enter your credentials to access your account</p>
 
-          <label className="prime-login-label" htmlFor="prime-login-email">Email<span aria-hidden="true">*</span></label>
+          <label className="prime-login-label" htmlFor="prime-login-username">Username<span aria-hidden="true">*</span></label>
           <input
             className="prime-login-input"
-            id="prime-login-email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            placeholder="Enter your email"
-            value={email}
-            onChange={event => { setEmail(event.target.value); setError(''); }}
+            id="prime-login-username"
+            name="username"
+            type="text"
+            autoComplete="username"
+            placeholder="Enter your username"
+            value={username}
+            onChange={event => { setUsername(event.target.value); setError(''); }}
             required
           />
 
