@@ -1,12 +1,14 @@
 'use client';
 
 import maplibregl, { LngLatBounds, Map as MapLibreMap } from 'maplibre-gl';
-import { Box, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, Flame, LoaderCircle, Map as MapIcon, MapPin, MapPinned, Network, Table2, X } from 'lucide-react';
+import { Box, ChevronLeft, ChevronRight, Coffee, Compass, ExternalLink, Flame, LoaderCircle, Map as MapIcon, MapPin, MapPinned, Network, Table2, X, LogOut } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Feature as GeoFeature, FeatureCollection, Geometry } from 'geojson';
 import { ALL_STYLES, VIS_MAP } from '../gis/map';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import LoginScreen from './login-screen';
+import { createSupabaseBrowserClient } from '@/lib/supabase/client';
+import { trackActivity } from '@/lib/telemetry';
 
 type AtlasFeature = { id: number; name: string; kind: string; geometry: Geometry; props?: Record<string, any> };
 type AtlasProject = { id: string; name: string; basemap?: string; center?: [number, number]; zoom?: number; pitch?: number; bearing?: number; features?: AtlasFeature[]; layer_visibilities?: Record<string, boolean>; updated_at?: string };
@@ -109,8 +111,6 @@ function makeFocusAreas(features: AtlasFeature[]): FocusArea[] {
 }
 const PROJECT_NAME = 'KOPI SAIGON';
 const PROJECT_ID = 'c5e014fa-2c16-4ad5-8f00-5d525ba954d7';
-const DEFAULT_SUPABASE_URL = 'https://cyczyaswxkpdcremqnkn.supabase.co';
-const DEFAULT_SUPABASE_KEY = 'sb_publishable_pUppHGjwmT1mLlhWGZH6Og_4GcCLCPR';
 
 function applyDisplayMode(map: MapLibreMap, mode: DisplayMode) {
   const visibility: Record<string, boolean> = {
@@ -437,16 +437,18 @@ const FALLBACK_OSM_STYLE = {
 export default function KopiSaigonPage() {
   const [authenticated, setAuthenticated] = useState(false);
   const handleAuthenticated = useCallback(() => setAuthenticated(true), []);
+  const handleSignOut = useCallback(() => setAuthenticated(false), []);
 
   if (!authenticated) return <LoginScreen onAuthenticated={handleAuthenticated} />;
-  return <KopiSaigonDashboard />;
+  return <KopiSaigonDashboard onSignOut={handleSignOut} />;
 }
 
-function KopiSaigonDashboard() {
+function KopiSaigonDashboard({ onSignOut }: { onSignOut: () => void }) {
   const mapNode = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const tableDialogRef = useRef<HTMLDialogElement>(null);
   const sourceReady = useRef(false);
+  const projectLoadTracked = useRef(false);
   const selectedRef = useRef('overview');
   const focusAreaRef = useRef<FocusArea | null>(null);
   const displayModeRef = useRef<DisplayMode>('pins');
@@ -612,25 +614,34 @@ function KopiSaigonDashboard() {
 
   const loadProject = useCallback(async () => {
     try {
-      const url = process.env.NEXT_PUBLIC_SUPABASE_URL || DEFAULT_SUPABASE_URL;
-      const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || DEFAULT_SUPABASE_KEY;
-      const query = new URLSearchParams({ select: '*', id: `eq.${PROJECT_ID}`, limit: '1' });
-      const response = await fetch(`${url}/rest/v1/map_projects?${query}`, { headers: { apikey: key, Authorization: `Bearer ${key}` }, cache: 'no-store' });
-      if (!response.ok) throw new Error(response.status === 401 || response.status === 403 ? 'Atlas could not read the KOPI SAIGON project. Check Supabase read permissions.' : `Could not load the KOPI SAIGON project (HTTP ${response.status}).`);
-      const projects = await response.json() as AtlasProject[];
-      if (!projects.length) throw new Error(`KOPI SAIGON project ${PROJECT_ID} was not found or is not readable.`);
-      const latest = projects[0];
+      const { data: latest, error: projectError } = await createSupabaseBrowserClient()
+        .from('map_projects')
+        .select('*')
+        .eq('id', PROJECT_ID)
+        .maybeSingle();
+      if (projectError) {
+        if (projectError.code === '42501') {
+          setProject(null);
+          await createSupabaseBrowserClient().auth.signOut();
+          onSignOut();
+        }
+        throw new Error(projectError.code === '42501' ? 'This account does not have access to the KOPI SAIGON project.' : 'Could not load the KOPI SAIGON project. Please try again.');
+      }
+      if (!latest) throw new Error(`KOPI SAIGON project ${PROJECT_ID} was not found or is not readable.`);
       if (latest.id !== PROJECT_ID) throw new Error('The KOPI SAIGON viewer received an unexpected project.');
       // Atlas is the source of truth. Compare the full row as a fallback in
       // case two saves share the same timestamp precision.
       setProject(current => current && JSON.stringify(current) === JSON.stringify(latest) ? current : latest);
       setError('');
+      if (!projectLoadTracked.current) { projectLoadTracked.current = true; void trackActivity('project_loaded'); }
     } catch (err) {
+      if (!projectLoadTracked.current) { projectLoadTracked.current = true; void trackActivity('project_load_failed'); }
       setError(current => current || (err instanceof Error ? err.message : 'Could not load the KOPI SAIGON project.'));
     } finally { setLoading(false); }
-  }, []);
+  }, [onSignOut]);
 
   useEffect(() => {
+    const heartbeat = window.setInterval(() => { if (document.visibilityState === 'visible') void trackActivity('session_heartbeat'); }, 60000);
     void loadProject();
     const timer = window.setInterval(() => {
       if (document.visibilityState === 'visible') void loadProject();
@@ -642,6 +653,7 @@ function KopiSaigonDashboard() {
     document.addEventListener('visibilitychange', refreshWhenVisible);
     return () => {
       window.clearInterval(timer);
+      window.clearInterval(heartbeat);
       window.removeEventListener('focus', refreshWhenVisible);
       document.removeEventListener('visibilitychange', refreshWhenVisible);
     };
@@ -805,6 +817,7 @@ function KopiSaigonDashboard() {
     setSelected(stop?.id || 'overview');
     refreshMap(stop, focusAreaRef.current);
     setMenuOpen(true);
+    if (stop) void trackActivity('tier_selected', { tier: stop.tier });
   };
   const showAllPlaces = () => {
     selectedRef.current = 'overview';
@@ -814,12 +827,14 @@ function KopiSaigonDashboard() {
     stopRippleAnimation();
     refreshMap(undefined, null);
     setMenuOpen(true);
+    void trackActivity('area_selected', { area_id: 'all' });
   };
   const showAllTiers = () => {
     selectedRef.current = 'overview';
     setSelected('overview');
     refreshMap(undefined, focusAreaRef.current);
     setMenuOpen(true);
+    void trackActivity('tier_selected', { tier: 'all' });
   };
   const toggleArea = (area: FocusArea) => {
     const nextArea = focusAreaRef.current?.id === area.id ? null : area;
@@ -827,22 +842,30 @@ function KopiSaigonDashboard() {
     setFocusArea(nextArea);
     refreshMap(stops.find(stop => stop.id === selectedRef.current), nextArea);
     setMenuOpen(true);
+    void trackActivity('area_selected', { area_id: nextArea?.id || 'all' });
   };
   const chooseDisplayMode = (mode: DisplayMode) => {
     displayModeRef.current = mode;
     setDisplayMode(mode);
+    void trackActivity('display_mode_changed', { mode });
     if (mapRef.current) applyDisplayMode(mapRef.current, mode);
   };
   const setMapMode = (threeD: boolean) => {
     setIs3D(threeD);
+    void trackActivity('map_mode_changed', { mode: threeD ? '3d' : '2d' });
     const map = mapRef.current;
     if (!map) return;
     map.easeTo({ pitch: threeD ? 60 : 0, bearing: threeD ? -15 : 0, duration: 800 });
     applyPerspectiveLayers(map, threeD);
   };
+  async function handleViewerSignOut() {
+    await trackActivity('signed_out');
+    await createSupabaseBrowserClient().auth.signOut();
+    onSignOut();
+  }
   return <main className="viewer-shell">
     <div ref={mapNode} className="map-canvas" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} aria-label="KOPI SAIGON competitor map" />
-    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); showAllPlaces(); }}><span className="brand-mark">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/logos/logo-brown.svg" alt="KOPI SAIGON" width={32} height={32} /></span><span><strong>KOPI SAIGON</strong><small>TIADA HARI TANPA KOPI</small></span></a><div className="top-actions"><div className="map-view-toggle" role="group" aria-label="Map perspective"><button type="button" className={`map-view-button ${!is3D ? 'active' : ''}`} aria-label="Switch to 2D map" aria-pressed={!is3D} onClick={() => setMapMode(false)}><MapIcon size={14}/><span>2D</span></button><button type="button" className={`map-view-button ${is3D ? 'active' : ''}`} aria-label="Switch to 3D map" aria-pressed={is3D} onClick={() => setMapMode(true)}><Box size={14}/><span>3D</span></button></div><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
+    <header className="topbar"><a className="brand" href="#overview" onClick={e => { e.preventDefault(); showAllPlaces(); }}><span className="brand-mark">{/* eslint-disable-next-line @next/next/no-img-element */}<img src="/logos/logo-brown.svg" alt="KOPI SAIGON" width={32} height={32} /></span><span><strong>KOPI SAIGON</strong><small>TIADA HARI TANPA KOPI</small></span></a><div className="top-actions"><div className="map-view-toggle" role="group" aria-label="Map perspective"><button type="button" className={`map-view-button ${!is3D ? 'active' : ''}`} aria-label="Switch to 2D map" aria-pressed={!is3D} onClick={() => setMapMode(false)}><MapIcon size={14}/><span>2D</span></button><button type="button" className={`map-view-button ${is3D ? 'active' : ''}`} aria-label="Switch to 3D map" aria-pressed={is3D} onClick={() => setMapMode(true)}><Box size={14}/><span>3D</span></button></div><button className="signout-button" type="button" onClick={handleViewerSignOut}><LogOut size={15}/><span>Log out</span></button><button className="icon-button menu-toggle" aria-label="Toggle navigation" onClick={() => setMenuOpen(v => !v)}><MapPinned size={18}/></button></div></header>
     <aside className={`navigation ${menuOpen ? 'is-open' : 'is-closed'}`}>
       <div className="nav-heading"><div><h1 className="nav-heading-title">Competitors Landscape</h1></div><button className="icon-button nav-collapse" aria-label="Hide menu" onClick={() => setMenuOpen(false)}><ChevronLeft size={18}/></button></div>
       {loading && <div className="state-card"><LoaderCircle className="spin" size={21}/> Loading project from Atlas…</div>}
@@ -857,7 +880,7 @@ function KopiSaigonDashboard() {
           const areaCount = features.filter(feature => feature.kind === 'marker' && area.match(feature)).length;
           return <button key={area.id} className={`area-button ${focusArea?.id === area.id ? 'active' : ''}`} aria-pressed={focusArea?.id === area.id} onClick={() => toggleArea(area)}><span className="area-button-icon"><MapPinned size={16}/></span><span><b>{area.name}</b><small>{areaCount} places</small></span><span className="area-check">{focusArea?.id === area.id ? 'On' : 'View'}</span></button>;
         })}</div>
-        <div className="nav-section tier-section"><div className="area-heading-row"><span className="eyebrow">FILTER BY PRICE</span><button type="button" className={`all-places-compact ${selected === 'overview' ? 'active' : ''}`} aria-pressed={selected === 'overview'} onClick={showAllTiers}><Coffee size={14}/><span>All tiers</span></button></div>{stops.map(stop => <button key={stop.id} className={`tier-button ${selected === stop.id ? 'active' : ''}`} aria-pressed={selected === stop.id} onClick={() => navigate(stop)}><span className={`tier-dot tier-${stop.id.slice(5)}`} /><span><b>{stop.title}</b><small>{stop.featureIds.length} cafés</small></span><span className="nav-count">{stop.featureIds.length}</span></button>)}<button className="open-table-button" onClick={() => setTableOpen(true)}><Table2 size={16}/><span>Open price table</span><ChevronRight size={15}/></button></div>
+        <div className="nav-section tier-section"><div className="area-heading-row"><span className="eyebrow">FILTER BY PRICE</span><button type="button" className={`all-places-compact ${selected === 'overview' ? 'active' : ''}`} aria-pressed={selected === 'overview'} onClick={showAllTiers}><Coffee size={14}/><span>All tiers</span></button></div>{stops.map(stop => <button key={stop.id} className={`tier-button ${selected === stop.id ? 'active' : ''}`} aria-pressed={selected === stop.id} onClick={() => navigate(stop)}><span className={`tier-dot tier-${stop.id.slice(5)}`} /><span><b>{stop.title}</b><small>{stop.featureIds.length} cafés</small></span><span className="nav-count">{stop.featureIds.length}</span></button>)}<button className="open-table-button" onClick={() => { setTableOpen(true); void trackActivity('price_table_opened'); }}><Table2 size={16}/><span>Open price table</span><ChevronRight size={15}/></button></div>
       </>}
     </aside>
     {!menuOpen && project && <button className="reopen-nav" onClick={() => setMenuOpen(true)}><MapPinned size={16}/> Explore map <ChevronRight size={16}/></button>}
