@@ -14,12 +14,14 @@ export async function PATCH(request: Request, contextParams: { params: Promise<{
   const { data: targetResult, error: targetError } = await context.admin.auth.admin.getUserById(userId);
   const target = targetResult.user;
   if (targetError || !target?.email) return Response.json({ error: 'Account not found.' }, { status: 404 });
-  if (context.allowedEmails.has(target.email.toLowerCase())) return Response.json({ error: 'Admin accounts cannot be changed here.' }, { status: 403 });
+  const { data: targetAccess, error: targetAccessError } = await context.admin.from('kopi_app_access').select('is_admin').eq('user_id', userId).maybeSingle();
+  if (targetAccessError) return Response.json({ error: 'Could not load account role.' }, { status: 502 });
+  if (targetAccess?.is_admin) return Response.json({ error: 'Admin accounts cannot be changed here.' }, { status: 403 });
   if (body.enabled) {
     const { error } = await context.admin.auth.admin.updateUserById(userId, { ban_duration: 'none' });
     if (error) return Response.json({ error: error.message }, { status: 502 });
   }
-  const { error: accessError } = await context.admin.from('kopi_app_access').upsert({ user_id: userId, enabled: body.enabled, granted_by: context.user.id }, { onConflict: 'user_id' });
+  const { error: accessError } = await context.admin.from('kopi_app_access').upsert({ user_id: userId, enabled: body.enabled, is_admin: false, granted_by: context.user.id }, { onConflict: 'user_id' });
   if (accessError) return Response.json({ error: 'Could not update account access. Confirm the database migration is applied.' }, { status: 503 });
   if (!body.enabled) {
     const { error } = await context.admin.auth.admin.updateUserById(userId, { ban_duration: '876000h' });

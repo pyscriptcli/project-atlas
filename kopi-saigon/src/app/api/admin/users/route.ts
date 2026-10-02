@@ -14,17 +14,18 @@ export async function GET(request: Request) {
   }
   const clientUsers = users.filter(user => user.email);
   const userIds = clientUsers.map(user => user.id);
-  const accessByUser = new Map<string, boolean>();
+  const accessByUser = new Map<string, { enabled: boolean; isAdmin: boolean }>();
   for (let start = 0; start < userIds.length; start += 200) {
-    const { data, error } = await context.admin.from('kopi_app_access').select('user_id, enabled').in('user_id', userIds.slice(start, start + 200));
+    const { data, error } = await context.admin.from('kopi_app_access').select('user_id, enabled, is_admin').in('user_id', userIds.slice(start, start + 200));
     if (error) return Response.json({ error: 'Could not load account access records.' }, { status: 502 });
-    for (const access of data || []) accessByUser.set(access.user_id, access.enabled);
+    for (const access of data || []) accessByUser.set(access.user_id, { enabled: access.enabled, isAdmin: access.is_admin });
   }
   return Response.json({ users: clientUsers.map(user => {
     const email = user.email || '';
-    const isAdmin = context.allowedEmails.has(email.toLowerCase());
+    const access = accessByUser.get(user.id);
+    const isAdmin = access?.isAdmin === true;
     const isBanned = Boolean(user.banned_until && Date.parse(user.banned_until) > Date.now());
-    const accessEnabled = accessByUser.get(user.id) === true;
+    const accessEnabled = access?.enabled === true;
     return { id: user.id, email, name: typeof user.user_metadata?.display_name === 'string' ? user.user_metadata.display_name : '', createdAt: user.created_at, lastSignInAt: user.last_sign_in_at, emailConfirmed: Boolean(user.email_confirmed_at), isAdmin, enabled: isAdmin ? !isBanned : accessEnabled && !isBanned, status: isBanned || (!isAdmin && !accessEnabled) ? 'suspended' : user.email_confirmed_at ? 'active' : 'invited' };
   }) });
 }
@@ -40,7 +41,7 @@ export async function POST(request: Request) {
   const siteUrl = (process.env.NEXT_PUBLIC_SITE_URL || 'https://kopisaigon.vercel.app').replace(/\/$/, '');
   const { data, error } = await context.admin.auth.admin.inviteUserByEmail(email, { data: name ? { display_name: name } : {}, redirectTo: `${siteUrl}/auth/setup-password` });
   if (error || !data.user) return Response.json({ error: error?.message || 'Could not send the invitation.' }, { status: 400 });
-  const { error: accessError } = await context.admin.from('kopi_app_access').insert({ user_id: data.user.id, enabled: true, granted_by: context.user.id });
+  const { error: accessError } = await context.admin.from('kopi_app_access').insert({ user_id: data.user.id, enabled: true, is_admin: false, granted_by: context.user.id });
   if (accessError) {
     await context.admin.auth.admin.deleteUser(data.user.id);
     return Response.json({ error: 'The invitation was sent but account access could not be initialized. Check the database migration.' }, { status: 503 });
