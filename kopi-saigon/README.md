@@ -16,16 +16,3 @@ Navigation is generated from the project's saved search-area labels and place ca
 ## Local development
 
 From this folder run `npm install`, then `npm run dev`. The viewer uses Atlas's public Supabase project/key defaults unless overridden with environment variables.
-
-
-## Admin setup
-
-The client viewer uses Supabase Auth invitations. Before deploying this change:
-
-1. Apply `../supabase/migrations/202610020001_kopi_admin_and_telemetry.sql` to the linked Supabase project.
-2. In Supabase Authentication > Users, create the first administrator and confirm its email.
-3. Set these Vercel environment variables for Production (and Preview if needed): `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_SITE_URL`, `ADMIN_EMAILS` (comma-separated administrator emails), and `SUPABASE_SECRET_KEY` (server-only secret key). Never expose the secret key with a `NEXT_PUBLIC_` prefix.
-4. Add `https://kopisaigon.vercel.app/auth/setup-password` to Supabase Auth's allowed redirect URLs and configure production SMTP so invitation emails can be delivered.
-5. Deploy and open `/admin`; sign in with the administrator account. Invite clients from Client accounts.
-
-The admin dashboard reports account activation, 7-day activity, viewer sessions, feature actions, and recent use. It does not collect typed input or precise location. The KOPI project row is protected by RLS and requires enabled access; other map project rows remain available to the Atlas editor.
