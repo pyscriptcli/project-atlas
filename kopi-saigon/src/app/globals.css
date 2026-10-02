@@ -1052,7 +1052,7 @@ button { color: inherit; cursor: pointer; }
   place-items: center;
   overflow: hidden;
   padding: 40px;
-  background: var(--prime-blue);
+  background: #0D1B35;
   isolation: isolate;
 }
 .prime-login-grid {
@@ -1142,7 +1142,6 @@ button { color: inherit; cursor: pointer; }
 @media (max-width: 900px) {
   .prime-login-layout { grid-template-columns: minmax(260px, 34%) minmax(0, 1fr); }
   .prime-login-stage { padding: 28px; }
-  .prime-login-chevron-silver { right: 4%; }
 }
 @media (max-width: 700px) {
   .prime-login-layout { display: flex; flex-direction: column; }
@@ -1153,7 +1152,7 @@ button { color: inherit; cursor: pointer; }
   .prime-login-story-copy h2 { margin: 10px 0 8px; font-size: 37px; }
   .prime-login-story-description { max-width: 520px; font-size: 13px; line-height: 1.5; }
   .prime-login-stage { min-height: 610px; flex: 1; padding: 28px 18px; }
-    .prime-login-card { width: min(560px, 100%); padding: 34px 26px 38px; }
+  .prime-login-card { width: min(560px, 100%); padding: 34px 26px 38px; }
   .prime-login-card h1 { font-size: 36px; }
   .prime-login-card-description { font-size: 14px; }
 }

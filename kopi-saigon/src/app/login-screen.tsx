@@ -42,8 +42,7 @@ export default function LoginScreen({ onAuthenticated }: LoginScreenProps) {
       </section>
       <section className="prime-login-stage" aria-label="Log in">
         <div className="prime-login-grid" aria-hidden="true" />
-        <div className="prime-login-chevron prime-login-chevron-gold" aria-hidden="true" />
-        <div className="prime-login-chevron prime-login-chevron-silver" aria-hidden="true" />
+
 
         <form className="prime-login-card" onSubmit={handleSubmit}>
           <p className="prime-login-card-eyebrow">WELCOME BACK</p>
