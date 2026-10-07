@@ -1,45 +1,38 @@
-# Dependencies
-node_modules/
-frontend/node_modules/
+# App packages and generated output
+**/node_modules/
+**/.next/
+**/out/
+**/build/
+**/dist/
+**/.vercel/
+**/*.tsbuildinfo
 .pnp
 .pnp.js
 
-# Next.js build output
-.next/
-frontend/.next/
-out/
-frontend/out/
-build/
-frontend/build/
-dist/
-.vercel/
-*.tsbuildinfo
+# Local settings and secrets
+.env
+.env.*
+!**/.env.example
+*.key
+*.pem
+auth.json
 
-# Environment variables
-.env*.local
-frontend/.env.local
-!frontend/.env.example
-!.env.example
+# Python environments and caches
+**/.venv/
+**/venv/
+**/__pycache__/
+*.py[cod]
+*$py.class
 
 # Debug logs
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-.Python
-venv/
-backend/venv/
-backend/__pycache__/
-backend/app/__pycache__/
-backend/app/api/__pycache__/
-backend/app/core/__pycache__/
-
-# OS & Editor files
-.DS_Store
-Thumbs.db
+# Editor and operating system files
+.codex/
+.gemini/
 .vscode/
 .idea/
+.DS_Store
+Thumbs.db
