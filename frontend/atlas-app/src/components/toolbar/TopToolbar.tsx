@@ -147,7 +147,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
               }`}
             >
               <span className="text-[6px]">●</span>
-              <span>{embeddedName ? (embeddedStatus === 'saved' ? 'Host saved' : embeddedStatus === 'saving' ? 'Syncing' : 'Host saves edits') : saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}</span>
+              <span>{embeddedName ? (embeddedStatus === 'saved' ? 'Host saved' : embeddedStatus === 'saving' ? 'Saving' : embeddedStatus === 'unsaved' ? 'Unsaved' : 'Save in host') : saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}</span>
             </div>
           </div>
 

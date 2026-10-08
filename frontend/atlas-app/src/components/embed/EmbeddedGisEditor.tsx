@@ -26,7 +26,7 @@ import { useMapStore } from '../../store/useMapStore';
 
 type Mode = 'view' | 'edit';
 type InitMessage = { type: 'atlas:init'; protocolVersion: 1; sessionId: string; mode: Mode; revision: string | number; data: GeoJsonFeatureCollection; projectName?: string; basemap?: string; camera?: { center?: [number, number]; zoom?: number; pitch?: number; bearing?: number } };
-type ParentMessage = InitMessage | { type: 'atlas:set-mode'; protocolVersion: 1; sessionId: string; mode: Mode } | { type: 'atlas:replace-data'; protocolVersion: 1; sessionId: string; revision: string | number; data: GeoJsonFeatureCollection } | { type: 'atlas:saved'; protocolVersion: 1; sessionId: string; revision: string | number; changeId: string };
+type ParentMessage = InitMessage | { type: 'atlas:set-mode'; protocolVersion: 1; sessionId: string; mode: Mode } | { type: 'atlas:replace-data'; protocolVersion: 1; sessionId: string; revision: string | number; data: GeoJsonFeatureCollection } | { type: 'atlas:saved'; protocolVersion: 1; sessionId: string; revision: string | number; changeId: string } | { type: 'atlas:revision'; protocolVersion: 1; sessionId: string; revision: string | number };
 
 const DEFAULT_ALLOWED_ORIGINS = ['https://project-echo-next.vercel.app', 'http://localhost:3100', 'http://localhost:3101'];
 const allowedOrigins = (process.env.NEXT_PUBLIC_EMBED_ALLOWED_ORIGINS || DEFAULT_ALLOWED_ORIGINS.join(','))
@@ -51,6 +51,7 @@ function messageIsValid(value: unknown): value is ParentMessage {
   }
   if (message.type === 'atlas:replace-data') return (typeof message.revision === 'string' || typeof message.revision === 'number') && validateFeatureCollection(message.data);
   if (message.type === 'atlas:saved') return (typeof message.revision === 'string' || typeof message.revision === 'number') && typeof message.changeId === 'string';
+  if (message.type === 'atlas:revision') return typeof message.revision === 'string' || typeof message.revision === 'number';
   return message.type === 'atlas:set-mode' && (message.mode === 'view' || message.mode === 'edit');
 }
 
@@ -124,6 +125,8 @@ export default function EmbeddedGisEditor() {
         else if (mapInstance) mapInstance.once('idle', () => send(loadedMessage));
         else pendingLoadedRef.current = { sessionId: message.sessionId, revision: message.revision };
         requestAnimationFrame(() => { suppressRef.current = false; });
+      } else if (message.sessionId === sessionId && message.type === 'atlas:revision') {
+        revisionRef.current = message.revision;
       } else if (message.sessionId === sessionId && message.type === 'atlas:saved') {
         revisionRef.current = message.revision;
         setStatus('Saved to project workspace');
@@ -177,7 +180,12 @@ export default function EmbeddedGisEditor() {
       if (!(event.ctrlKey || event.metaKey) || !ready || mode !== 'edit') return;
       if (event.key.toLowerCase() === 'z') { event.preventDefault(); if (event.shiftKey) redo(); else undo(); }
       if (event.key.toLowerCase() === 'y') { event.preventDefault(); redo(); }
-      if (event.key.toLowerCase() === 's') { event.preventDefault(); setStatus('Map edits sync to Project Echo automatically.'); }
+      if (event.key.toLowerCase() === 's') {
+        event.preventDefault();
+        if (!parentOrigin) return;
+        window.parent.postMessage({ type: 'atlas:save-request', protocolVersion: 1, sessionId }, parentOrigin);
+        setStatus('Save GeoJSON requested in Project Echo.');
+      }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
@@ -203,7 +211,7 @@ export default function EmbeddedGisEditor() {
 
   if (!parentOrigin || window.parent === window) return <div className="flex h-screen items-center justify-center bg-[#0a0d12] p-6 text-sm text-white">{status}</div>;
   const modeIsEdit = ready && mode === 'edit';
-  const hostSyncStatus = /saving|unsaved|sent to/i.test(status) ? 'saving' : /saved/i.test(status) ? 'saved' : 'host';
+  const hostSyncStatus = /saving/i.test(status) ? 'saving' : /unsaved|sent to/i.test(status) ? 'unsaved' : /saved/i.test(status) ? 'saved' : 'host';
   return <main className="app-shell relative h-screen w-screen overflow-hidden bg-transparent">
     <input ref={fileInputRef} type="file" accept=".geojson,.json" className="hidden" onChange={handleFileImport} />
     <MapCanvas onMapReady={(map) => {
