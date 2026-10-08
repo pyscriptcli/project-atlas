@@ -68,7 +68,15 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
   const featuresRef = useRef(features);
   featuresRef.current = features;
   const customImageRegistrationsRef = useRef(new Map<string, Promise<string>>());
-  const routeAnimationRef = useRef<{ frame: number; map: maplibregl.Map; pause: () => void; resume: () => void } | null>(null);
+  const routeAnimationRef = useRef<{
+    frame: number;
+    map: maplibregl.Map;
+    featureId: number;
+    captureMode: boolean;
+    renderFrame: (progress: number, timestamp: number) => void;
+    pause: () => void;
+    resume: () => void;
+  } | null>(null);
   const activeRouteAnimationIdRef = useRef<number | null>(null);
   const pendingRouteAnimationRef = useRef<any>(null);
   const routeEditRequestRef = useRef(new Map<number, number>());
@@ -374,7 +382,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       coords.forEach((coordinate) => routeBounds.extend(coordinate));
       const viewBounds = map.getBounds();
       const routeIsInView = viewBounds.contains(routeBounds.getSouthWest()) && viewBounds.contains(routeBounds.getNorthEast());
-      const cameraFrameDuration = routeIsInView ? 0 : 500;
+      const captureMode = Boolean(detail.captureMode);
+      const cameraFrameDuration = routeIsInView || captureMode ? 0 : 500;
       if (!routeIsInView) {
         map.fitBounds(routeBounds, { padding: 96, maxZoom: 16, duration: cameraFrameDuration, essential: true });
       }
@@ -412,9 +421,8 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       let lastUiProgressUpdate = 0;
       let headSegmentIndex = 0;
       let lastReportedStatus = '';
-      const frame = (now: number) => {
-        const waitingForCamera = now < started;
-        const progress = totalLength === 0 ? 1 : Math.max(0, Math.min(1, (now - started) / duration));
+      const renderFrame = (progressValue: number, now: number) => {
+        const progress = Math.max(0, Math.min(1, progressValue));
         const distance = totalLength * progress;
         while (headSegmentIndex < segmentLengths.length - 1 && cumulativeLengths[headSegmentIndex + 1] < distance) headSegmentIndex++;
         const segmentLength = segmentLengths[headSegmentIndex] || 1;
@@ -444,27 +452,39 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           });
         }
         try { headSource.setData({ type: 'FeatureCollection', features: animatedFeatures } as any); } catch (_) { reportStatus(route.id, 'error'); stop(); return; }
-        const status = waitingForCamera ? 'waiting' : 'playing';
-        if (status !== lastReportedStatus) { reportStatus(route.id, status); lastReportedStatus = status; }
+        if (captureMode && lastReportedStatus !== 'playing') { reportStatus(route.id, 'playing'); lastReportedStatus = 'playing'; }
+        if (captureMode && (now - lastUiProgressUpdate >= 80 || progress >= 1)) {
+          window.dispatchEvent(new CustomEvent('atlas:route-animation-progress', { detail: { featureId: route.id, progress } }));
+          lastUiProgressUpdate = now;
+        }
+        if (follow && (captureMode || now - lastCameraUpdate > 70)) {
+          if (captureMode) map.jumpTo({ center: head });
+          else map.easeTo({ center: head, duration: 70, essential: true });
+          lastCameraUpdate = now;
+        }
+      };
+      const frame = (now: number) => {
+        const waitingForCamera = now < started;
+        const progress = totalLength === 0 ? 1 : Math.max(0, Math.min(1, (now - started) / duration));
+        renderFrame(progress, now);
+        if (waitingForCamera && lastReportedStatus !== 'waiting') { reportStatus(route.id, 'waiting'); lastReportedStatus = 'waiting'; }
         if (now - lastUiProgressUpdate >= 80 || progress >= 1) {
           window.dispatchEvent(new CustomEvent('atlas:route-animation-progress', { detail: { featureId: route.id, progress } }));
           lastUiProgressUpdate = now;
         }
-        if (follow && now - lastCameraUpdate > 70) {
-          map.easeTo({ center: head, duration: 70, essential: true });
-          lastCameraUpdate = now;
-        }
-        if (progress < 1 && routeAnimationRef.current) routeAnimationRef.current.frame = requestAnimationFrame(frame);
+        if (progress < 1 && routeAnimationRef.current && !captureMode) routeAnimationRef.current.frame = requestAnimationFrame(frame);
         else {
-          reportStatus(route.id, 'complete');
-          window.dispatchEvent(new CustomEvent('atlas:route-animation-ended', { detail: { featureId: route.id } }));
-          stop();
+          if (!captureMode) {
+            reportStatus(route.id, 'complete');
+            window.dispatchEvent(new CustomEvent('atlas:route-animation-ended', { detail: { featureId: route.id } }));
+            stop();
+          }
         }
       };
       let paused = false;
       let pausedAt = 0;
       routeAnimationRef.current = {
-        frame: requestAnimationFrame(frame), map,
+        frame: 0, map, featureId: route.id, captureMode, renderFrame,
         pause: () => {
           const current = routeAnimationRef.current;
           if (!current || paused) return;
@@ -482,6 +502,27 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           current.frame = requestAnimationFrame(frame);
         },
       };
+      if (captureMode) renderFrame(0, performance.now());
+      else routeAnimationRef.current.frame = requestAnimationFrame(frame);
+    };
+    const renderExportFrame = (event: Event) => {
+      const detail = (event as CustomEvent).detail || {};
+      const current = routeAnimationRef.current;
+      if (!current?.captureMode || current.featureId !== detail.featureId) {
+        detail.reject?.(new Error('route export is not ready'));
+        return;
+      }
+      try {
+        current.renderFrame(Number(detail.progress) || 0, performance.now() + (Number(detail.elapsedMs) || 0));
+        const timeout = window.setTimeout(() => detail.reject?.(new Error('map frame timed out')), 5000);
+        map.once('render', () => {
+          window.clearTimeout(timeout);
+          detail.resolve?.();
+        });
+        map.triggerRepaint();
+      } catch (error) {
+        detail.reject?.(error);
+      }
     };
     const pause = () => routeAnimationRef.current?.pause();
     const resume = () => routeAnimationRef.current?.resume();
@@ -500,6 +541,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     window.addEventListener('atlas:stop-route-animation', stop);
     window.addEventListener('atlas:pause-route-animation', pause);
     window.addEventListener('atlas:resume-route-animation', resume);
+    window.addEventListener('atlas:render-route-export-frame', renderExportFrame);
     map.on('styledata', resumePending);
     resumePending();
     return () => {
@@ -507,6 +549,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       window.removeEventListener('atlas:stop-route-animation', stop);
       window.removeEventListener('atlas:pause-route-animation', pause);
       window.removeEventListener('atlas:resume-route-animation', resume);
+      window.removeEventListener('atlas:render-route-export-frame', renderExportFrame);
       map.off('styledata', resumePending);
       stop();
     };
