@@ -38,6 +38,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     setSelectedId,
     addFeature,
     updateFeature,
+    commitFeatureChanges,
     pushHistory,
     setContextMenu,
     closeContextMenu,
@@ -1264,7 +1265,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           const next = { ...f };
           rotateGeometry(next, deltaAngle, d.rotCenter!);
           return next;
-        });
+        }, false);
         d.rotStartAngle = currentAngle;
       }
 
@@ -1294,7 +1295,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
             next.props.waypoints = wp;
           }
           return next;
-        });
+        }, false);
       }
     };
 
@@ -1324,7 +1325,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
           next.props.waypoints = feature.props.waypoints.map((pt) => [pt[0] + dx, pt[1] + dy]);
         }
         return next;
-      });
+      }, false);
       map.getCanvas().style.cursor = 'grabbing';
     };
 
@@ -1396,6 +1397,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
     const handleMouseUp = () => {
       const d = dragRef.current;
       if (d.isDragging || d.isDraggingVertex || d.isDraggingRotation) {
+        commitFeatureChanges();
         if (d.isDraggingVertex && d.draggedPolyId != null) {
           const f = featuresRef.current.find((x) => x.id === d.draggedPolyId);
           if (f && f.kind === 'route' && f.props.waypoints) {

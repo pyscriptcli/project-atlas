@@ -3,6 +3,11 @@ import { GISFeature, CustomGroups, LayerVisibilities, FeatureKind, BuildingArche
 import { DEFAULT_VISIBILITIES } from '../gis/map';
 
 interface MapState {
+  embeddedMode: 'view' | 'edit' | null;
+  changeSequence: number;
+  setEmbeddedMode: (mode: 'view' | 'edit' | null) => void;
+  replaceEmbeddedFeatures: (features: GISFeature[]) => void;
+  commitFeatureChanges: () => void;
   activeTool: FeatureKind | 'placeBuilding' | null;
   editMode: boolean;
   editingRoutePoints: boolean;
@@ -135,7 +140,7 @@ interface MapState {
   clearLayerSelection: () => void;
   setFeatures: (features: GISFeature[], recordHistory?: boolean) => void;
   addFeature: (f: GISFeature) => void;
-  updateFeature: (id: number, updater: (f: GISFeature) => GISFeature) => void;
+  updateFeature: (id: number, updater: (f: GISFeature) => GISFeature, committed?: boolean) => void;
   removeFeature: (id: number) => void;
   setCustomGroups: (groups: CustomGroups, recordHistory?: boolean) => void;
   setVisibility: (key: string, visible: boolean) => void;
@@ -173,6 +178,11 @@ interface MapState {
 }
 
 export const useMapStore = create<MapState>((set, get) => ({
+  embeddedMode: null,
+  changeSequence: 0,
+  setEmbeddedMode: (embeddedMode) => set({ embeddedMode, activeTool: null, editMode: false, editingRoutePoints: false, draft: [], selectedId: null }),
+  replaceEmbeddedFeatures: (features) => set({ features, selectedId: null, selectedLayerIds: [], activeTool: null, editMode: false, editingRoutePoints: false, draft: [], cursorLL: null, undoStack: [], redoStack: [], isDirty: false, saveStatus: 'saved' }),
+  commitFeatureChanges: () => set((state) => state.embeddedMode === 'edit' ? { changeSequence: state.changeSequence + 1 } : {}),
   activeTool: null,
   editMode: false,
   editingRoutePoints: false,
@@ -315,6 +325,7 @@ export const useMapStore = create<MapState>((set, get) => ({
     set((state) => (state.activeTour ? { activeTour: { ...state.activeTour, isPlaying } } : {})),
   setActiveTool: (tool) => {
     set((state) => {
+      if (state.embeddedMode === 'view') return { activeTool: null, editMode: false, editingRoutePoints: false, draft: [] };
       const isSame = state.activeTool === tool;
       const nextTool = isSame ? null : tool;
       return {
@@ -336,14 +347,14 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   setEditMode: (editMode, selectedId = null) => {
     set((state) => ({
-      editMode,
+      editMode: state.embeddedMode === 'view' ? false : editMode,
       editingRoutePoints: false,
       selectedId: selectedId !== undefined ? selectedId : state.selectedId,
-      activeTool: editMode ? null : state.activeTool,
+      activeTool: state.embeddedMode === 'view' || editMode ? null : state.activeTool,
     }));
   },
 
-  setEditingRoutePoints: (editingRoutePoints) => set({ editingRoutePoints }),
+  setEditingRoutePoints: (editingRoutePoints) => set((state) => ({ editingRoutePoints: state.embeddedMode === 'view' ? false : editingRoutePoints })),
 
   setSelectedId: (selectedId) =>
     set((state) => ({
@@ -377,28 +388,34 @@ export const useMapStore = create<MapState>((set, get) => ({
   clearLayerSelection: () => set({ selectedLayerIds: [] }),
 
   setFeatures: (features, recordHistory = true) => {
+    if (get().embeddedMode === 'view') return;
     if (recordHistory) get().pushHistory();
-    set({ features, isDirty: true, saveStatus: 'unsaved' });
+    set((state) => ({ features, isDirty: true, saveStatus: 'unsaved', changeSequence: state.embeddedMode === 'edit' ? state.changeSequence + 1 : state.changeSequence }));
   },
 
   addFeature: (f) => {
+    if (get().embeddedMode === 'view') return;
     get().pushHistory();
     set((state) => ({
       features: [...state.features, f],
       isDirty: true,
       saveStatus: 'unsaved',
+      changeSequence: state.embeddedMode === 'edit' ? state.changeSequence + 1 : state.changeSequence,
     }));
   },
 
-  updateFeature: (id, updater) => {
+  updateFeature: (id, updater, committed = true) => {
+    if (get().embeddedMode === 'view') return;
     set((state) => ({
       features: state.features.map((f) => (f.id === id ? updater(f) : f)),
       isDirty: true,
       saveStatus: 'unsaved',
+      changeSequence: committed && state.embeddedMode === 'edit' ? state.changeSequence + 1 : state.changeSequence,
     }));
   },
 
   removeFeature: (id) => {
+    if (get().embeddedMode === 'view') return;
     get().pushHistory();
     set((state) => {
       const nextGroups: CustomGroups = {};
@@ -415,13 +432,15 @@ export const useMapStore = create<MapState>((set, get) => ({
         selectedId: state.selectedId === id ? null : state.selectedId,
         isDirty: true,
         saveStatus: 'unsaved',
+        changeSequence: state.embeddedMode === 'edit' ? state.changeSequence + 1 : state.changeSequence,
       };
     });
   },
 
   setCustomGroups: (customGroups, recordHistory = true) => {
+    if (get().embeddedMode === 'view') return;
     if (recordHistory) get().pushHistory();
-    set({ customGroups, isDirty: true, saveStatus: 'unsaved' });
+    set((state) => ({ customGroups, isDirty: true, saveStatus: 'unsaved', changeSequence: state.embeddedMode === 'edit' ? state.changeSequence + 1 : state.changeSequence }));
   },
 
   setVisibility: (key, visible) =>
@@ -586,6 +605,7 @@ export const useMapStore = create<MapState>((set, get) => ({
 
   undo: () => {
     const { undoStack, redoStack, features, customGroups } = get();
+    if (get().embeddedMode === 'view') return;
     if (!undoStack.length) {
       get().setToast('Nothing to undo');
       return;
@@ -602,12 +622,14 @@ export const useMapStore = create<MapState>((set, get) => ({
       redoStack: [...redoStack, current],
       isDirty: true,
       saveStatus: 'unsaved',
+      changeSequence: get().embeddedMode === 'edit' ? get().changeSequence + 1 : get().changeSequence,
     });
     get().setToast('Undo');
   },
 
   redo: () => {
     const { undoStack, redoStack, features, customGroups } = get();
+    if (get().embeddedMode === 'view') return;
     if (!redoStack.length) {
       get().setToast('Nothing to redo');
       return;
@@ -624,6 +646,7 @@ export const useMapStore = create<MapState>((set, get) => ({
       redoStack: newRedo,
       isDirty: true,
       saveStatus: 'unsaved',
+      changeSequence: get().embeddedMode === 'edit' ? get().changeSequence + 1 : get().changeSequence,
     });
     get().setToast('Redo');
   },

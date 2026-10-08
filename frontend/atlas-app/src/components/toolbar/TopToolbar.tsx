@@ -35,9 +35,11 @@ import { SearchModal } from '../modals/SearchModal';
 
 interface TopToolbarProps {
   mapInstance: any;
+  embeddedName?: string;
+  embeddedStatus?: string;
 }
 
-export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance }) => {
+export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedName, embeddedStatus }) => {
   const {
     activeTool,
     setActiveTool,
@@ -57,6 +59,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance }) => {
 
   const { currentProjectName, updateProjectName, currentProjectId, saveCurrentProject } =
     useProjectStore();
+  const displayProjectName = embeddedName || currentProjectName;
 
   // Active flyout: 'draw' | 'studio' | null (Data tools are direct individual buttons now)
   const [openFolder, setOpenFolder] = useState<'draw' | 'studio' | null>(null);
@@ -74,8 +77,9 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance }) => {
   }, []);
 
   const handleRename = () => {
-    const nextName = prompt('Rename workspace:', currentProjectName);
-    if (nextName && nextName.trim() && nextName.trim() !== currentProjectName) {
+    if (embeddedName) return;
+    const nextName = prompt('Rename workspace:', displayProjectName);
+    if (nextName && nextName.trim() && nextName.trim() !== displayProjectName) {
       if (currentProjectId) {
         updateProjectName(currentProjectId, nextName.trim());
       }
@@ -88,7 +92,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance }) => {
 
   const handleExport = () => {
     if (mapInstance) {
-      exportMapToPNG(mapInstance, currentProjectName);
+      exportMapToPNG(mapInstance, displayProjectName);
       setOpenFolder(null);
     }
   };
@@ -110,7 +114,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance }) => {
             SECTION 1: WORKSPACE & HISTORY
            ========================================================================= */}
         <div className="flex items-center gap-1.5 pr-2 border-r border-white/15 shrink-0">
-          {/* Workspace Switcher */}
+          {/* Keep Atlas workspaces outside the host controlled editor. */}
+          {!embeddedName && <>
           <button
             onClick={() => {
               togglePanel('launcher', true);
@@ -121,27 +126,28 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance }) => {
           >
             <FolderOpen className="w-[18px] h-[18px] text-zinc-300" strokeWidth={2.1} />
           </button>
+          </>}
 
           {/* Project Meta Info */}
           <div className="flex items-center gap-1.5 px-1">
             <span
-              onClick={handleRename}
-              title="Click to rename workspace"
-              className="font-bold text-white text-xs max-w-[110px] truncate cursor-pointer hover:text-zinc-300 transition"
+              onClick={embeddedName ? undefined : handleRename}
+              title={embeddedName ? 'Project Echo workspace' : 'Click to rename workspace'}
+              className={`font-bold text-white text-xs max-w-[140px] truncate ${embeddedName ? '' : 'cursor-pointer hover:text-zinc-300 transition'}`}
             >
-              {currentProjectName}
+              {displayProjectName}
             </span>
             <div
               className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-mono font-semibold border flex items-center gap-1 ${
-                saveStatus === 'saved'
+                (embeddedName ? embeddedStatus === 'saved' : saveStatus === 'saved')
                   ? 'text-zinc-300 border-white/20 bg-white/10'
-                  : saveStatus === 'saving'
+                : (embeddedName ? embeddedStatus === 'saving' : saveStatus === 'saving')
                   ? 'text-zinc-200 border-white/30 bg-white/10 animate-pulse'
                   : 'text-zinc-400 border-white/10 bg-transparent'
               }`}
             >
               <span className="text-[6px]">●</span>
-              <span>{saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}</span>
+              <span>{embeddedName ? (embeddedStatus === 'saved' ? 'Host saved' : embeddedStatus === 'saving' ? 'Syncing' : 'Host saves edits') : saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}</span>
             </div>
           </div>
 
@@ -162,13 +168,13 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance }) => {
           </button>
 
           {/* Save */}
-          <button
+          {!embeddedName && <button
             onClick={handleSave}
             title="Save Workspace (Ctrl+S)"
             className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition"
           >
             <Save className="w-4 h-4 text-zinc-300" strokeWidth={2.1} />
-          </button>
+          </button>}
         </div>
 
         {/* =========================================================================
