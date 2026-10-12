@@ -70,23 +70,13 @@ html, body {
   transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
 }
 
-.app-shell button[class*="bg-white"] {
-  background-color: #2c2c2e !important;
-  color: var(--system-text) !important;
-}
-
-.app-shell button[class*="bg-blue-"],
-.app-shell button[class*="bg-sky-"],
-.app-shell button[class*="bg-red-"],
-.app-shell button[class*="bg-rose-"],
-.app-shell button[class*="bg-green-"],
-.app-shell button[class*="bg-emerald-"] {
-  color: #ffffff !important;
+.app-shell button:active {
+  transform: scale(0.97);
 }
 
 .app-shell [class*="shadow-2xl"],
 .app-shell [class*="shadow-xl"] {
-  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.4) !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
 }
 
 .app-shell input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),

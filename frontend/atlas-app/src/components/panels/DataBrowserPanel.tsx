@@ -57,13 +57,12 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
     setIsSearchingBoundary(true);
     try {
       const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=5&q=${encodeURIComponent(
-          val.trim()
-        )}`
+        `/api/geocode?polygon_geojson=1&limit=5&q=${encodeURIComponent(val.trim())}`
       );
       const data = await res.json();
-      setBoundaryResults(data || []);
-    } catch (e) {
+      setBoundaryResults(Array.isArray(data) ? data : []);
+    } catch {
+      setBoundaryResults([]);
     } finally {
       setIsSearchingBoundary(false);
     }

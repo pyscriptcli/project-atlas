@@ -117,26 +117,38 @@ export const FeaturePopup: React.FC = () => {
         />
       )}
 
-      {/* Places link or coordinates for other point features */}
+      {/* Coordinates & Google Maps Link for Point features */}
       {f.geometry.type === 'Point' && (
-        isOpenNodePlace && googleMapsUrl ? (
-          <a href={googleMapsUrl} target="_blank" rel="noopener noreferrer" className="flex items-center justify-between p-2 mb-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px] text-zinc-200 hover:bg-white/[0.07] hover:text-white" aria-label={`View ${displayName} in Google Maps`}>
-            <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-cyan-300" /><span>View in Google Maps</span></span>
-            <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
-          </a>
-        ) : <div className="flex items-center justify-between p-2 mb-2.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px]">
-          <span className="font-mono text-zinc-400 flex items-center gap-1">
-            <MapPin className="w-3 h-3 text-white" />
-            <span>{f.geometry.coordinates[1].toFixed(5)}, {f.geometry.coordinates[0].toFixed(5)}</span>
-          </span>
-          <button
-            type="button"
-            onClick={handleCopyCoords}
-            className="text-[10px] text-zinc-300 hover:text-white font-semibold flex items-center gap-1 transition"
-          >
-            {copied ? <Check className="w-3 h-3 text-white" /> : <Copy className="w-3 h-3" />}
-            <span>{copied ? 'Copied' : 'Copy'}</span>
-          </button>
+        <div className="flex flex-col gap-1.5 mb-2.5">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px]">
+            <span className="font-mono text-zinc-300 flex items-center gap-1.5">
+              <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+              <span>{f.geometry.coordinates[1].toFixed(5)}, {f.geometry.coordinates[0].toFixed(5)}</span>
+            </span>
+            <button
+              type="button"
+              onClick={handleCopyCoords}
+              className="text-[10px] text-zinc-300 hover:text-white font-semibold flex items-center gap-1 transition px-1.5 py-0.5 rounded hover:bg-white/10"
+            >
+              {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+              <span>{copied ? 'Copied' : 'Copy'}</span>
+            </button>
+          </div>
+          {googleMapsUrl && (
+            <a
+              href={googleMapsUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px] text-zinc-200 hover:bg-white/[0.07] hover:text-white transition"
+              aria-label={`View ${displayName} in Google Maps`}
+            >
+              <span className="flex items-center gap-1.5">
+                <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
+                <span>Open in Google Maps</span>
+              </span>
+              <span className="text-[10px] text-zinc-400">Directions ↗</span>
+            </a>
+          )}
         </div>
       )}
 
