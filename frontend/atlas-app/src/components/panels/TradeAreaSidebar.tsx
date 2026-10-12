@@ -715,7 +715,7 @@ export const TradeAreaSidebar: React.FC<TradeAreaSidebarProps> = ({ mapInstance 
     }
     setIsSearchingBoundaries(true);
     try {
-      const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&polygon_geojson=1&limit=6&q=${encodeURIComponent(query)}`);
+      const response = await fetch(`/api/geocode?polygon_geojson=1&limit=6&q=${encodeURIComponent(query)}`);
       if (!response.ok) throw new Error(`Boundary search failed (${response.status})`);
       const data = await response.json();
       setBoundaryResults(Array.isArray(data) ? data.filter((item: any) => item.geojson && ['Polygon', 'MultiPolygon'].includes(item.geojson.type)) : []);

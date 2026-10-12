@@ -10,21 +10,31 @@ export async function GET(req: NextRequest) {
       return NextResponse.json([]);
     }
 
-    const url = `https://nominatim.openstreetmap.org/search?format=json&limit=5&q=${encodeURIComponent(
+    const limit = Math.min(Math.max(1, parseInt(searchParams.get('limit') || '8', 10)), 20);
+    const polygonGeojson = searchParams.get('polygon_geojson') === '1' ? '1' : '0';
+    const addressdetails = searchParams.get('addressdetails') !== '0' ? '1' : '0';
+    const extratags = searchParams.get('extratags') === '1' ? '1' : '0';
+    const viewbox = searchParams.get('viewbox');
+
+    let nominatimUrl = `https://nominatim.openstreetmap.org/search?format=json&limit=${limit}&addressdetails=${addressdetails}&polygon_geojson=${polygonGeojson}&extratags=${extratags}&q=${encodeURIComponent(
       q.trim()
     )}`;
-    const res = await fetch(url, {
+
+    if (viewbox) {
+      nominatimUrl += `&viewbox=${encodeURIComponent(viewbox)}&bounded=0`;
+    }
+
+    const res = await fetch(nominatimUrl, {
       headers: {
-        'User-Agent': 'ProjectAtlas/1.0 (https://github.com/pyscriptcli/project-atlas)',
+        'User-Agent': 'ProjectAtlas/1.0 (https://github.com/pyscriptcli/project-atlas; contact@projectatlas.io)',
         Accept: 'application/json',
       },
-      // Prevent Node/Next from caching the upstream response
       cache: 'no-store',
     });
 
     if (!res.ok) {
       return NextResponse.json(
-        { error: `Nominatim returned HTTP ${res.status}` },
+        { error: `Geocoding service returned HTTP ${res.status}` },
         { status: 502 }
       );
     }
@@ -38,3 +48,4 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
