@@ -82,6 +82,40 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
   const [bulkSize, setBulkSize] = useState(0.9);
   const [expandedLayerId, setExpandedLayerId] = useState<number | null>(null);
 
+  // Grouped vs Ungrouped features
+  const groupedIds = useMemo(() => {
+    const s = new Set<number>();
+    Object.values(customGroups).forEach((g) => g.ids.forEach((id) => s.add(id)));
+    return s;
+  }, [customGroups]);
+
+  const openNodeIds = useMemo(() => {
+    const s = new Set(customGroups['Trade Area Scan']?.ids || []);
+    features.forEach((feature) => {
+      if (feature.props?.managedBy === 'open-node') s.add(feature.id);
+    });
+    return s;
+  }, [customGroups, features]);
+
+  const layerFeatures = useMemo(() => {
+    return features.filter((feature) => !openNodeIds.has(feature.id));
+  }, [features, openNodeIds]);
+
+  const filteredFeatures = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return layerFeatures;
+    return layerFeatures.filter(
+      (f) =>
+        (f.name && f.name.toLowerCase().includes(q)) ||
+        (f.kind && f.kind.toLowerCase().includes(q)) ||
+        (f.props?.description && f.props.description.toLowerCase().includes(q))
+    );
+  }, [layerFeatures, searchQuery]);
+
+  const ungroupedFeats = useMemo(() => {
+    return filteredFeatures.filter((f) => !groupedIds.has(f.id));
+  }, [filteredFeatures, groupedIds]);
+
   if (!activePanels.myLayers) return null;
 
   const handleAddGroup = () => {
@@ -120,7 +154,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
 
   const handleToggleGroupEye = (gName: string) => {
     const ids = customGroups[gName]?.ids || [];
-    const anyVisible = features.some((f) => ids.includes(f.id) && f.props.visible !== 0);
+    const anyVisible = features.some((f) => ids.includes(f.id) && f.props?.visible !== 0);
     const newVis = anyVisible ? 0 : 1;
 
     setFeatures(
@@ -150,7 +184,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
     }
     const allHidden = selectedLayerIds.every((id) => {
       const f = features.find((x) => x.id === id);
-      return f && f.props.visible === 0;
+      return f && f.props?.visible === 0;
     });
     const newVis = allHidden ? 1 : 0;
     setFeatures(
@@ -169,29 +203,6 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
     clearLayerSelection();
     setToast(`Deleted ${count} selected layer(s)`);
   };
-
-  // Grouped vs Ungrouped features
-  const groupedIds = new Set<number>();
-  Object.values(customGroups).forEach((g) => g.ids.forEach((id) => groupedIds.add(id)));
-  const openNodeIds = new Set(customGroups['Trade Area Scan']?.ids || []);
-  features.forEach((feature) => {
-    if (feature.props.managedBy === 'open-node') openNodeIds.add(feature.id);
-  });
-  const layerFeatures = features.filter((feature) => !openNodeIds.has(feature.id));
-
-  const filteredFeatures = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return layerFeatures;
-    return layerFeatures.filter(
-      (f) =>
-        (f.name && f.name.toLowerCase().includes(q)) ||
-        (f.kind && f.kind.toLowerCase().includes(q)) ||
-        (f.props.description && f.props.description.toLowerCase().includes(q))
-    );
-  }, [layerFeatures, searchQuery]);
-
-  const filteredIds = useMemo(() => new Set(filteredFeatures.map((f) => f.id)), [filteredFeatures]);
-  const ungroupedFeats = filteredFeatures.filter((f) => !groupedIds.has(f.id));
 
   const renderLayerCard = (f: GISFeature, renderIndex: number) => {
     const isSelected = selectedLayerIds.includes(f.id);
