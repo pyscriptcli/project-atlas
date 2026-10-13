@@ -1156,7 +1156,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
         geometry: { type: 'Point', coordinates: edgeCoord },
         properties: { polyId: f.id, isRadiusHandle: true },
       });
-    } else if (['polygon', 'rectangle', 'polygon3d'].includes(f.kind) && f.geometry.coordinates?.[0]) {
+    } else if (
+      ['polygon', 'rectangle', 'polygon3d'].includes(f.kind) &&
+      f.geometry.type === 'Polygon' &&
+      f.geometry.coordinates?.[0]
+    ) {
       const coords = f.geometry.coordinates[0];
       for (let i = 0; i < coords.length - 1; i++) {
         handleFeats.push({
@@ -1280,7 +1284,11 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
             const newRadius = haversineDist(f.props.centerCoord, ll);
             next.props.radiusMeters = newRadius;
             next.geometry.coordinates = circleCoords(f.props.centerCoord, ll).coords;
-          } else if (['polygon', 'rectangle', 'polygon3d'].includes(f.kind) && next.geometry.coordinates?.[0]) {
+          } else if (
+            ['polygon', 'rectangle', 'polygon3d'].includes(f.kind) &&
+            next.geometry.type === 'Polygon' &&
+            next.geometry.coordinates?.[0]
+          ) {
             const ring = [...next.geometry.coordinates[0]];
             ring[d.draggedVertexIdx] = ll;
             if (d.draggedVertexIdx === 0) ring[ring.length - 1] = ll;

@@ -1,12 +1,13 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Layers,
   X,
   ChevronRight,
   ChevronDown,
   Upload,
+  Loader2,
 } from 'lucide-react';
 import { useMapStore } from '../../store/useMapStore';
 
@@ -27,6 +28,7 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
     is3DMode,
     set3DMode,
     addFeature,
+    setSelectedId,
     setToast,
   } = useMapStore();
 
@@ -41,6 +43,63 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
   const [boundarySearch, setBoundarySearch] = useState('');
   const [boundaryResults, setBoundaryResults] = useState<any[]>([]);
   const [isSearchingBoundary, setIsSearchingBoundary] = useState(false);
+  const [hasSearchedBoundary, setHasSearchedBoundary] = useState(false);
+  const searchReqIdRef = useRef(0);
+  const selectedQueryRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    const trimmed = boundarySearch.trim();
+    if (selectedQueryRef.current === trimmed) {
+      return;
+    }
+    selectedQueryRef.current = null;
+
+    if (trimmed.length < 2) {
+      setBoundaryResults([]);
+      setIsSearchingBoundary(false);
+      setHasSearchedBoundary(false);
+      return;
+    }
+
+    const reqId = ++searchReqIdRef.current;
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setIsSearchingBoundary(true);
+      try {
+        const res = await fetch(
+          `/api/geocode?polygon_geojson=1&limit=12&q=${encodeURIComponent(trimmed)}`,
+          { signal: controller.signal }
+        );
+        const data = await res.json();
+        if (reqId !== searchReqIdRef.current) return;
+        if (Array.isArray(data)) {
+          const polyMatches = data.filter(
+            (item) =>
+              item?.geojson &&
+              (item.geojson.type === 'Polygon' || item.geojson.type === 'MultiPolygon')
+          );
+          setBoundaryResults(polyMatches.length > 0 ? polyMatches : data);
+        } else {
+          setBoundaryResults([]);
+        }
+        setHasSearchedBoundary(true);
+      } catch {
+        if (!controller.signal.aborted && reqId === searchReqIdRef.current) {
+          setBoundaryResults([]);
+          setHasSearchedBoundary(true);
+        }
+      } finally {
+        if (!controller.signal.aborted && reqId === searchReqIdRef.current) {
+          setIsSearchingBoundary(false);
+        }
+      }
+    }, 300);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [boundarySearch]);
 
   if (!activePanels.browser) return null;
 
@@ -48,33 +107,41 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
     setOpenAccordions((prev) => ({ ...prev, [key]: !prev[key] }));
   };
 
-  const handleBoundarySearch = async (val: string) => {
+  const handleBoundarySearch = (val: string) => {
+    selectedQueryRef.current = null;
     setBoundarySearch(val);
-    if (val.trim().length < 3) {
-      setBoundaryResults([]);
-      return;
-    }
-    setIsSearchingBoundary(true);
-    try {
-      const res = await fetch(
-        `/api/geocode?polygon_geojson=1&limit=5&q=${encodeURIComponent(val.trim())}`
-      );
-      const data = await res.json();
-      setBoundaryResults(Array.isArray(data) ? data : []);
-    } catch {
-      setBoundaryResults([]);
-    } finally {
-      setIsSearchingBoundary(false);
-    }
   };
 
   const handleSelectBoundary = (item: any) => {
-    if (!item.geojson) return;
-    const geom = item.geojson;
+    let geom = item.geojson;
+    if (!geom || (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon')) {
+      if (item.boundingbox && item.boundingbox.length === 4) {
+        const south = parseFloat(item.boundingbox[0]);
+        const north = parseFloat(item.boundingbox[1]);
+        const west = parseFloat(item.boundingbox[2]);
+        const east = parseFloat(item.boundingbox[3]);
+        geom = {
+          type: 'Polygon',
+          coordinates: [
+            [
+              [west, south],
+              [east, south],
+              [east, north],
+              [west, north],
+              [west, south],
+            ],
+          ],
+        };
+      } else {
+        return;
+      }
+    }
+
     const newId = Date.now();
+    const shortName = item.display_name.split(',')[0];
     addFeature({
       id: newId,
-      name: `${item.display_name.split(',')[0]} Boundary`,
+      name: `${shortName} Boundary`,
       kind: 'polygon',
       geometry: geom,
       props: {
@@ -88,6 +155,7 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
         attributes: { name: item.display_name },
       },
     });
+    setSelectedId(newId);
 
     if (item.boundingbox && mapInstance) {
       mapInstance.fitBounds(
@@ -99,9 +167,11 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
       );
     }
 
+    selectedQueryRef.current = item.display_name.trim();
     setBoundarySearch(item.display_name);
     setBoundaryResults([]);
-    setToast(`Boundary added for ${item.display_name.split(',')[0]}`);
+    setHasSearchedBoundary(false);
+    setToast(`Boundary added for ${shortName}`);
   };
 
   return (
@@ -297,10 +367,12 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
         </div>
 
         {/* Administrative Boundaries */}
-        <div className="border border-white/5 rounded-xl overflow-hidden">
+        <div className="border border-white/5 rounded-xl">
           <div
             onClick={() => toggleAccordion('boundaries')}
-            className="flex items-center justify-between p-2.5 bg-white/5 hover:bg-white/10 cursor-pointer font-semibold text-gray-200"
+            className={`flex items-center justify-between p-2.5 bg-white/5 hover:bg-white/10 cursor-pointer font-semibold text-gray-200 ${
+              openAccordions.boundaries ? 'rounded-t-xl' : 'rounded-xl'
+            }`}
           >
             <span>Boundaries (Red Dashed)</span>
             {openAccordions.boundaries ? (
@@ -310,7 +382,7 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
             )}
           </div>
           {openAccordions.boundaries && (
-            <div className="p-3 bg-black/20 flex flex-col gap-2.5">
+            <div className="p-3 bg-black/20 flex flex-col gap-2.5 rounded-b-xl">
               {[
                 ['All Provinces', 'bound_prov'],
                 ['All Cities', 'bound_city'],
@@ -331,29 +403,56 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
                 <span className="font-semibold text-white text-[11px] block mb-1">
                   Highlight Boundary Polygon
                 </span>
-                <div className="relative">
+                <div className="relative flex items-center">
                   <input
                     type="text"
                     value={boundarySearch}
                     onChange={(e) => handleBoundarySearch(e.target.value)}
                     placeholder="Search province, city..."
-                    className="w-full bg-black/40 border border-white/15 rounded-lg px-2.5 py-1.5 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-sky-400"
+                    className="w-full bg-black/40 border border-white/15 rounded-lg pl-2.5 pr-7 py-1.5 text-white placeholder-gray-500 text-xs focus:outline-none focus:border-sky-400"
                   />
-                  {boundaryResults.length > 0 && (
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-slate-900 border border-white/15 rounded-lg max-h-48 overflow-y-auto shadow-2xl z-20">
-                      {boundaryResults.map((r, i) => (
-                        <div
-                          key={i}
-                          onClick={() => handleSelectBoundary(r)}
-                          className="px-3 py-2 hover:bg-white/10 cursor-pointer border-b border-white/5 last:border-none"
-                        >
-                          <div className="font-semibold text-white">{r.display_name}</div>
-                          <div className="text-[10px] text-gray-400 capitalize">{r.type}</div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  {isSearchingBoundary ? (
+                    <Loader2 className="w-3.5 h-3.5 text-sky-400 animate-spin absolute right-2 pointer-events-none" />
+                  ) : boundarySearch ? (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        selectedQueryRef.current = null;
+                        setBoundarySearch('');
+                        setBoundaryResults([]);
+                        setHasSearchedBoundary(false);
+                      }}
+                      className="absolute right-1.5 p-0.5 rounded text-gray-400 hover:text-white"
+                      aria-label="Clear boundary search"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  ) : null}
                 </div>
+
+                {boundaryResults.length > 0 && (
+                  <div className="mt-2 bg-slate-900 border border-white/15 rounded-lg max-h-56 overflow-y-auto shadow-2xl divide-y divide-white/5">
+                    {boundaryResults.map((r, i) => (
+                      <button
+                        type="button"
+                        key={r.place_id || i}
+                        onClick={() => handleSelectBoundary(r)}
+                        className="w-full text-left px-3 py-2 hover:bg-white/10 cursor-pointer transition block"
+                      >
+                        <div className="font-semibold text-white leading-snug">{r.display_name}</div>
+                        <div className="text-[10px] text-gray-400 capitalize mt-0.5">
+                          {r.addresstype || r.type || r.class || 'Boundary'}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {!isSearchingBoundary && hasSearchedBoundary && boundaryResults.length === 0 && (
+                  <div className="mt-2 px-3 py-2 bg-slate-900/80 border border-white/10 rounded-lg text-[11px] text-gray-400">
+                    No matching boundaries found.
+                  </div>
+                )}
               </div>
             </div>
           )}

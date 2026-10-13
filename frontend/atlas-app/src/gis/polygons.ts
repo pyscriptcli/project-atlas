@@ -91,6 +91,10 @@ export function rotateGeometry(f: GISFeature, angleRad: number, center: [number,
     f.geometry.coordinates = (f.geometry.coordinates as [number, number][][]).map((ring) =>
       ring.map(rotPt)
     );
+  } else if (f.geometry.type === 'MultiPolygon') {
+    f.geometry.coordinates = (f.geometry.coordinates as [number, number][][][]).map((poly) =>
+      poly.map((ring) => ring.map(rotPt))
+    );
   }
 }
 
