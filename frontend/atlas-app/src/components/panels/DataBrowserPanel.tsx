@@ -440,7 +440,7 @@ export const DataBrowserPanel: React.FC<DataBrowserPanelProps> = ({
                         className="w-full text-left px-3 py-2 hover:bg-white/10 cursor-pointer transition block"
                       >
                         <div className="font-semibold text-white leading-snug">{r.display_name}</div>
-                        <div className="text-[10px] text-gray-400 capitalize mt-0.5">
+                        <div className="text-[11px] text-gray-400 capitalize mt-0.5">
                           {r.addresstype || r.type || r.class || 'Boundary'}
                         </div>
                       </button>

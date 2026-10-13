@@ -7,6 +7,7 @@ import { DataBrowserPanel } from '../components/panels/DataBrowserPanel';
 import { MyLayersPanel } from '../components/panels/MyLayersPanel';
 import { MapContextMenu } from '../components/map/MapContextMenu';
 import { FeaturePopup } from '../components/map/FeaturePopup';
+import { MapLegendOverlay } from '../components/map/MapLegendOverlay';
 import { ShapeEditorModal } from '../components/modals/ShapeEditorModal';
 import { TradeAreaSidebar } from '../components/panels/TradeAreaSidebar';
 import { AttributeTableModal } from '../components/modals/AttributeTableModal';
@@ -55,15 +56,36 @@ export default function WorkspacePage() {
     };
   }, [fetchProjects]);
 
-  // Auto-save every 20 seconds if dirty
+  // Auto-save every 20 seconds if dirty, plus save on tab hide & warn before unload
   useEffect(() => {
     const timer = setInterval(() => {
       if (isDirty) {
         saveCurrentProject(mapInstance);
       }
     }, 20000);
-    return () => clearInterval(timer);
-  }, [isDirty, mapInstance]);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && useMapStore.getState().isDirty) {
+        saveCurrentProject(mapInstance);
+      }
+    };
+
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (useMapStore.getState().isDirty) {
+        saveCurrentProject(mapInstance);
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      clearInterval(timer);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [isDirty, mapInstance, saveCurrentProject]);
 
   // Global Keyboard shortcuts
   useEffect(() => {
@@ -152,8 +174,9 @@ export default function WorkspacePage() {
       />
       <MyLayersPanel mapInstance={mapInstance} />
 
-      {/* Context Menu & Feature Inspection Popup */}
+      {/* Context Menu, Legend & Feature Inspection Popup */}
       <MapContextMenu />
+      <MapLegendOverlay />
       <FeaturePopup />
 
       {/* Floating Modals & Sidebars */}

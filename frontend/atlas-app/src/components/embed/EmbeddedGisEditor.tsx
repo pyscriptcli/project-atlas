@@ -7,6 +7,7 @@ import { DataBrowserPanel } from '../panels/DataBrowserPanel';
 import { MyLayersPanel } from '../panels/MyLayersPanel';
 import { MapContextMenu } from '../map/MapContextMenu';
 import { FeaturePopup } from '../map/FeaturePopup';
+import { MapLegendOverlay } from '../map/MapLegendOverlay';
 import { ShapeEditorModal } from '../modals/ShapeEditorModal';
 import { TradeAreaSidebar } from '../panels/TradeAreaSidebar';
 import { AttributeTableModal } from '../modals/AttributeTableModal';
@@ -230,6 +231,7 @@ export default function EmbeddedGisEditor() {
       <DataBrowserPanel mapInstance={mapInstance} onImportClick={() => fileInputRef.current?.click()} />
       <MyLayersPanel mapInstance={mapInstance} />
       <MapContextMenu />
+      <MapLegendOverlay />
       <FeaturePopup />
       <ShapeEditorModal />
       <TradeAreaSidebar mapInstance={mapInstance} />

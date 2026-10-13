@@ -286,10 +286,10 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
               title="Click to rename"
               className="w-full bg-transparent text-xs font-semibold text-zinc-200 hover:text-white px-1 py-0.5 -mx-1 rounded border border-transparent hover:border-white/10 focus:border-blue-500 focus:bg-black/60 outline-none truncate transition"
             />
-            <div className="flex items-center gap-1.5 text-[10px] text-zinc-500 font-medium">
+            <div className="flex items-center gap-1.5 text-[11px] text-zinc-500 font-medium">
               <span className="truncate max-w-[140px]">{subInfo}</span>
               {f.props.showLabel && (
-                <span className="text-[9px] px-1 rounded bg-blue-500/15 text-blue-300 border border-blue-500/25">
+                <span className="text-[11px] px-1 rounded bg-blue-500/15 text-blue-300 border border-blue-500/25">
                   Label: {f.props.labelPos || 'center'}
                 </span>
               )}
@@ -360,7 +360,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
               </label>
 
               <div className="flex items-center gap-1.5">
-                <span className="text-[10px] text-zinc-500 uppercase tracking-wider">Position</span>
+                <span className="text-[11px] text-zinc-500 uppercase tracking-wider">Position</span>
                 <select
                   value={f.props.labelPos || 'center'}
                   onChange={(e) =>
@@ -369,7 +369,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
                       props: { ...feat.props, labelPos: e.target.value as any },
                     }))
                   }
-                  className="bg-zinc-900 border border-white/15 rounded-md px-1.5 py-0.5 text-[10px] text-zinc-200 outline-none focus:border-blue-500"
+                  className="bg-zinc-900 border border-white/15 rounded-md px-1.5 py-0.5 text-[11px] text-zinc-200 outline-none focus:border-blue-500"
                 >
                   <option value="center">Center</option>
                   <option value="top">Top</option>
@@ -429,11 +429,11 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
           <div className="flex flex-col">
             <div className="flex items-center gap-2 font-semibold text-white text-sm">
               <span>My Layers</span>
-              <span className="text-[10px] px-1.5 py-0.2 rounded-full bg-white/10 border border-white/15 text-zinc-300 font-mono">
+              <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/10 border border-white/15 text-zinc-300 font-mono">
                 {layerFeatures.length}
               </span>
             </div>
-            <span className="text-[10px] text-zinc-500 font-medium">GIS spatial management</span>
+            <span className="text-[11px] text-zinc-500 font-medium">GIS spatial management</span>
           </div>
         </div>
         <button
@@ -545,7 +545,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
                       onChange={(e) => handleRenameGroup(gName, e.target.value)}
                       className="bg-transparent font-semibold text-xs text-white outline-none w-32 border-b border-transparent focus:border-blue-500 px-0.5"
                     />
-                    <span className="text-[10px] text-zinc-500 font-mono">({groupFeats.length})</span>
+                    <span className="text-[11px] text-zinc-500 font-mono">({groupFeats.length})</span>
                   </div>
 
                   <div className="flex items-center gap-1">
@@ -580,13 +580,13 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
                 {/* Bulk Styling Flyout */}
                 {isStylingOpen && (
                   <div className="p-3 bg-zinc-900/90 border-t border-white/10 flex flex-col gap-2.5">
-                    <div className="text-[10px] font-semibold text-zinc-400 uppercase tracking-wider">
+                    <div className="text-[11px] font-semibold text-zinc-400 uppercase tracking-wider">
                       Bulk Marker Styling
                     </div>
                     <div className="flex items-center justify-between text-xs">
                       <span className="text-zinc-400">Color</span>
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-[10px] text-zinc-500">{bulkColor}</span>
+                        <span className="font-mono text-[11px] text-zinc-500">{bulkColor}</span>
                         <input
                           type="color"
                           value={bulkColor}
@@ -632,7 +632,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
                           onChange={(e) => setBulkSize(parseFloat(e.target.value))}
                           className="accent-blue-500 w-24 cursor-pointer"
                         />
-                        <span className="font-mono text-[10px] text-zinc-500 w-6 text-right">
+                        <span className="font-mono text-[11px] text-zinc-500 w-6 text-right">
                           {bulkSize.toFixed(1)}x
                         </span>
                       </div>
@@ -677,7 +677,7 @@ export const MyLayersPanel: React.FC<MyLayersPanelProps> = ({ mapInstance }) => 
         >
           <div className="flex items-center justify-between px-1">
             <span className="font-semibold text-zinc-400 text-xs">Ungrouped Layers</span>
-            <span className="text-[10px] text-zinc-500 font-mono">{ungroupedFeats.length}</span>
+            <span className="text-[11px] text-zinc-500 font-mono">{ungroupedFeats.length}</span>
           </div>
           {ungroupedFeats.length ? (
             ungroupedFeats.map((feature, index) => renderLayerCard(feature, index))

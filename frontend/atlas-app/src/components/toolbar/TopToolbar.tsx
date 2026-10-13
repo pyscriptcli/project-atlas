@@ -46,6 +46,8 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
     activePanels,
     togglePanel,
     saveStatus,
+    undoStack,
+    redoStack,
     undo,
     redo,
     markerShape,
@@ -56,6 +58,9 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
     toggleSunDial,
     setToast,
   } = useMapStore();
+
+  const canUndo = undoStack.length > 0 && embeddedStatus !== 'readonly';
+  const canRedo = redoStack.length > 0 && embeddedStatus !== 'readonly';
 
   const { currentProjectName, updateProjectName, currentProjectId, saveCurrentProject } =
     useProjectStore();
@@ -138,7 +143,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
               {displayProjectName}
             </span>
             <div
-              className={`text-[8.5px] px-1.5 py-0.5 rounded-full font-mono font-semibold border flex items-center gap-1 ${
+              className={`text-[11px] px-2 py-0.5 rounded-full font-mono font-semibold border flex items-center gap-1 ${
                 (embeddedName ? embeddedStatus === 'saved' : saveStatus === 'saved')
                   ? 'text-zinc-300 border-white/20 bg-white/10'
                 : (embeddedName ? embeddedStatus === 'saving' : saveStatus === 'saving')
@@ -146,25 +151,29 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
                   : 'text-zinc-400 border-white/10 bg-transparent'
               }`}
             >
-              <span className="text-[6px]">●</span>
+              <span className="text-[7px]">●</span>
               <span>{embeddedName ? (embeddedStatus === 'saved' ? 'Host saved' : embeddedStatus === 'saving' ? 'Saving' : embeddedStatus === 'unsaved' ? 'Unsaved' : 'Save in host') : saveStatus === 'saved' ? 'Saved' : saveStatus === 'saving' ? 'Saving' : 'Unsaved'}</span>
             </div>
           </div>
 
           {/* Undo / Redo */}
           <button
+            type="button"
             onClick={undo}
-            title="Undo (Ctrl+Z)"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
+            disabled={!canUndo}
+            title={canUndo ? `Undo (${undoStack.length} step${undoStack.length === 1 ? '' : 's'}) — Ctrl+Z` : 'Nothing to undo (Ctrl+Z)'}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none"
           >
-            <Undo2 className="w-4 h-4 text-zinc-400" strokeWidth={2.2} />
+            <Undo2 className="w-4 h-4" strokeWidth={2.2} />
           </button>
           <button
+            type="button"
             onClick={redo}
-            title="Redo (Ctrl+Y)"
-            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-400 hover:text-white hover:bg-white/10 transition"
+            disabled={!canRedo}
+            title={canRedo ? `Redo (${redoStack.length} step${redoStack.length === 1 ? '' : 's'}) — Ctrl+Y` : 'Nothing to redo (Ctrl+Y)'}
+            className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-300 hover:text-white hover:bg-white/10 transition disabled:opacity-30 disabled:pointer-events-none"
           >
-            <Redo2 className="w-4 h-4 text-zinc-400" strokeWidth={2.2} />
+            <Redo2 className="w-4 h-4" strokeWidth={2.2} />
           </button>
 
           {/* Save */}
@@ -294,7 +303,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
               {/* Upward pointer caret */}
               <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#0c1322] border-t border-l border-white/20 rotate-45 pointer-events-none" />
 
-              <span className="px-3 py-1 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
+              <span className="px-3 py-1 text-[11px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
                 2D Vector Polygons
               </span>
 
@@ -357,7 +366,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
 
               <div className="h-[1px] bg-white/10 my-1" />
 
-              <span className="px-3 py-1 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
+              <span className="px-3 py-1 text-[11px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
                 3D Digital Twin Architecture
               </span>
 
@@ -396,7 +405,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
 
               <div className="h-[1px] bg-white/10 my-1" />
 
-              <span className="px-3 py-1 text-[9.5px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
+              <span className="px-3 py-1 text-[11px] font-mono font-bold text-zinc-400 uppercase tracking-wider block">
                 Routing &amp; Text
               </span>
 
@@ -470,10 +479,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
                   <Map className="w-4 h-4 text-sky-400" strokeWidth={2.1} />
                   <div>
                     <span className="font-bold">Basemap</span>
-                    <p className="text-[9.5px] text-zinc-400">Vector, Satellite &amp; Dark themes</p>
+                    <p className="text-[11px] text-zinc-400">Vector, Satellite &amp; Dark themes</p>
                   </div>
                 </div>
-                <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Styles</span>
+                <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Styles</span>
               </button>
 
               {/* Studio Mode */}
@@ -491,10 +500,10 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
                   <Sun className="w-4 h-4 text-amber-400" strokeWidth={2.1} />
                   <div>
                     <span className="font-bold">Studio Mode</span>
-                    <p className="text-[9.5px] text-zinc-400">Sun path, shadows &amp; lighting</p>
+                    <p className="text-[11px] text-zinc-400">Sun path, shadows &amp; lighting</p>
                   </div>
                 </div>
-                <span className="text-[9.5px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Open</span>
+                <span className="text-[11px] font-mono px-1.5 py-0.5 rounded bg-white/10 text-zinc-300">Open</span>
               </button>
 
               <div className="h-[1px] bg-white/10 my-1.5" />
@@ -573,7 +582,7 @@ export const TopToolbar: React.FC<TopToolbarProps> = ({ mapInstance, embeddedNam
               <button
                 type="button"
                 onClick={() => setActiveTool(null)}
-                className="ml-2 px-2.5 py-1 rounded-lg text-[10.5px] font-semibold bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white transition"
+                className="ml-2 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-white/10 hover:bg-white/20 text-zinc-300 hover:text-white transition"
               >
                 Cancel (Esc)
               </button>

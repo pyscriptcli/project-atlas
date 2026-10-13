@@ -79,7 +79,7 @@ export const FeaturePopup: React.FC = () => {
   };
 
   return (
-    <div className="fixed bottom-6 right-6 z-[990] w-84 max-w-[calc(100vw-2rem)] bg-zinc-950/85 border border-white/15 rounded-3xl p-4 shadow-[0_24px_70px_rgba(0,0,0,0.9)] backdrop-blur-2xl text-xs text-zinc-300 animate-in fade-in slide-in-from-bottom-3 select-none">
+    <div className="fixed bottom-12 right-6 z-[990] w-84 max-w-[calc(100vw-2rem)] bg-zinc-950/85 border border-white/15 rounded-3xl p-4 shadow-[0_24px_70px_rgba(0,0,0,0.9)] backdrop-blur-2xl text-xs text-zinc-300 animate-in fade-in slide-in-from-bottom-3 select-none">
       {/* Top Header */}
       <div className="flex items-start justify-between gap-2 border-b border-white/10 pb-3 mb-3">
         <div className="min-w-0 flex-1">
@@ -88,10 +88,10 @@ export const FeaturePopup: React.FC = () => {
               className="w-2 h-2 rounded-full shrink-0 shadow-sm"
               style={{ backgroundColor: categoryColor }}
             />
-            <span className="text-[9.5px] uppercase font-mono font-bold tracking-wider text-zinc-400 truncate">
+            <span className="text-[11px] uppercase font-mono font-bold tracking-wider text-zinc-400 truncate">
               {isOpenNodePlace ? placeCategory : category}
             </span>
-            <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-mono">
+            <span className="text-[11px] px-1.5 py-0.2 rounded-full bg-white/10 text-zinc-300 font-mono">
               {isOpenNodePlace ? 'Place' : f.kind}
             </span>
           </div>
@@ -120,7 +120,7 @@ export const FeaturePopup: React.FC = () => {
       {/* Coordinates & Google Maps Link for Point features */}
       {f.geometry.type === 'Point' && (
         <div className="flex flex-col gap-1.5 mb-2.5">
-          <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px]">
+          <div className="flex items-center justify-between p-2 rounded-xl bg-white/[0.03] border border-white/10 text-[11px]">
             <span className="font-mono text-zinc-300 flex items-center gap-1.5">
               <MapPin className="w-3.5 h-3.5 text-sky-400 shrink-0" />
               <span>{f.geometry.coordinates[1].toFixed(5)}, {f.geometry.coordinates[0].toFixed(5)}</span>
@@ -128,7 +128,7 @@ export const FeaturePopup: React.FC = () => {
             <button
               type="button"
               onClick={handleCopyCoords}
-              className="text-[10px] text-zinc-300 hover:text-white font-semibold flex items-center gap-1 transition px-1.5 py-0.5 rounded hover:bg-white/10"
+              className="text-[11px] text-zinc-300 hover:text-white font-semibold flex items-center gap-1 transition px-1.5 py-0.5 rounded hover:bg-white/10"
             >
               {copied ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
               <span>{copied ? 'Copied' : 'Copy'}</span>
@@ -139,14 +139,14 @@ export const FeaturePopup: React.FC = () => {
               href={googleMapsUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-[10.5px] text-zinc-200 hover:bg-white/[0.07] hover:text-white transition"
+              className="flex items-center justify-between px-2.5 py-1.5 rounded-xl bg-white/[0.03] border border-white/10 text-[11px] text-zinc-200 hover:bg-white/[0.07] hover:text-white transition"
               aria-label={`View ${displayName} in Google Maps`}
             >
               <span className="flex items-center gap-1.5">
                 <ExternalLink className="w-3.5 h-3.5 text-zinc-400" />
                 <span>Open in Google Maps</span>
               </span>
-              <span className="text-[10px] text-zinc-400">Directions ↗</span>
+              <span className="text-[11px] text-zinc-400">Directions ↗</span>
             </a>
           )}
         </div>
@@ -158,29 +158,29 @@ export const FeaturePopup: React.FC = () => {
           <>
           {readablePlaceDetails.map(([label, value]) => (
             <div key={label} className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/5 border-b border-white/5 transition">
-              <span className="text-zinc-400 text-[10px] truncate max-w-[100px]">{label}</span>
-              <span className="text-zinc-200 text-right font-medium text-[10.5px] truncate max-w-[170px]">{value}</span>
+              <span className="text-zinc-400 text-[11px] truncate max-w-[100px]">{label}</span>
+              <span className="text-zinc-200 text-right font-medium text-[11px] truncate max-w-[170px]">{value}</span>
             </div>
           ))}
-          {hasPriceRange && <div className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg border-b border-white/5"><span className="text-zinc-400 text-[10px]">Price range (PHP / MYR)</span><span className="text-zinc-200 text-right font-medium text-[10.5px]">{priceRange}</span></div>}
+          {hasPriceRange && <div className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg border-b border-white/5"><span className="text-zinc-400 text-[11px]">Price range (PHP / MYR)</span><span className="text-zinc-200 text-right font-medium text-[11px]">{priceRange}</span></div>}
           </>
         ) : f.props.attributes && Object.keys(f.props.attributes).length > 0 ? (
           Object.entries(f.props.attributes)
             .filter(([_, v]) => typeof v === 'string' && !v.startsWith('data:image'))
             .map(([k, v]) => (
               <div key={k} className="flex justify-between items-center gap-2 py-1 px-1.5 rounded-lg hover:bg-white/5 border-b border-white/5 transition">
-                <span className="text-zinc-400 font-mono text-[10px] truncate max-w-[100px]">{k}</span>
-                <span className="text-zinc-200 text-right font-medium text-[10.5px] truncate max-w-[170px]">{String(v)}</span>
+                <span className="text-zinc-400 font-mono text-[11px] truncate max-w-[100px]">{k}</span>
+                <span className="text-zinc-200 text-right font-medium text-[11px] truncate max-w-[170px]">{String(v)}</span>
               </div>
             ))
         ) : (
-          <div className="text-zinc-500 py-3 text-center text-[10.5px]">No metadata attributes available</div>
+          <div className="text-zinc-500 py-3 text-center text-[11px]">No metadata attributes available</div>
         )}
       </div>
 
       {/* Footer Actions */}
       <div className="flex items-center justify-between pt-2.5 border-t border-white/10">
-        <span className="text-[9.5px] text-zinc-500 font-mono">
+        <span className="text-[11px] text-zinc-500 font-mono">
           ID: {f.id}
         </span>
         <button

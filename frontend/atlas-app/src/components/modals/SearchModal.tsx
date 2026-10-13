@@ -543,7 +543,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ mapInstance }) => {
                             {title}
                           </span>
                           <span
-                            className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[9.5px] font-medium uppercase tracking-wider ${badge.color}`}
+                            className={`shrink-0 rounded-md border px-1.5 py-0.5 text-[11px] font-medium uppercase tracking-wider ${badge.color}`}
                           >
                             {badge.label}
                           </span>
@@ -579,7 +579,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ mapInstance }) => {
                 <button
                   type="button"
                   onClick={clearRecentSearches}
-                  className="flex items-center gap-1 text-[10px] text-zinc-500 hover:text-zinc-300 transition"
+                  className="flex items-center gap-1 text-[11px] text-zinc-500 hover:text-zinc-300 transition"
                   title="Clear recent searches"
                 >
                   <Trash2 size={11} />
@@ -625,7 +625,7 @@ export const SearchModal: React.FC<SearchModalProps> = ({ mapInstance }) => {
           )}
 
           {/* Footer attribution & tips */}
-          <div className="flex items-center justify-between border-t border-white/[0.08] px-3.5 py-2 text-[10.5px] text-zinc-500">
+          <div className="flex items-center justify-between border-t border-white/[0.08] px-3.5 py-2 text-[11px] text-zinc-500">
             <span>Powered by OpenStreetMap &amp; Nominatim</span>
             <span className="hidden sm:inline">Press Enter to select · Esc to close</span>
           </div>

@@ -140,6 +140,7 @@ export const MapCanvas: React.FC<MapCanvasProps> = ({ onMapReady }) => {
       (window as any).__map = map;
       (window as any).__store = useMapStore;
     }
+    map.addControl(new maplibregl.ScaleControl({ maxWidth: 120, unit: 'metric' }), 'bottom-right');
     map.getCanvas().addEventListener('contextmenu', (e) => e.preventDefault());
 
     map.on('load', () => {
